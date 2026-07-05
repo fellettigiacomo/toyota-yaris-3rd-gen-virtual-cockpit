@@ -12,9 +12,12 @@
 // actually confirmed present on the user's board (photographed silkscreen):
 // 0, 1, 2, 3, 4, 5, 19, 20, 38, 39, 40, 41, 43, 44 (+ 3V3/BAT/G/5V/SDA/SCL).
 // Excluded from consideration: GPIO0/3 (boot strapping, GPIO0 already wired to
-// the BOOT button), GPIO19/20 (native USB D-/D+), GPIO39/40/41 (already used
+// the BOOT button), GPIO19/20 (native USB D-/D+ -- shares the USB-C port used
+// for flashing/serial monitor, do NOT repurpose), GPIO39/40/41 (already used
 // internally by the onboard SDMMC card slot), GPIO43/44 (UART0, used by the
-// USB-serial bridge for flashing/serial monitor).
+// USB-serial bridge for flashing/serial monitor), SDA/SCL (GPIO47/48, already
+// used internally for the RTC/IMU I2C bus -- also electrically incompatible
+// with the CAN transceiver's digital TX/RX signaling anyway).
 
 // --- AXS15231B display, QSPI (SPI2_HOST via Arduino_ESP32QSPI) ---
 constexpr int PIN_LCD_QSPI_CS   = 9;
@@ -48,8 +51,8 @@ constexpr int PIN_SD_D0  = 40;
 // RS pin on the SN65HVD230 breakout should be wired directly to GND (always
 // high-speed mode). Leave the breakout's onboard 120-ohm termination jumper
 // OPEN/disabled -- the vehicle's OBD-II bus is already terminated at both ends.
-constexpr int PIN_TWAI_TX = 4; // ESP32 GPIO4 -> SN65HVD230 "TX" (D input)
-constexpr int PIN_TWAI_RX = 5; // ESP32 GPIO5 <- SN65HVD230 "RX" (R output)
+constexpr int PIN_TWAI_TX = 1; // ESP32 GPIO1 -> SN65HVD230 "TX" (D input)
+constexpr int PIN_TWAI_RX = 2; // ESP32 GPIO2 <- SN65HVD230 "RX" (R output)
 
 // --- Physical BOOT button, used here as the capture stop/session control input ---
 constexpr int PIN_BOOT_BUTTON = 0; // active LOW

@@ -22,10 +22,10 @@ can be reverse-engineered afterwards on a PC.
 
 | SN65HVD230 pin | Connect to |
 |---|---|
-| VCC | 3V3 (expansion header) |
-| GND | G (expansion header) |
-| TX  | GPIO4 |
-| RX  | GPIO5 |
+| VCC | 3V3 (expansion header, right column) |
+| GND | G (expansion header, right column) |
+| TX  | GPIO1 |
+| RX  | GPIO2 |
 | RS  | GND (always high-speed mode) |
 | CANH | OBD-II pin 6 |
 | CANL | OBD-II pin 14 |
@@ -35,11 +35,18 @@ can be reverse-engineered afterwards on a PC.
 - Leave the SN65HVD230 breakout's onboard 120-ohm termination jumper **open
   / disabled**. The vehicle's CAN bus is already terminated at both ends;
   adding a third 120-ohm resistor degrades signal integrity.
-- GPIO4/GPIO5 were chosen from the 22-pin expansion header pins confirmed
+- GPIO1/GPIO2 were chosen from the 22-pin expansion header pins confirmed
   present on this board's silkscreen (0, 1, 2, 3, 4, 5, 19, 20, 38, 39, 40,
-  41, 43, 44). Avoided: GPIO0/3 (boot strapping -- GPIO0 is already wired to
-  the BOOT button), GPIO19/20 (native USB), GPIO39/40/41 (used internally by
-  the onboard SD card slot), GPIO43/44 (UART0 / USB-serial bridge).
+  41, 43, 44). Avoided: **GPIO0/3** (boot strapping -- GPIO0 is already wired
+  to the BOOT button), **GPIO19/20** (native USB D-/D+ -- this is the same
+  USB-C port used for flashing and the serial monitor; wiring anything else
+  to these pins conflicts electrically with the USB PHY and will break USB
+  communication), **GPIO39/40/41** (used internally by the onboard SD card
+  slot), **GPIO43/44** (UART0 / USB-serial bridge), and **SDA/SCL** (GPIO47/48,
+  already used internally for the RTC/IMU I2C bus -- also electrically
+  incompatible with the transceiver's TX/RX signaling even if it were free).
+  GPIO4/GPIO5 are an equally valid alternative pair (also on the header's
+  right column) if GPIO1/2 turn out to be inconvenient to wire.
 - All onboard peripheral pins (display, RTC, SD) in `include/board_pins.h`
   were extracted directly from Waveshare's own official example code
   (`github.com/waveshareteam/ESP32-S3-Touch-LCD-3.49`), not guessed.
@@ -97,10 +104,10 @@ timestamps relative to the ESP32's own boot time (filenames get a
 ## Bring-up order (do this in order, do not skip ahead)
 
 1. **Display/SD/RTC only.** Flash and check the serial monitor + screen with
-   nothing connected to GPIO4/5 yet. Confirm the stats bar renders, the SD
+   nothing connected to GPIO1/2 yet. Confirm the stats bar renders, the SD
    card mounts (`SD:` shows free space instead of `NONE`), and the RTC
    responds.
-2. **CAN bench test, no vehicle.** Wire the SN65HVD230 to GPIO4/5 (RS to
+2. **CAN bench test, no vehicle.** Wire the SN65HVD230 to GPIO1/2 (RS to
    GND, termination jumper open) but do **not** connect CANH/CANL to the car
    yet. The TWAI driver runs in `TWAI_MODE_LISTEN_ONLY` -- per the ESP-IDF
    documentation this mode does not transmit or ACK anything on the bus, so
