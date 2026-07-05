@@ -30,6 +30,32 @@ void handleSerialCommand(const String &line) {
     }
 }
 
+// Compact one-line status, same fields as display_ui.cpp's stats bar, printed
+// periodically so capture progress is visible over serial even when the
+// display isn't working.
+void printStatusLine() {
+    CanCaptureStats canStats = CanCapture::getStats();
+    SdLoggerStats sdStats = SdLogger::getStats();
+    uint32_t upSec = millis() / 1000;
+
+    Serial.printf("[status] %.1ff/s Bus:%.1f%% Err:%lu BusOff:%lu SD:%s",
+                  canStats.frames_per_sec, canStats.bus_load_pct,
+                  static_cast<unsigned long>(canStats.bus_error_count),
+                  static_cast<unsigned long>(canStats.bus_off_count),
+                  sdStats.card_mounted ? (sdStats.session_open ? "open" : "mounted") : "NONE");
+    if (sdStats.card_mounted) {
+        Serial.printf(" %.1fGBfree Q:%lu%% session:%lu frames:%lu",
+                      sdStats.free_space_gb,
+                      static_cast<unsigned long>(canStats.sd_queue_backlog_pct),
+                      static_cast<unsigned long>(sdStats.session_number),
+                      static_cast<unsigned long>(sdStats.frames_written));
+    }
+    Serial.printf(" Up:%02lu:%02lu:%02lu\n",
+                  static_cast<unsigned long>(upSec / 3600),
+                  static_cast<unsigned long>((upSec / 60) % 60),
+                  static_cast<unsigned long>(upSec % 60));
+}
+
 } // namespace
 
 void setup() {
@@ -56,5 +82,13 @@ void loop() {
         line.trim();
         handleSerialCommand(line);
     }
+
+    static uint32_t lastStatusMs = 0;
+    uint32_t nowMs = millis();
+    if (nowMs - lastStatusMs >= SERIAL_STATUS_INTERVAL_MS) {
+        lastStatusMs = nowMs;
+        printStatusLine();
+    }
+
     vTaskDelay(pdMS_TO_TICKS(50));
 }

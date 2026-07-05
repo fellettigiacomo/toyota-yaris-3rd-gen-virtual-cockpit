@@ -45,3 +45,7 @@ constexpr int CAN_ID_TABLE_MAX_ENTRIES = 300; // typical vehicle-bus unique-ID c
 
 // --- Serial control commands ---
 constexpr uint32_t SERIAL_BAUD = 115200;
+
+// Periodic compact status line printed to Serial (same fields as the display's
+// stats bar), so capture progress is visible even without a working screen.
+constexpr uint32_t SERIAL_STATUS_INTERVAL_MS = 1000;
