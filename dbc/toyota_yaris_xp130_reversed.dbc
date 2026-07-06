@@ -1,0 +1,97 @@
+CM_ "Toyota Yaris Hybrid 2014 (XP130, THS-II NoDSU) - reverse engineered from OBD-II HS-CAN candump (500kbps).";
+CM_ "Base messages taken from BogGyver/opendbc (tesla_unity_dev) toyota_nodsu_hybrid_pt_generated.dbc and empirically validated";
+CM_ "against a real ~7min drive log (data/logs/session_0044.log). Additions for BRAKE_ANALOG (0x224) and";
+CM_ "COMBO_METER_0x34 (0x618) are original findings from this project, not present in opendbc.";
+CM_ "See docs/signal_findings.md for full validation methodology and confidence levels.";
+
+BO_ 180 SPEED: 8 XXX
+ SG_ ENCODER : 39|8@0+ (1,0) [0|255] "" XXX
+ SG_ SPEED : 47|16@0+ (0.01,0) [0|250] "kph" XXX
+ SG_ CHECKSUM : 63|8@0+ (1,0) [0|255] "" XXX
+
+CM_ SG_ 180 SPEED "CONFIRMED. Validated against real 0->60->0 kph driving profile.";
+
+BO_ 452 ENGINE_RPM: 8 XXX
+ SG_ RPM : 7|16@0- (0.78125,0) [0|0] "rpm" XXX
+
+CM_ SG_ 452 RPM "CONFIRMED. Oscillates 0/~1000-2000rpm matching ICE start/stop cycling typical of THS-II.";
+
+BO_ 295 GEAR_PACKET: 8 XXX
+ SG_ CAR_MOVEMENT : 39|8@0- (1,0) [0|255] "" XXX
+ SG_ GEAR : 47|4@0+ (1,0) [0|15] "" XXX
+ SG_ COUNTER : 55|8@0+ (1,0) [0|255] "" XXX
+ SG_ CHECKSUM : 63|8@0+ (1,0) [0|255] "" XXX
+
+VAL_ 295 GEAR 0 "P" 1 "R" 2 "N" 3 "D" 4 "B" ;
+CM_ SG_ 295 GEAR "CONFIRMED. Real log shows GEAR: P(0) 0-50.4s -> R(1) 50.4-60.1s -> D(3) 60.1s-end, with SPEED=0 while parked, a reverse bump (0->4.7kph) during the R phase and forward acceleration (0->10+kph) right after the D shift. Physically coherent 'back out of parking space then drive' maneuver. NOTE: 0x127 was previously suspected to be a 'drive mode' counter; that counter is actually the CAR_MOVEMENT byte, a separate field in the same message.";
+
+BO_ 560 BRAKE_MODULE2: 7 XXX
+ SG_ BRAKE_PRESSED : 26|1@0+ (1,0) [0|1] "" XXX
+
+CM_ SG_ 560 BRAKE_PRESSED "CONFIRMED. Transition timings correlate exactly with GEAR shifts and SPEED changes (brake held at standstill before/after each gear change).";
+
+BO_ 548 BRAKE_ANALOG: 8 XXX
+ SG_ BRAKE_VALUE : 32|16@0+ (1,0) [0|1023] "" XXX
+
+CM_ BO_ 548 "STRONG HYPOTHESIS (not in any opendbc DBC - original finding). ID 0x224, not present in upstream Toyota DBCs (which define BRAKE_MODULE with pressure/position at 0x226, absent from this vehicle's OBD-II-reachable bus). Formula: value = (byte[4]<<8 | byte[5]), i.e. bits 32-47 as a big-endian 16-bit (effectively ~10-bit, max observed 537) quantity. Statistically: median=0 / mean=0.04 while BRAKE_PRESSED=0 (n=12027), median=62 / mean=154 / max=537 while BRAKE_PRESSED=1 (n=5731); 84% of pressed samples have value>5, 99.99% of released samples have value<=5. Strong correlation confirms this is a brake pedal analog signal (pressure and/or position), but exact physical units/scale are NOT confirmed.";
+
+BO_ 581 GAS_PEDAL: 8 XXX
+ SG_ GAS_PEDAL : 23|8@0+ (0.005,0) [0|1] "" XXX
+
+CM_ SG_ 581 GAS_PEDAL "CONFIRMED. 0.0-0.35 (0-35%) range observed, closely tracking the accelerate/coast pattern of city driving and preceding each RPM/SPEED rise.";
+
+BO_ 1553 UI_SETTING: 8 XXX
+ SG_ UNITS : 26|2@0+ (1,0) [0|3] "" XXX
+ SG_ ODOMETER : 43|20@0+ (1,0) [0|1048575] "" XXX
+
+VAL_ 1553 UNITS 1 "km" 2 "miles" ;
+CM_ SG_ 1553 ODOMETER "CONFIRMED but NOT remaining range. This is the TOTAL vehicle odometer (99552 -> 99555 km over the ~7min/~3km log, UNITS=km). No distance-to-empty / remaining-range signal or HV SOC% was found in this capture -- see docs/signal_findings.md section 2 for the negative-result justification.";
+
+BO_ 1556 STEERING_LEVERS: 8 XXX
+ SG_ TURN_SIGNALS : 29|2@0+ (1,0) [0|3] "" XXX
+ SG_ HAZARD_LIGHT : 27|1@0+ (1,0) [0|1] "" XXX
+
+VAL_ 1556 TURN_SIGNALS 3 "none" 2 "right" 1 "left" ;
+CM_ SG_ 1556 TURN_SIGNALS "CONFIRMED. All 3 states (left/right/none) observed over the drive with plausible multi-second durations consistent with real indicator usage at turns.";
+
+BO_ 1568 SEATS_DOORS: 8 XXX
+ SG_ SEATBELT_DRIVER_UNLATCHED : 62|1@0+ (1,0) [0|1] "" XXX
+ SG_ DOOR_OPEN_FL : 45|1@0+ (1,0) [0|1] "" XXX
+ SG_ DOOR_OPEN_FR : 44|1@0+ (1,0) [0|1] "" XXX
+ SG_ DOOR_OPEN_RL : 42|1@0+ (1,0) [0|1] "" XXX
+ SG_ DOOR_OPEN_RR : 43|1@0+ (1,0) [0|1] "" XXX
+
+CM_ BO_ 1568 "CONFIRMED PRESENT, plausible (seatbelt toggles 0/1); doors never opened during this particular drive so DOOR_OPEN_* only show constant 0 in this log (not independently validated, but the message/bit layout is inherited verbatim from opendbc).";
+
+BO_ 921 PCM_CRUISE_SM: 8 XXX
+ SG_ MAIN_ON : 4|1@0+ (1,0) [0|1] "" XXX
+ SG_ CRUISE_CONTROL_STATE : 11|4@0+ (1,0) [0|15] "" XXX
+ SG_ DISTANCE_LINES : 14|2@0+ (1,0) [0|3] "" XXX
+ SG_ UI_SET_SPEED : 31|8@0+ (1,0) [0|255] "" XXX
+
+CM_ BO_ 921 "PRESENT but INACTIVE for the whole log (all-zero) -- cruise control was never engaged during capture, so fields could not be behaviourally validated beyond confirming the message exists at the expected ID/layout.";
+
+BO_ 951 ESP_CONTROL: 8 XXX
+ SG_ TC_DISABLED : 13|1@0+ (1,0) [0|1] "" XXX
+ SG_ VSC_DISABLED : 12|2@0+ (1,0) [0|1] "" XXX
+ SG_ BRAKE_LIGHTS_ACC : 18|1@0+ (1,0) [0|1] "" XXX
+
+CM_ BO_ 951 "PRESENT but INACTIVE for the whole log (no VSC/TC intervention occurred during this calm drive).";
+
+BO_ 1570 LIGHT_STALK: 8 XXX
+ SG_ HIGH_BEAM : 30|1@0+ (1,0) [0|1] "" XXX
+ SG_ LOW_BEAM : 29|1@0+ (1,0) [0|1] "" XXX
+ SG_ PARKING_LIGHT : 28|1@0+ (1,0) [0|1] "" XXX
+ SG_ FRONT_FOG : 27|1@0+ (1,0) [0|1] "" XXX
+ SG_ AUTO_HIGH_BEAM : 37|1@0+ (1,0) [0|1] "" XXX
+
+CM_ BO_ 1570 "CONFIRMED PRESENT; LOW_BEAM/PARKING_LIGHT toggled 0/1 during the log, plausible.";
+
+BO_ 1560 COMBO_METER_0x34: 8 XXX
+ SG_ TEMP_RAW : 24|8@0+ (1,0) [0|255] "" XXX
+
+CM_ BO_ 1560 "STRONG HYPOTHESIS, original finding (not in any opendbc DBC). ID 0x618 belongs to a family of low-frequency (~0.1Hz) 'combination meter' multiplex messages (0x610-0x615, 0x618-0x61c) where byte[0] is a constant per-ID parameter-index tag (unrelated to numeric CAN ID order). byte[3] (TEMP_RAW here) climbs monotonically and smoothly from 0 at cold start/idle (t=0-64s, matches GEAR=P) to a plateau around 230-240 by t=350-430s, in lock-step with the engine actually running (matches GEAR shifting to R/D at t=50-60s). This is the textbook shape of an engine coolant warm-up curve reaching thermostat-regulated operating temperature after ~5 minutes of driving. Candidate formula (UNCONFIRMED SCALE): temp_C = TEMP_RAW * 0.375, which places the plateau at a plausible 90 deg C; this scale factor is a best-fit guess, not derived from a reference thermometer reading. Could equally be transmission/CVT fluid temperature rather than coolant -- not distinguishable from this data alone.";
+
+CM_ "=== MANDATORY SIGNALS NOT FOUND (see docs/signal_findings.md for full explanation) ===";
+CM_ "Remaining range (km) / HV battery SOC%: NOT FOUND. Prius-family reference docs (EAA-PHEV wiki, PriusChat Gen2 CAN/OBD2 PID list) show HV SOC only available via (a) solicited UDS diagnostic requests to the Battery ECU (0x7E2/0x7E3, Mode 21 PIDs C3/CE), not broadcast periodically, or (b) the unsolicited 0x0529 message (MFD SOC bars + EV-mode bits), which -- exactly like the already-documented negative finding for 0x529 on this vehicle -- never appears in this OBD-II capture. Ruled out as living behind a gateway not reachable from the OBD-II HS-CAN tap on this platform.";
+CM_ "EV mode (explicit bit): NOT FOUND, for the same reason as 0x529 above. PROXY IMPLEMENTED instead: RPM(0x1C4) < 50 while SPEED(0x0B4) > 1 kph. Over this log, 53.0% of time spent moving matches this proxy, with 23 transitions in/out of it -- consistent with typical THS-II engine start/stop cycling during city driving. This is a derived/inferred signal, not a decoded CAN bit.";
