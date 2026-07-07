@@ -24,7 +24,7 @@ BO_ 295 GEAR_PACKET: 8 XXX
  SG_ CHECKSUM : 63|8@0+ (1,0) [0|255] "" XXX
 
 VAL_ 295 GEAR 0 "P" 1 "R" 2 "N" 3 "D" 4 "B" ;
-CM_ SG_ 295 GEAR "CONFIRMED. Real log shows GEAR: P(0) 0-50.4s -> R(1) 50.4-60.1s -> D(3) 60.1s-end, with SPEED=0 while parked, a reverse bump (0->4.7kph) during the R phase and forward acceleration (0->10+kph) right after the D shift. Physically coherent 'back out of parking space then drive' maneuver. NOTE: 0x127 was previously suspected to be a 'drive mode' counter; that counter is actually the CAR_MOVEMENT byte, a separate field in the same message.";
+CM_ SG_ 295 GEAR "CONFIRMED, all 5 states observed across two independent logs. session_0044: P(0) 0-50.4s -> R(1) 50.4-60.1s -> D(3) 60.1s-end, with SPEED=0 while parked, a reverse bump (0->4.7kph) during the R phase and forward acceleration (0->10+kph) right after the D shift. session_0047: P(0) held ~98s at standstill -> N(2)->R(1)->N(2)->D(3) pull-out sequence -> D held for ~280s of real driving -> end-of-log full gear cycle R(1)->D(3)->B(4)->D(3)->N(2)->R(1)->D(3)->P(0), confirming B (Engine Brake) as well. NOTE: 0x127 was previously suspected to be a 'drive mode' counter; that counter is actually the CAR_MOVEMENT byte, a separate field in the same message.";
 
 BO_ 560 BRAKE_MODULE2: 7 XXX
  SG_ BRAKE_PRESSED : 26|1@0+ (1,0) [0|1] "" XXX

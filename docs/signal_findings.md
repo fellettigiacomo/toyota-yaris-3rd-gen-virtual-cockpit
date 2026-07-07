@@ -175,3 +175,20 @@ Tuttavia, l'**ID 0x224** (presente, frequenza ~41 Hz, la stessa di SPEED e BRAKE
 | 8 | EV mode | ❌/✅ | proxy derivato | Bit assente (motivato); proxy validato |
 
 File di output completo: `dbc/toyota_yaris_xp130_reversed.dbc`.
+
+---
+
+## Addendum — sessione 0047 (ESP32 inline tra scatoletta CAN e auto)
+
+Secondo log (`data/logs/session_0047.log`, 272 511 frame, 440s, 100 ID unici) catturato collegando l'ESP32 **in mezzo** tra l'ingresso della scatoletta CAN dell'autoradio Android e i cavi auto (box riconnesso, non più scollegato come in session_0044).
+
+**Bonus — GEAR ora validato su tutti e 5 gli stati**: dai marcatori a freno lasciati dall'utente si ricostruisce l'intera sessione — fermo in P per ~98s (nessuna marcia innestata, coerente con "a fermo non compare nulla" sul display), poi P→N→R→N→D a t≈99-108s, marcia D ininterrotta per ~280s, poi un cluster di 5-6 frenate a t≈389-391s seguito da un giro completo delle marce **R→D→B→D→N→R→D→P**. È il primo avvistamento dello stato **B (Engine Brake, valore 4)**, che completa la validazione di `VAL_ 295 GEAR` su tutti i 5 stati (P/R/N/D/B) invece dei soli 3 (P/R/D) visti nella prima sessione.
+
+**Ricerca del canale SOC/power-flow — risultato negativo ma informativo**:
+- Diff degli ID unici tra le due sessioni: **10 ID compaiono solo in session_0047** (con la scatoletta ricollegata): `0x2FC 0x387 0x389 0x38E 0x38F 0x434 0x435 0x443 0x458 0x6F9`. Nessun ID è sparito.
+- Controllo incrociato: nessun byte di un ID già noto passa da "costante" (in 0044) a "variabile" (in 0047) — la scatoletta non "risveglia" segnali dormienti già mappati.
+- **Tutti e 10 gli ID nuovi hanno un unico valore esadecimale fisso per l'intera sessione di 440s**, comprese le frenate, i cambi marcia e ~5 minuti di guida reale (es. `0x387` sempre `000000003f3f3f3f`, `0x434` sempre `414000c000000000`, ecc. — vedi tabella completa nei log della conversazione). Alcuni contenuti (es. `0x434` che inizia con `0x41`, `0x40`) ricordano il formato classico di risposta OBD2 (Service ID + 0x40), suggerendo un handshake/scambio di capacità diagnostiche a sessione fissa, ripetuto come keep-alive — non un canale dati che trasporta un valore che cambia.
+- **Conclusione**: questi 10 ID nuovi NON possono essere il canale del flusso energia/SOC che l'utente vede aggiornarsi in tempo reale sull'autoradio, perché il loro contenuto non varia mai. Su due catture indipendenti dello stesso bus (connettore autoradio, ~850s di guida reale in totale, 100 ID unici totali) non è mai comparso alcun segnale con una dinamica compatibile con SOC/EV-mode/power-flow.
+- **Ipotesi di lavoro aggiornata**: è sempre più probabile che l'autoradio ottenga quei dati da un **canale fisico diverso**, non ancora catturato — es. un secondo modulo/dongle OBD (spesso Bluetooth, o cablato direttamente sulla porta OBD-II a 16 pin) tipico di questi kit Android più completi, distinto dalla scatoletta CAN sul connettore autoradio. Da verificare fisicamente sul veicolo prima di continuare la cattura.
+
+Script aggiunto per questa analisi: `tools/diff_byte_activity.py` (confronta la cardinalità dei valori per ogni (ID, byte) fra due log, per individuare segnali che "si svegliano" da una sessione all'altra).
