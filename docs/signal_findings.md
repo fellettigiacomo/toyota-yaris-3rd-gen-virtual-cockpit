@@ -1,6 +1,10 @@
 # Toyota Yaris Hybrid XP130 (2014, THS-II NoDSU) — CAN bus signal findings
 
-Log analizzato: `data/logs/session_0044.log` (candump, HS-CAN via OBD-II, 500 kbps).
+Log analizzato: `data/logs/session_0044.log` (candump, 500 kbps).
+
+**Punto di aggancio fisico (correzione importante rispetto alla prima stesura di questo documento): il log NON è stato catturato dalla porta OBD-II.** È stato catturato collegando l'ESP32 al **connettore da 28 pin dell'autoradio di serie (part number 90980-12555)**, sui pin **9 (CAN-H, beige) e 10 (CAN-L, bianco)** — lo stesso punto dove normalmente si aggancia la scatoletta CAN-bus dell'autoradio Android cinese ("simple soft"), che per questa cattura era fisicamente scollegata e sostituita dall'ESP32. Vedi `pinoutguide.com` per il pinout completo di questo connettore.
+
+Questo è rilevante per l'interpretazione dei segnali assenti (punto 2 e 8 sotto): dato che il set di messaggi visti su questo connettore (SPEED, RPM, GEAR, BRAKE, GAS_PEDAL, TURN_SIGNALS, ODOMETER, SEATS_DOORS, LIGHT_STALK, ecc.) è essenzialmente lo stesso che ci si aspetterebbe sul bus HS-CAN principale, è probabile che questo connettore sia un aggancio dello **stesso bus logico** usato anche dall'OBD-II (o comunque di un bus che porta lo stesso traffico broadcast), non un bus separato e "più ricco". Di conseguenza, il fatto che SOC/EV-mode/range non compaiano nemmeno qui **non si spiega più con "bus diverso non raggiungibile"**, ma punta più decisamente verso l'ipotesi che la scatoletta cinese ottenga quei dati con **richieste diagnostiche attive (UDS/ISO-TP)** inviate sul bus, non con puro ascolto passivo — esattamente come la documentazione Prius (EAA-PHEV, PriusChat) descrive per SOC/temperatura batteria HV, disponibili solo via richieste Mode 21 solecitate all'ECU batteria, non come broadcast. Verifica in corso: prossimo log con la scatoletta ricollegata e ESP32 in ascolto in parallelo (vedi conversazione).
 
 - 337 005 frame totali, 90 ID unici.
 - Le prime 193 righe portano un timestamp RTC non impostato (epoch enorme e non monotono, da cui il nome del file `RTCUNSET`); sono state scartate. Il resto è un'unica sessione continua e monotona di **430.4 secondi (~7.2 minuti)** di guida reale.
@@ -47,14 +51,13 @@ Cercato sia "range residuo km" sia, come da mandato, "% carica batteria HV" come
    - **Il messaggio 0x0529** (una volta al secondo), che porta anche le barre SOC del display *e i bit EV-Mode Active/Cancelled/Denied*.
    - Il dettaglio completo (voltaggio per singolo blocco cella, temperatura, corrente) è disponibile **solo via richiesta diagnostica UDS solecitata** (Mode 21, PID 0xC3/0xCE, ECU 0x7E2/0x7E3), NON come broadcast periodico.
 3. **Ho verificato con grep diretto sul log che né 0x3CA, 0x3CB, 0x3CC, 0x3CD, né 0x529 compaiono mai** — zero occorrenze, in linea con quanto già osservato dall'utente per 0x529 durante centinaia di migliaia di frame di guida reale.
-4. Questo è coerente con l'architettura NoDSU/Yaris (generazione e piattaforma diversa dal Prius Gen2): gli ID del nostro log non coincidono affatto con lo schema Prius Gen2 nemmeno per segnali comuni già confermati (es. Marcia è 0x127 qui contro 0x120 sul Prius Gen2; Velocità 0x0B4 qui, che sul Prius Gen2 risultava "sconosciuto"/non decodificato dalla community). È quindi plausibile che il bus HV/batteria su questo veicolo viva su un segmento CAN separato (bus "ibrido"/inverter), dietro un gateway non raggiungibile dalla porta OBD-II — esattamente come già ipotizzato per 0x529.
+4. **Aggiornamento importante**: questo log è stato catturato non da OBD-II ma direttamente sul connettore da 28 pin dell'autoradio (pin 9/10 CAN-H/CAN-L, part number 90980-12555) — lo stesso punto dove normalmente è collegata la scatoletta CAN cinese, che *riesce* a mostrare SOC/EV-mode sullo stesso veicolo. Dato che il set di messaggi osservato su questo connettore coincide con quello che ci si aspetta sul bus HS-CAN principale (SPEED, RPM, GEAR, freni, ecc. tutti presenti e validati), è verosimile che **non sia un bus diverso/più ricco**, ma lo stesso bus logico. Questo sposta il sospetto principale dall'ipotesi "bus separato non raggiungibile" verso l'ipotesi **"la scatoletta interroga attivamente l'ECU batteria con richieste diagnostiche (UDS/ISO-TP), mentre il nostro ESP32 finora ha solo ascoltato passivamente"** — esattamente il meccanismo descritto nella documentazione Prius (SOC/temperatura HV disponibili solo via richiesta Mode 21 solecitata, non come broadcast). Non è comunque escluso al 100% un bus fisicamente diverso raggiunto da altri pin non ancora ispezionati.
 
-**Cosa servirebbe per continuare:**
-- Un accesso diagnostico attivo (invio richieste UDS Mode 21/22 con `cansend`/`isotp` verso possibili ECU indirizzi tipo 0x7E2/0x7E3 o equivalenti su questo modello) invece di sola cattura passiva.
-- Oppure un punto di aggancio fisico diverso (es. connettore diretto sul bus ibrido/inverter, se esiste e fisicamente accessibile, non solo OBD-II).
-- In alternativa, un log più lungo con più cicli di carica/scarica potrebbe comunque non bastare se il segnale semplicemente non è instradato sull'HS-CAN visibile da OBD-II.
+**Cosa servirebbe per continuare (piano in corso):**
+- **Test principale**: ricollegare la scatoletta cinese e mettere l'ESP32 in ascolto passivo IN PARALLELO sullo stesso connettore, catturando un log mentre si apre la schermata "flusso energia" sull'autoradio (che impiega ~10s a caricare — sintomo tipico di un roundtrip diagnostico attivo). Se in quella finestra compaiono ID nuovi mai visti nei log precedenti (es. richieste/risposte in stile UDS, tipicamente coppie di ID vicine in range come 0x7Dx/0x7Ex o simili), quello è il canale usato dalla scatoletta e possiamo decodificarlo.
+- Se anche così non compare nulla di nuovo: provare un secondo punto di aggancio fisico (altri connettori menzionati nel pinout, es. 24/12/8 pin per varianti pre/post 2014) o inviare noi stessi richieste diagnostiche di prova (`isotpsend`/`cansend` con Mode 21/22) verso indirizzi ECU candidati.
 
-**Confidenza: nessuna — assenza accertata e motivata, non solo "non cercato".**
+**Confidenza: nessuna — assenza accertata; causa più probabile ora identificata (polling attivo) ma da confermare col prossimo log.**
 
 ---
 
@@ -144,7 +147,7 @@ Tuttavia, l'**ID 0x224** (presente, frequenza ~41 Hz, la stessa di SPEED e BRAKE
 
 ## 8. EV mode — ❌ Bit esplicito NON TROVATO / ✅ PROXY costruito e validato
 
-**Bit esplicito**: come da ipotesi di partenza, il messaggio Prius `0x0529` (che su Prius Gen2 porta esattamente `EV-Mode Active {E:6}`, `EV-Mode Cancelled {E:7}`, `EV-Mode Denied {F:5,6,7}`) **non compare mai** in questo log (0 occorrenze, grep diretto) — confermando e rafforzando l'ipotesi già retrattata dall'utente. Nessun altro ID nel log porta un bit etichettabile come "EV mode" in nessuno dei DBC controllati.
+**Bit esplicito**: come da ipotesi di partenza, il messaggio Prius `0x0529` (che su Prius Gen2 porta esattamente `EV-Mode Active {E:6}`, `EV-Mode Cancelled {E:7}`, `EV-Mode Denied {F:5,6,7}`) **non compare mai** in questo log (0 occorrenze, grep diretto). Nessun altro ID nel log porta un bit etichettabile come "EV mode" in nessuno dei DBC controllati. **Nota aggiornata**: questo log proviene dal connettore autoradio (pin 9/10, stesso punto della scatoletta cinese che invece mostra l'EV-mode), non da un ipotetico bus separato — quindi l'assenza qui punta più verso "serve una richiesta diagnostica attiva" che verso "bus irraggiungibile" (vedi punto 2 sopra per il ragionamento completo).
 
 **Proxy costruito**: `EV_MODE_PROXY = (RPM(0x1C4) < 50) AND (SPEED(0x0B4) > 1 kph)` — cioè "il veicolo si muove ma il motore termico è di fatto fermo", condizione che su un ibrido THS-II implica trazione elettrica pura.
 
