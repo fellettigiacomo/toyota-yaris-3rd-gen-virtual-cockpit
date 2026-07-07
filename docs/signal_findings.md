@@ -173,8 +173,11 @@ Tuttavia, l'**ID 0x224** (presente, frequenza ~41 Hz, la stessa di SPEED e BRAKE
 | 6c | Freno % / posizione | ⚠️ trovato | 0x224 byte[4:6] | Ipotesi forte, scala incerta |
 | 7 | Giri motore | ✅ confermato | 0x1C4 `RPM` | Validato (già noto) |
 | 8 | EV mode | ❌/✅ | proxy derivato | Bit assente (motivato); proxy validato |
+| 9 | Carburante | ⚠️ trovato | 0x3A0 `FUEL_RAW` | Ipotesi forte, scala incerta (rafforzata nel 3° giro) |
+| 10 | Temperatura #2 (olio/CVT/batteria?) | ⚠️ trovato | 0x3B9 `TEMP2_RAW` | Ipotesi forte, natura/scala incerta (NUOVO, 3° giro) |
+| 11 | Freno #2 (probabile ABS/VSC) | ⚠️ trovato, NON SOC | 0x4A2 `CHASSIS_BRAKE2` | Tentativo, esplicitamente escluso come batteria (3° giro) |
 
-File di output completo: `dbc/toyota_yaris_xp130_reversed.dbc`.
+File di output completo: `dbc/toyota_yaris_xp130_reversed.dbc`. Vedi anche l'addendum "terzo giro di analisi" più sotto per il dettaglio delle voci 9-11 e per la ricerca (senza esito) di SOC/EV-mode.
 
 ---
 
@@ -196,3 +199,72 @@ Secondo log (`data/logs/session_0047.log`, 272 511 frame, 440s, 100 ID unici) ca
 - **Conclusione per SOC/EV-mode**: non trovato nemmeno con questa scansione più estesa. Prossimo passo consigliato: catturare il lato **output della scatoletta verso l'autoradio** (non più l'input lato auto, già fatto due volte), per vedere direttamente il valore a 3 bit del function ID 0x1F che la scatoletta sintetizza, e da lì risalire per correlazione a cosa lo alimenta lato auto.
 
 Script aggiunti per questa analisi: `tools/diff_byte_activity.py` (cardinalità valori fra due log), `tools/find_battery_bars.py` (scansione enum a bassa cardinalità), `tools/find_soc_like.py` (correlazione con l'acceleratore), `tools/find_nibble_levels.py` (stessa ricerca a livello di nibble).
+
+---
+
+## Addendum — terzo giro di analisi (nessun nuovo log disponibile; ricerca web + analisi statistica estesa)
+
+Non essendo arrivati nuovi log (né una cattura UART sull'output della scatoletta, né nuovi candump lato auto), questo giro si è concentrato su (a) ricerca web più approfondita e (b) tecniche statistiche non ancora provate sui due log esistenti (`session_0044.log`, `session_0047.log`): combinazioni a 16 bit su coppie di byte non necessariamente adiacenti, correlazione incrociata gas/freno per ogni candidato, verifica più severa anti-wrap, e analisi dei gap di trasmissione sul bus.
+
+### Ricerca web — risultato negativo ma utile a restringere il campo
+
+Ricerca mirata (repository GitHub con lo stesso schema ID, altre scatolette CAN aftermarket, issue tracker opendbc, forum Prius/Yaris/Aqua, protocollo UART tipico di queste scatolette). Sintesi (fonti complete nella cronologia dell'agente di ricerca):
+
+- **Nessun repository trovato risolve SOC o la formula esatta del carburante per questa esatta piattaforma** (Toyota NoDSU hybrid). Il repo `smartgauges/canbox` (`cars/toyota_premio_26x.c`) conferma che **0xB4 (speed) e 0x611 (odometro) sono ID storici condivisi anche da altre piattaforme Toyota non ibride** (Premio T260, rete BEAN) con formule quasi identiche — ma RPM e marcia sono su ID diversi lì (0x2C4, 0x3B4), e non c'è alcun codice per carburante/batteria in quel file.
+- **Verifica diretta sui DBC upstream** (`toyota_nodsu_hybrid_pt_generated.dbc` e varianti correlate, branch `tesla_unity_dev`): confermato che **0x3A0 e 0x4A8 non sono definiti come messaggi in nessun DBC opendbc conosciuto**, e nessun DBC Toyota upstream contiene segnali "FUEL", "SOC" o "BATTERY". Non è quindi un problema già risolto altrove che ci stiamo perdendo: è territorio davvero non documentato.
+- **Nessun issue/PR** in `commaai/opendbc` o `BogGyver/opendbc` discute SOC o questi ID specifici.
+- **Nessuna scatoletta concorrente** (Raise/SK/Xtrons/Joying — cercate tramite repo firmware open source tipo `smartgauges/canbox`) ha codice di parsing per fuel/SOC su un Toyota ibrido.
+- **Dato potenzialmente utile per un futuro tentativo di cattura UART sull'output della scatoletta**: il firmware open-source `smartgauges/canbox` (`canbox.c`) usa un framing seriale `0x2E` (byte di start) + `type` (function id) + `size` + payload + checksum (XOR); esiste anche una variante "hiworld" con framing `0x5A 0xA5 size type payload checksum`. Non è confermato che il Simplesoft RP5-TY-101 usi esattamente questo framing, ma è un punto di partenza plausibile per interpretare un futuro dump UART grezzo (byte di sync `0x2E` o `0x5A 0xA5` da cercare nel flusso).
+- **Formula fuel level**: trovato solo lo standard generico SAE OBD-II Mode01 PID 0x2F (`100×A/255`), non specifico Toyota né legato al byte proprietario 0x3A0.
+
+### Verifica quantitativa del candidato carburante (0x3A0 byte[7]) — rafforza l'ipotesi, esclude "autonomia in km"
+
+Prima di questo giro non era stato controllato se il ritmo di diminuzione del byte correlasse meglio con la **distanza percorsa** (che punterebbe a "autonomia residua", uno dei segnali mandatori mancanti) o con il **tempo/motore acceso** (che punterebbe a consumo di carburante reale). Risultato:
+
+- Distanza (da `ODOMETER` 0x611): session_0044 -8 unità / 3 km = **~0.375 km/unità**; session_0047 -6 unità / 1 km = **~0.167 km/unità**. Rapporto fra le due sessioni: **~2.2x di discrepanza**.
+- Tempo trascorso (wall-clock): session_0044 ~430s/8 unità = **~53.8 s/unità**; session_0047 ~440s/6 unità = **~73.3 s/unità**. Rapporto: **~1.4x**.
+- Tempo motore acceso (RPM>500, integrato fra campioni consecutivi): session_0044 23.4 s/unità; session_0047 38.3 s/unità — **rapporto ~1.6x**, comunque più coerente fra le due sessioni della metrica a distanza (2.2x).
+- **Conclusione**: il ritmo di diminuzione segue meglio il tempo/motore-acceso che la distanza percorsa — comportamento atteso per consumo di carburante reale in guida cittadina stop-and-go (molto tempo motore acceso a bassa velocità/fermo, poca distanza), e più difficile da conciliare con un'ipotesi "autonomia residua in km" (che ci si aspetterebbe scalasse più direttamente con la distanza). Il segnale resta comunque coerente con l'ipotesi carburante già in essere; non abbastanza dati per un'esclusione statisticamente forte dell'ipotesi autonomia, ma l'evidenza pende verso carburante.
+- Osservazione addizionale: la lettura non decimata del byte (non a campioni ogni 20, ma ogni transizione) mostra un pattern di **oscillazione rapida fra valori adiacenti sovrapposto a un trend lento** (tipico rumore da sciabordio di un galleggiante), non una rampa liscia — ulteriore conferma fisica per "livello carburante analogico filtrato", coerente con l'ipotesi già in essere.
+- **Scala/formula in litri resta non confermata**: nessuna fonte trovata online con una formula raw→litri per questo ID proprietario; servirebbe comunque una lettura di riferimento nota (es. subito dopo un pieno).
+
+### Nuovo candidato: secondo segnale di temperatura — `0x3B9 byte[0]` — ⚠️ IPOTESI FORTE (nuovo)
+
+Messaggio a 3 byte (dlc=3, insolito), solo `byte[0]` attivo (byte1/2 sempre 0x00), trasmesso a ~1 Hz. In **entrambi** i log sale in modo liscio e quasi monotono da un valore stabile iniziale fino a un plateau/oscillazione nella parte finale della guida:
+
+- session_0044: 103 → 173 in ~430s, plateau/oscillazione stretta da t≈350s in poi.
+- session_0047: 114 → scende brevemente a 110 nei primi 102s → risale fino a 158-160, plateau/oscillazione simile da t≈350-400s.
+
+Correlazione **molto forte con il tempo trascorso** (r=0.945 / r=0.968) **e con il segnale temperatura già confermato** `TEMP_RAW` (0x618 byte[3]) (r=0.950 / r=0.969) — incluso un punto di flesso condiviso (entrambi i segnali rallentano/si stabilizzano nella stessa finestra temporale della sessione), non solo due trend monotoni indipendenti che correlano per coincidenza. Correlazione debole/negativa con l'RPM istantaneo (r=-0.16 / r=-0.10), il che esclude un segnale a risposta rapida e supporta una massa termica più grande/lenta del liquido di raffreddamento (candidati plausibili: olio motore, fluido cambio/CVT, o temperatura del pacco batteria HV — non distinguibili con questi dati). Il valore di plateau differisce fra le due sessioni (173 vs 160), a differenza del liquido di raffreddamento che è regolato a un set-point fisso dal termostato — coerente con una massa termica meno regolata il cui equilibrio dipende dalle condizioni specifiche del tragitto.
+
+Aggiunto al DBC come `TEMP_RAW2` (ID 0x3B9/953). **Nessuna formula/scala proposta.**
+
+### Nuovo candidato esaminato e SCARTATO come SOC: `0x4A2 byte[3]` e `byte[5]`
+
+Durante la scansione a 16-bit è emerso un candidato che a prima vista sembrava molto promettente per un segnale di potenza/corrente della batteria HV: `byte[3]` e `byte[5]` di 0x4A2 mostrano una **forte anti/correlazione con il pedale del freno** (r fino a +0.82/+0.87 per byte5, -0.83/-0.87 per byte3 nei due log) — esattamente il pattern atteso da un segnale "si scarica in accelerazione, si carica in frenata rigenerativa".
+
+**Verifica di controllo (lo stesso tipo di controllo che aveva già smascherato il falso positivo 0x4A8)**: questi due byte correlano ANCORA più fortemente con il segnale **freno analogico già confermato** `BRAKE_ANALOG` (0x224 byte[4:6]): r=-0.93/-0.79 (byte3) e r=+0.93/+0.79 (byte5). Correlano anche con `SPEED` (r=+0.60/+0.22 per byte3), cosa che un segnale di potenza batteria pura non dovrebbe fare (la potenza batteria dipende dall'accelerazione/frenata istantanea, non dalla velocità assoluta del veicolo).
+
+**Conclusione: quasi certamente un secondo segnale legato al freno/decelerazione, proveniente da un'altra ECU (es. ABS/VSC — pressione ai freni per ruota o decelerazione misurata), non un segnale di batteria HV.** Il pattern "carica in frenata" è interamente spiegabile dalla correlazione meccanica con la frenata stessa, che il segnale 0x224 già possiede. Aggiunto al DBC come `CHASSIS_BRAKE2` (ID 0x4A2/1186) con etichetta esplicita "TENTATIVE, non SOC" per evitare di reinvestigarlo in futuro come falso lead.
+
+### Rivalutazione estesa di 0x4A8 (il candidato già ritrattato) — la ritrattazione è confermata con più evidenza
+
+Combinando `byte[1]` (contatore grezzo che sale 0x06→0x09 nel corso della sessione) con i 3 bit alti di `byte[2]` come cifra "fine" dello stesso valore esteso (`byte1*8 + top3(byte2)`), il valore combinato **non è pulito**: sale per lo più ma con diminuzioni locali frequenti e non coerenti con eventi di guida, e soprattutto **occupa una banda diversa e non sovrapposta nei due log** (51-72 in session_0044 contro 50-58 in session_0047, quest'ultimo per giunta con un tuffo verso il basso subito dopo l'inizio). Nessuna narrativa fisica plausibile emerge nemmeno con questa risoluzione estesa. **La ritrattazione resta valida.**
+
+### Scansione sistematica a 16-bit e a sotto-byte, con validazione incrociata rigorosa
+
+Nuovo script `tools/find_word16_candidates.py`: genera ogni combinazione a 16 bit (byte adiacenti big-endian, little-endian, e byte non adiacenti con un salto di 1) per ogni ID non ancora spiegato, con filtro anti-wrap. Nuovo script `tools/cross_validate_candidates.py`: la stessa ricerca ma su **due log contemporaneamente**, tenendo solo i candidati presenti in entrambi con range numerico sovrapposto, più correlazione gas/freno per ciascuno — lo stesso standard di rigore che aveva già smascherato 0x4A8 come falso positivo, applicato sistematicamente invece che caso per caso.
+
+Risultato: **111 combinazioni comuni ai due log** dopo il filtro anti-wrap + range-sovrapposto; **nessuna** ha un profilo compatibile con SOC/EV-mode (bilanciate fra: doppioni del gas pedale/RPM già noti con |r|>0.9, il secondo segnale freno appena descritto e scartato, o telemetria ad alta frequenza/molte transizioni non fisicamente plausibile come batteria HV su una finestra di 7 minuti). Una scansione parallela a livello di nibble/3-bit ("battery bars" in stile function-ID 0x1F di zugetor, 2-8 valori distinti, zero wrap) ha prodotto 92 candidati comuni ai due log, tutti riconducibili a telemetria già nota/rumorosa (famiglie 0x4A0-0x4AF e 0x610-0x61C) senza alcun pattern "a barre lente" plausibile.
+
+Escluso separatamente per lo stesso motivo: `0x63B byte[6]`, che sembrava inizialmente un trend lento interessante ma **si è rivelato un contatore a periodo fisso di ~25.5s** (incrementa di 1 a intervalli quasi perfettamente regolari indipendentemente da marcia/velocità/frenate) — quasi certamente un heartbeat/contatore di uptime, non un segnale fisico. Documentato qui per evitare di reinvestigarlo.
+
+### Nuova osservazione metodologica: gap di trasmissione nel log 0047
+
+Nuovo script `tools/check_bus_gaps.py` (bucket da 10s, segnala bucket con meno dell'80% degli ID unici tipici). In `session_0047.log` è stato trovato un **buco di trasmissione di ~100 secondi** (t≈149.8-211.4s quasi totale, poi recupero parziale 42→91 ID unici fino a t≈250s, poi traffico normale su tutti i 100 ID). Un silenzio bus reale così lungo durante la guida è fisicamente implausibile (SPEED/RPM/GEAR trasmettono comunque in continuo); è molto più probabile un **blocco del buffer di logging dell'ESP32** (throughput sostenuto di ~800 frame/s è tanto per un logger di questo tipo) che un evento CAN genuino o una finestra diagnostica della scatoletta. Documentato come nota di qualità dei dati, non interpretato come indizio SOC — ma utile da monitorare (e possibilmente evitare con storage più veloce) in una futura cattura mirata all'output UART della scatoletta.
+
+### Conclusione di questo giro
+
+**SOC ed EV-mode restano non trovati.** Rispetto ai giri precedenti, però, il campo di ricerca sul lato auto→scatoletta è ora coperto in modo sistematico e cross-validato (16-bit, sotto-byte, correlazione gas/freno, gap di trasmissione, range diagnostico UDS) su entrambi i log, e la ricerca web conferma che non esiste una soluzione nota altrove per questo esatto schema di ID che ci siamo persi. La conclusione operativa non cambia rispetto al giro precedente ma si rafforza: **il prossimo passo utile non è più statistico sui dati esistenti, ma una nuova acquisizione fisica** — idealmente una cattura logic-analyzer/UART sul lato scatoletta→autoradio (baud rate da provare: 9600/19200/38400 8N1; cercare byte di sincronizzazione `0x2E` o `0x5A 0xA5` come punto di partenza per il framing, per analogia con firmware simili) per osservare direttamente il campo a 3 bit del function ID 0x1F descritto da zugetor, oppure un tentativo di richieste diagnostiche attive (UDS Mode 21/22) verso ECU candidate mentre si ascolta lato auto.
+
+Script aggiunti in questo giro: `tools/find_word16_candidates.py`, `tools/cross_validate_candidates.py`, `tools/check_bus_gaps.py`.
