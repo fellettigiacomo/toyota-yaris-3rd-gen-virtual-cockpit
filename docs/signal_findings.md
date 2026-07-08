@@ -386,6 +386,14 @@ unica strada per il SOC.
    batteria 12V con offset 128 o un trim. Bassa priorità.
 5. **0x4AE byte[7]** (72-75, sale lentamente in entrambi i log): debole candidato
    temperatura batteria HV/inverter. Da riguardare su un log lungo estivo.
+6. **Tensione pacco HV**: cercata esplicitamente (un byte ~144 con sag in scarica
+   e picco in regen, o un 16-bit in 0.1V) — **non presente in broadcast**. I due
+   candidati emersi sono stati esclusi con la fisica: 0x3B9 byte[0] (media ~147)
+   ha lo stesso valore medio in scarica e in regen e sale monotonicamente per
+   tutta la sessione in entrambi i log (105→172 e 113→159) → è una **seconda
+   curva di riscaldamento** (probabile temperatura inverter/CVT, scala ignota),
+   non una tensione; 0x49D byte[0]/byte[1] cresce con l'intensità dell'attività
+   (regen > scarica > idle) → grandezza legata alla potenza, non OCV.
 
 Script aggiunti in questa sessione: `find_ev_bit.py` (scansione bit vs proxy EV),
 `ev_bit_states.py` (tabella 4-stati per disambiguare EV vs ICE-status),
