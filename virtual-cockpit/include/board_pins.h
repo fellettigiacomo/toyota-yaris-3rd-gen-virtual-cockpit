@@ -19,7 +19,11 @@
 // used internally for the RTC/IMU I2C bus -- also electrically incompatible
 // with the CAN transceiver's digital TX/RX signaling anyway).
 
-// --- AXS15231B display, QSPI (SPI2_HOST via Arduino_ESP32QSPI) ---
+// --- AXS15231B display, QSPI ---
+// virtual-cockpit drives this via ESP-IDF's esp_lcd component directly
+// (SPI3_HOST, see src/display_driver.cpp), not Arduino_GFX/SPI2_HOST as
+// obd-capture does -- LCD_ROTATION below is unused here, this project always
+// rotates the frame in software instead (see display_driver.cpp for why).
 constexpr int PIN_LCD_QSPI_CS   = 9;
 constexpr int PIN_LCD_QSPI_SCK  = 10;
 constexpr int PIN_LCD_QSPI_D0   = 11;
