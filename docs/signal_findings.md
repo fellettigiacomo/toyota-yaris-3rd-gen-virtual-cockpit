@@ -387,7 +387,12 @@ unica strada per il SOC.
    batteria 12V con offset 128 o un trim. Bassa priorità.
 5. **0x4AE byte[7]** (72-75, sale lentamente in entrambi i log): debole candidato
    temperatura batteria HV/inverter. Da riguardare su un log lungo estivo.
-6. **Tensione pacco HV**: cercata esplicitamente (un byte ~144 con sag in scarica
+6. **Temperatura esterna (candidato)**: `0x442 byte[0]` — quasi-costante (>95%)
+   dentro ogni sessione ma diverso tra i due log (77 vs 67 raw; con offset -40 →
+   37°C vs 27°C, plausibile per due giornate diverse). 0x442 appartiene alla
+   famiglia clima (0x440/0x442/0x44D/0x45C, ~2.5 Hz). Verifica banale: confrontare
+   col valore di temperatura esterna mostrato sul quadro alla prossima guida.
+7. **Tensione pacco HV**: cercata esplicitamente (un byte ~144 con sag in scarica
    e picco in regen, o un 16-bit in 0.1V) — **non presente in broadcast**. I due
    candidati emersi sono stati esclusi con la fisica: 0x3B9 byte[0] (media ~147)
    ha lo stesso valore medio in scarica e in regen e sale monotonicamente per
