@@ -192,6 +192,7 @@ Tuttavia, l'**ID 0x224** (presente, frequenza ~41 Hz, la stessa di SPEED e BRAKE
 | 9 | Carburante | ⚠️ **riclassificato (Addendum 2)** | 0x3A0 byte[7] | Contatore di consumo, NON livello serbatoio |
 | 10 | Domanda di potenza/accel. (segno) | ⚠️ trovato (Addendum 2) | 0x320 byte[4] s8 | Ipotesi forte sulla semantica, scala incerta |
 | 11 | **Indicatore CHG/ECO/PWR (HSI)** | ✅ **trovato (Addendum 3)** | **0x247 byte[1] s8 = % lancetta, byte[0] = zona** | **Validato su 2 log** |
+| 12 | **Temperatura esterna** | ✅ **trovato** | **0x442 byte[0] − 40 = °C** | **Scala confermata dal proprietario** |
 
 File di output completo: `dbc/toyota_yaris_xp130_reversed.dbc`.
 
@@ -387,11 +388,12 @@ unica strada per il SOC.
    batteria 12V con offset 128 o un trim. Bassa priorità.
 5. **0x4AE byte[7]** (72-75, sale lentamente in entrambi i log): debole candidato
    temperatura batteria HV/inverter. Da riguardare su un log lungo estivo.
-6. **Temperatura esterna (candidato)**: `0x442 byte[0]` — quasi-costante (>95%)
-   dentro ogni sessione ma diverso tra i due log (77 vs 67 raw; con offset -40 →
-   37°C vs 27°C, plausibile per due giornate diverse). 0x442 appartiene alla
-   famiglia clima (0x440/0x442/0x44D/0x45C, ~2.5 Hz). Verifica banale: confrontare
-   col valore di temperatura esterna mostrato sul quadro alla prossima guida.
+6. ~~Temperatura esterna (candidato)~~ → **✅ CONFERMATO: `0x442 byte[0] - 40 =
+   temperatura esterna in °C** (famiglia clima 0x440/0x442/0x44D/0x45C, ~2.5 Hz).
+   Trovato come unico byte quasi-costante (>95%) dentro ogni sessione ma diverso
+   tra i due log (raw 77 vs 67 → 37°C vs 27°C); **scala confermata dal
+   proprietario contro le temperature reali dei due giorni di cattura.** Aggiunto
+   al DBC come `CLIMATE_0x442 / AMBIENT_TEMP`.
 7. **Tensione pacco HV**: cercata esplicitamente (un byte ~144 con sag in scarica
    e picco in regen, o un 16-bit in 0.1V) — **non presente in broadcast**. I due
    candidati emersi sono stati esclusi con la fisica: 0x3B9 byte[0] (media ~147)
