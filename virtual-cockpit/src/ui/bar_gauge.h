@@ -26,11 +26,11 @@ struct Handle {
 };
 
 // Creates the canvas + overlaid label, parented to `parent`, at (x,y,w,h).
-void create(Handle *h, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h,
+void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h,
             bool isChg, const char *labelText);
 
 // pct in 0..100. Re-rasterizes only if pct changed by a visible amount since
 // the last call (cheap early-out, since the value is often static).
-void setFillPct(Handle *h, float pct);
+void setFillPct(Handle *hd, float pct);
 
 } // namespace BarGauge

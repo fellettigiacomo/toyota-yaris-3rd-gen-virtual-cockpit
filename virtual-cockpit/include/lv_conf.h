@@ -35,8 +35,9 @@
 #define LV_MEM_CUSTOM 0
 #define LV_MEM_SIZE (48U * 1024U)
 #define LV_MEM_ADR 0
-#define LV_MEM_POOL_INCLUDE
-#define LV_MEM_POOL_ALLOC
+/* LV_MEM_POOL_INCLUDE / LV_MEM_POOL_ALLOC intentionally absent: defining them
+ * (even empty) triggers lv_mem.c's custom-pool #include path, which requires a
+ * real filename. LVGL template #undefs these; we just omit them. */
 
 /*====================
    HAL SETTINGS
