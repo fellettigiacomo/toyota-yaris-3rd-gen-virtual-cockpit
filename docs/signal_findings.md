@@ -191,6 +191,7 @@ Tuttavia, l'**ID 0x224** (presente, frequenza ~41 Hz, la stessa di SPEED e BRAKE
 | 8b | **ICE in moto (bit)** | ✅ **trovato (Addendum 2)** | **0x245 byte[3] bit4** | **Validato su 2 log** |
 | 9 | Carburante | ⚠️ **riclassificato (Addendum 2)** | 0x3A0 byte[7] | Contatore di consumo, NON livello serbatoio |
 | 10 | Domanda di potenza/accel. (segno) | ⚠️ trovato (Addendum 2) | 0x320 byte[4] s8 | Ipotesi forte sulla semantica, scala incerta |
+| 11 | **Indicatore CHG/ECO/PWR (HSI)** | ✅ **trovato (Addendum 3)** | **0x247 byte[1] s8 = % lancetta, byte[0] = zona** | **Validato su 2 log** |
 
 File di output completo: `dbc/toyota_yaris_xp130_reversed.dbc`.
 
@@ -400,3 +401,50 @@ Script aggiunti in questa sessione: `find_ev_bit.py` (scansione bit vs proxy EV)
 `find_soc_derivative.py` (rilevatore SOC a fisica derivativa),
 `plot_soc_timeline.py` (timeline ASCII con contesto veicolo),
 `find_batt_current.py` (ricerca campi con inversione di segno carica/scarica).
+
+---
+
+## Addendum 3 — Indicatore CHG/ECO/PWR (Hybrid System Indicator): ✅ TROVATO — ID 0x247
+
+Richiesta: replicare l'indicatore di potenza CHG/ECO/PWR del quadro strumenti.
+Risultato: **non serve sintetizzarlo — il valore della lancetta è trasmesso in
+broadcast su 0x247** (42.5 Hz, il messaggio "gemello" di GAS_PEDAL 0x245, stessa
+frequenza e stessa ECU).
+
+### Layout (validato su entrambi i log)
+
+| byte | segnale | semantica |
+|---|---|---|
+| 0 | `HSI_ZONE` | 12 = trazione (valore>0), 15 = carica (valore<0), 4 = zero in marcia, 6 = P/R |
+| 1 | `HSI_VALUE` (signed) | **posizione lancetta in % del fondo scala: -100..+100** |
+| 2 | `HSI_GEAR_FLAG` | 50 = marcia avanti, 255 = P/R |
+
+### Validazione fisica
+
+- **0 da fermo**, in P, R e N — sempre, su entrambi i log (in R anche in movimento:
+  404+252 campioni tutti a zero, come il vero HSI che è inattivo fuori da D/B).
+- **+30..+47 in crociera costante** a 55 km/h — questo è il test che discrimina
+  rispetto a 0x320 byte[4] (che in crociera sta a ~0): l'HSI mostra la *potenza*
+  richiesta, non l'accelerazione, e in crociera serve potenza > 0. È la prova che
+  questo è il segnale del quadro e non un derivato del pedale: a pari pedale il
+  valore scala correttamente col punto di lavoro.
+- **+59..+94 in accelerazione decisa** (max osservato +86/+94 con gas al 33%;
+  il fondo scala +100 non è mai stato raggiunto in queste guide tranquille).
+- **Negativo in rilascio** (-10..-19, engine-brake/regen leggero) e in frenata,
+  proporzionale all'intensità, con **clamp esatto a -100** (446+129 campioni
+  inchiodati a -100 nelle frenate più decise) = fondo scala zona CHG.
+- `HSI_ZONE` commuta 12↔15 esattamente col segno di `HSI_VALUE` (0 campioni
+  incoerenti su ~25k, al netto dei frame di transizione a valore 0).
+
+### Uso pratico per la virtual cockpit
+
+`HSI_VALUE` è già la posizione della lancetta: CHG = valori negativi (fondo scala
+-100), lato positivo da ripartire in ECO/PWR. Il confine ECO/PWR sul quadro vero è
+una frazione fissa del fondo scala positivo (tipicamente l'ultimo terzo circa,
+~+60..+65): non è deducibile dal solo CAN — per la zonatura pixel-perfect basta
+un confronto visivo col quadro (guardare a che valore la lancetta entra in PWR).
+
+Nota metodologica: 0x247 era visibile fin dal primo log (42.5 Hz, mai decodificato)
+ma nessuno scan lo aveva agganciato perché byte[1] visto unsigned sembra rumore
+0-255; la firma emerge solo interpretandolo signed e bucketizzando per stato
+fisico (fermo/regen/coast/gas basso/gas alto).

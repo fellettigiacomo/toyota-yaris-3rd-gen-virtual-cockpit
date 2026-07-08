@@ -45,6 +45,15 @@ BO_ 581 GAS_PEDAL: 8 XXX
 CM_ SG_ 581 GAS_PEDAL "CONFIRMED. 0.0-0.35 (0-35%) range observed, closely tracking the accelerate/coast pattern of city driving and preceding each RPM/SPEED rise.";
 CM_ SG_ 581 ICE_RUNNING "CONFIRMED on two independent logs (original finding). byte[3] bit4. 1 while the combustion engine is actually spinning (RPM>~800), 0 while it is stopped, INDEPENDENT of vehicle motion: 98-99% agreement with RPM(0x1C4)>50 across all four (moving/stopped x ICE on/off) states in both logs. Cleaner than thresholding RPM. See docs/signal_findings.md Addendum 2.";
 
+BO_ 583 HYBRID_SYSTEM_INDICATOR: 5 XXX
+ SG_ HSI_ZONE : 7|8@0+ (1,0) [0|15] "" XXX
+ SG_ HSI_VALUE : 15|8@0- (1,0) [-100|100] "%" XXX
+ SG_ HSI_GEAR_FLAG : 23|8@0+ (1,0) [0|255] "" XXX
+
+VAL_ 583 HSI_ZONE 4 "zero_in_gear" 6 "inactive_P_R" 12 "drive" 15 "charge" ;
+VAL_ 583 HSI_GEAR_FLAG 50 "forward_gear" 255 "P_or_R" ;
+CM_ BO_ 583 "CONFIRMED on two independent logs (original finding). ID 0x247, 42.5Hz, companion message of GAS_PEDAL (0x245). This is the dash CHG/ECO/PWR 'Hybrid System Indicator' value. HSI_VALUE (byte[1], signed) = gauge position in percent of scale: 0 at standstill, +30..+47 at steady cruise (where the accel-like 0x320 byte4 sits at ~0 -- the discriminating test), up to +86/+94 observed under hard acceleration (full PWR = +100, never reached in these gentle drives), negative while coasting (-10..-19, light CHG) and braking, HARD-CLAMPED at -100 = full CHG (446/129 samples pinned at exactly -100 during hard regen braking). Always 0 in R and N (404+252 moving-in-R samples, all zero) -- matching the real dash HSI which is inactive outside forward drive. HSI_ZONE (byte[0]): 12 whenever HSI_VALUE>0, 15 whenever HSI_VALUE<0, 4 when zero while in gear, 6 in P/R -- a ready-made zone selector. HSI_GEAR_FLAG (byte[2]): 50 in forward gears, 255 in P/R. The exact ECO/PWR boundary is a fixed fraction of the positive scale on the real gauge (typically the top ~third); calibrate visually against the dash if pixel-exact zoning is needed.";
+
 BO_ 1553 UI_SETTING: 8 XXX
  SG_ UNITS : 26|2@0+ (1,0) [0|3] "" XXX
  SG_ ODOMETER : 43|20@0+ (1,0) [0|1048575] "" XXX
