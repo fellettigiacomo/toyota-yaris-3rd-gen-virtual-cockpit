@@ -16,11 +16,15 @@
    COLOR SETTINGS
  *====================*/
 #define LV_COLOR_DEPTH 16
-/* AXS15231B byte order over QSPI is unconfirmed against LVGL's native RGB565
- * packing until first boot (see virtual-cockpit's plan doc, "Known unknowns"
- * in display_driver). Try 0 first; flip to 1 if colors come out channel/byte
- * swapped on real hardware. */
-#define LV_COLOR_16_SWAP 0
+/* Confirmed on real hardware: this panel expects big-endian (high byte
+ * first) RGB565 over QSPI, like virtually all SPI/QSPI TFT controllers, but
+ * LVGL's buffer holds each pixel in the CPU's native little-endian byte
+ * order by default. This pre-swaps each pixel's bytes so a raw memcpy sends
+ * correct wire order -- fixes the "every color shifted to a different hue"
+ * symptom seen with this at 0 (e.g. background #0a0b0d -> dark purple,
+ * #35d94b green -> violet, near-white #eaf1f5 -> green -- verified by hand
+ * against the RGB565 bit math). */
+#define LV_COLOR_16_SWAP 1
 #define LV_COLOR_SCREEN_TRANSP 0
 #define LV_COLOR_MIX_ROUND_OFS 0
 #define LV_COLOR_CHROMA_KEY lv_color_hex(0x00ff00)
@@ -122,7 +126,14 @@
 
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 #define LV_FONT_FMT_TXT_LARGE 1
-#define LV_USE_FONT_COMPRESSED 0
+/* Must be 1: lv_font_conv's default output is RLE-compressed
+ * (`.bitmap_format = 1` in every generated src/ui/fonts/*.c) since
+ * gen_fonts.sh doesn't pass --no-compress. With this at 0, LVGL's
+ * decompressor isn't compiled in, every glyph silently fails to
+ * decode, and (combined with LV_USE_FONT_PLACEHOLDER=1 below drawing
+ * nothing for undecodable glyphs instead of a fallback box) *all* text
+ * renders as blank -- this was the missing-text bug on real hardware. */
+#define LV_USE_FONT_COMPRESSED 1
 #define LV_USE_FONT_PLACEHOLDER 1
 
 /*=================
