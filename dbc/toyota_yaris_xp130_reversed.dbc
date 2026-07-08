@@ -1,0 +1,138 @@
+CM_ "Toyota Yaris Hybrid 2014 (XP130, THS-II NoDSU) - reverse engineered from a candump (500kbps) captured on the";
+CM_ "factory head-unit connector (28-pin, p/n 90980-12555, CAN-H=pin9/CAN-L=pin10), NOT the OBD-II diagnostic port.";
+CM_ "Base messages taken from BogGyver/opendbc (tesla_unity_dev) toyota_nodsu_hybrid_pt_generated.dbc and empirically validated";
+CM_ "against two independent real drive logs (data/logs/session_0044.log ~430s, session_0047.log ~440s). Additions for";
+CM_ "BRAKE_ANALOG (0x224), COMBO_METER_0x34 (0x618), FUEL_COUNTER (0x3A0), HYBRID_STATUS/EV_DRIVE (0x498),";
+CM_ "HV_BATTERY/BATTERY_SOC (0x4A7), ICE_RUNNING (0x245 b3.4) and PWR_DEMAND (0x320) are original findings from this";
+CM_ "project, not present in opendbc.";
+CM_ "See docs/signal_findings.md for full validation methodology and confidence levels.";
+
+BO_ 180 SPEED: 8 XXX
+ SG_ ENCODER : 39|8@0+ (1,0) [0|255] "" XXX
+ SG_ SPEED : 47|16@0+ (0.01,0) [0|250] "kph" XXX
+ SG_ CHECKSUM : 63|8@0+ (1,0) [0|255] "" XXX
+
+CM_ SG_ 180 SPEED "CONFIRMED. Validated against real 0->60->0 kph driving profile.";
+
+BO_ 452 ENGINE_RPM: 8 XXX
+ SG_ RPM : 7|16@0- (0.78125,0) [0|0] "rpm" XXX
+
+CM_ SG_ 452 RPM "CONFIRMED. Oscillates 0/~1000-2000rpm matching ICE start/stop cycling typical of THS-II.";
+
+BO_ 295 GEAR_PACKET: 8 XXX
+ SG_ CAR_MOVEMENT : 39|8@0- (1,0) [0|255] "" XXX
+ SG_ GEAR : 47|4@0+ (1,0) [0|15] "" XXX
+ SG_ COUNTER : 55|8@0+ (1,0) [0|255] "" XXX
+ SG_ CHECKSUM : 63|8@0+ (1,0) [0|255] "" XXX
+
+VAL_ 295 GEAR 0 "P" 1 "R" 2 "N" 3 "D" 4 "B" ;
+CM_ SG_ 295 GEAR "CONFIRMED, all 5 states observed across two independent logs. session_0044: P(0) 0-50.4s -> R(1) 50.4-60.1s -> D(3) 60.1s-end, with SPEED=0 while parked, a reverse bump (0->4.7kph) during the R phase and forward acceleration (0->10+kph) right after the D shift. session_0047: P(0) held ~98s at standstill -> N(2)->R(1)->N(2)->D(3) pull-out sequence -> D held for ~280s of real driving -> end-of-log full gear cycle R(1)->D(3)->B(4)->D(3)->N(2)->R(1)->D(3)->P(0), confirming B (Engine Brake) as well. NOTE: 0x127 was previously suspected to be a 'drive mode' counter; that counter is actually the CAR_MOVEMENT byte, a separate field in the same message.";
+
+BO_ 560 BRAKE_MODULE2: 7 XXX
+ SG_ BRAKE_PRESSED : 26|1@0+ (1,0) [0|1] "" XXX
+
+CM_ SG_ 560 BRAKE_PRESSED "CONFIRMED. Transition timings correlate exactly with GEAR shifts and SPEED changes (brake held at standstill before/after each gear change).";
+
+BO_ 548 BRAKE_ANALOG: 8 XXX
+ SG_ BRAKE_VALUE : 32|16@0+ (1,0) [0|1023] "" XXX
+
+CM_ BO_ 548 "STRONG HYPOTHESIS (not in any opendbc DBC - original finding). ID 0x224, not present in upstream Toyota DBCs (which define BRAKE_MODULE with pressure/position at 0x226, absent from this capture). Formula: value = (byte[4]<<8 | byte[5]), i.e. bits 32-47 as a big-endian 16-bit (effectively ~10-bit, max observed 537) quantity. Statistically: median=0 / mean=0.04 while BRAKE_PRESSED=0 (n=12027), median=62 / mean=154 / max=537 while BRAKE_PRESSED=1 (n=5731); 84% of pressed samples have value>5, 99.99% of released samples have value<=5. Strong correlation confirms this is a brake pedal analog signal (pressure and/or position), but exact physical units/scale are NOT confirmed.";
+
+BO_ 581 GAS_PEDAL: 8 XXX
+ SG_ GAS_PEDAL : 23|8@0+ (0.005,0) [0|1] "" XXX
+ SG_ ICE_RUNNING : 28|1@0+ (1,0) [0|1] "" XXX
+
+CM_ SG_ 581 GAS_PEDAL "CONFIRMED. 0.0-0.35 (0-35%) range observed, closely tracking the accelerate/coast pattern of city driving and preceding each RPM/SPEED rise.";
+CM_ SG_ 581 ICE_RUNNING "CONFIRMED on two independent logs (original finding). byte[3] bit4. 1 while the combustion engine is actually spinning (RPM>~800), 0 while it is stopped, INDEPENDENT of vehicle motion: 98-99% agreement with RPM(0x1C4)>50 across all four (moving/stopped x ICE on/off) states in both logs. Cleaner than thresholding RPM. See docs/signal_findings.md Addendum 2.";
+
+BO_ 583 HYBRID_SYSTEM_INDICATOR: 5 XXX
+ SG_ HSI_ZONE : 7|8@0+ (1,0) [0|15] "" XXX
+ SG_ HSI_VALUE : 15|8@0- (1,0) [-100|100] "%" XXX
+ SG_ HSI_GEAR_FLAG : 23|8@0+ (1,0) [0|255] "" XXX
+
+VAL_ 583 HSI_ZONE 4 "zero_in_gear" 6 "inactive_P_R" 12 "drive" 15 "charge" ;
+VAL_ 583 HSI_GEAR_FLAG 50 "forward_gear" 255 "P_or_R" ;
+CM_ BO_ 583 "CONFIRMED on two independent logs (original finding). ID 0x247, 42.5Hz, companion message of GAS_PEDAL (0x245). This is the dash CHG/ECO/PWR 'Hybrid System Indicator' value. HSI_VALUE (byte[1], signed) = gauge position in percent of scale: 0 at standstill, +30..+47 at steady cruise (where the accel-like 0x320 byte4 sits at ~0 -- the discriminating test), up to +86/+94 observed under hard acceleration (full PWR = +100, never reached in these gentle drives), negative while coasting (-10..-19, light CHG) and braking, HARD-CLAMPED at -100 = full CHG (446/129 samples pinned at exactly -100 during hard regen braking). Always 0 in R and N (404+252 moving-in-R samples, all zero) -- matching the real dash HSI which is inactive outside forward drive. HSI_ZONE (byte[0]): 12 whenever HSI_VALUE>0, 15 whenever HSI_VALUE<0, 4 when zero while in gear, 6 in P/R -- a ready-made zone selector. HSI_GEAR_FLAG (byte[2]): 50 in forward gears, 255 in P/R. The exact ECO/PWR boundary is a fixed fraction of the positive scale on the real gauge (typically the top ~third); calibrate visually against the dash if pixel-exact zoning is needed.";
+
+BO_ 1090 CLIMATE_0x442: 8 XXX
+ SG_ AMBIENT_TEMP : 7|8@0+ (1,-40) [-40|215] "degC" XXX
+
+CM_ SG_ 1090 AMBIENT_TEMP "CONFIRMED (original finding). ID 0x442 (~2.5Hz, climate family 0x440/0x442/0x44D/0x45C), byte[0] - 40 = outside/ambient temperature in degC. Found as the only byte that is quasi-constant (>95% single value) within each session but different across the two logs (raw 77 vs 67 -> 37degC vs 27degC); scale confirmed by the owner against the actual outside temperatures of the two capture days.";
+
+BO_ 1553 UI_SETTING: 8 XXX
+ SG_ UNITS : 26|2@0+ (1,0) [0|3] "" XXX
+ SG_ ODOMETER : 43|20@0+ (1,0) [0|1048575] "" XXX
+
+VAL_ 1553 UNITS 1 "km" 2 "miles" ;
+CM_ SG_ 1553 ODOMETER "CONFIRMED but NOT remaining range. This is the TOTAL vehicle odometer (99552 -> 99555 km over the ~7min/~3km log, UNITS=km). No distance-to-empty / remaining-range signal or HV SOC% was found in this capture -- see docs/signal_findings.md section 2 for the negative-result justification.";
+
+BO_ 1556 STEERING_LEVERS: 8 XXX
+ SG_ TURN_SIGNALS : 29|2@0+ (1,0) [0|3] "" XXX
+ SG_ HAZARD_LIGHT : 27|1@0+ (1,0) [0|1] "" XXX
+
+VAL_ 1556 TURN_SIGNALS 3 "none" 2 "right" 1 "left" ;
+CM_ SG_ 1556 TURN_SIGNALS "CONFIRMED. All 3 states (left/right/none) observed over the drive with plausible multi-second durations consistent with real indicator usage at turns.";
+
+BO_ 1568 SEATS_DOORS: 8 XXX
+ SG_ SEATBELT_DRIVER_UNLATCHED : 62|1@0+ (1,0) [0|1] "" XXX
+ SG_ DOOR_OPEN_FL : 45|1@0+ (1,0) [0|1] "" XXX
+ SG_ DOOR_OPEN_FR : 44|1@0+ (1,0) [0|1] "" XXX
+ SG_ DOOR_OPEN_RL : 42|1@0+ (1,0) [0|1] "" XXX
+ SG_ DOOR_OPEN_RR : 43|1@0+ (1,0) [0|1] "" XXX
+
+CM_ BO_ 1568 "CONFIRMED PRESENT, plausible (seatbelt toggles 0/1); doors never opened during this particular drive so DOOR_OPEN_* only show constant 0 in this log (not independently validated, but the message/bit layout is inherited verbatim from opendbc).";
+
+BO_ 921 PCM_CRUISE_SM: 8 XXX
+ SG_ MAIN_ON : 4|1@0+ (1,0) [0|1] "" XXX
+ SG_ CRUISE_CONTROL_STATE : 11|4@0+ (1,0) [0|15] "" XXX
+ SG_ DISTANCE_LINES : 14|2@0+ (1,0) [0|3] "" XXX
+ SG_ UI_SET_SPEED : 31|8@0+ (1,0) [0|255] "" XXX
+
+CM_ BO_ 921 "PRESENT but INACTIVE for the whole log (all-zero) -- cruise control was never engaged during capture, so fields could not be behaviourally validated beyond confirming the message exists at the expected ID/layout.";
+
+BO_ 951 ESP_CONTROL: 8 XXX
+ SG_ TC_DISABLED : 13|1@0+ (1,0) [0|1] "" XXX
+ SG_ VSC_DISABLED : 12|2@0+ (1,0) [0|1] "" XXX
+ SG_ BRAKE_LIGHTS_ACC : 18|1@0+ (1,0) [0|1] "" XXX
+
+CM_ BO_ 951 "PRESENT but INACTIVE for the whole log (no VSC/TC intervention occurred during this calm drive).";
+
+BO_ 1570 LIGHT_STALK: 8 XXX
+ SG_ HIGH_BEAM : 30|1@0+ (1,0) [0|1] "" XXX
+ SG_ LOW_BEAM : 29|1@0+ (1,0) [0|1] "" XXX
+ SG_ PARKING_LIGHT : 28|1@0+ (1,0) [0|1] "" XXX
+ SG_ FRONT_FOG : 27|1@0+ (1,0) [0|1] "" XXX
+ SG_ AUTO_HIGH_BEAM : 37|1@0+ (1,0) [0|1] "" XXX
+
+CM_ BO_ 1570 "CONFIRMED PRESENT; LOW_BEAM/PARKING_LIGHT toggled 0/1 during the log, plausible.";
+
+BO_ 1560 COMBO_METER_0x34: 8 XXX
+ SG_ TEMP_RAW : 24|8@0+ (1,0) [0|255] "" XXX
+
+CM_ BO_ 1560 "STRONG HYPOTHESIS, original finding (not in any opendbc DBC). ID 0x618 belongs to a family of low-frequency (~0.1Hz) 'combination meter' multiplex messages (0x610-0x615, 0x618-0x61c) where byte[0] is a constant per-ID parameter-index tag (unrelated to numeric CAN ID order). byte[3] (TEMP_RAW here) climbs monotonically and smoothly from 0 at cold start/idle (t=0-64s, matches GEAR=P) to a plateau around 230-240 by t=350-430s, in lock-step with the engine actually running (matches GEAR shifting to R/D at t=50-60s). This is the textbook shape of an engine coolant warm-up curve reaching thermostat-regulated operating temperature after ~5 minutes of driving. Candidate formula (UNCONFIRMED SCALE): temp_C = TEMP_RAW * 0.375, which places the plateau at a plausible 90 deg C; this scale factor is a best-fit guess, not derived from a reference thermometer reading. Could equally be transmission/CVT fluid temperature rather than coolant -- not distinguishable from this data alone.";
+
+BO_ 928 FUEL_COUNTER: 8 XXX
+ SG_ FUEL_COUNTER_RAW : 63|8@0+ (1,0) [0|255] "" XXX
+
+CM_ BO_ 928 "RECLASSIFIED (was FUEL_LEVEL, strong hypothesis retracted after plausibility check -- see docs/signal_findings.md Addendum 2). ID 0x3A0 byte[7], only non-zero byte, 10Hz. Decrements correlate with ICE-ON RUNTIME (1 unit per ~20-25s of engine running, consistent to ~7% across both logs), not with wall time or distance; it even flickers 58<->59 while parked with the engine off. A 36L-tank level on a byte scale would deplete 15-20x slower than observed, so this is NOT the fuel gauge level. Best hypothesis: a decrementing high-resolution fuel-consumed/remaining counter, quantum ~10-30mL (implied burn rate 1.4-3.7 L/h, plausible for city hybrid driving), most likely the LOW BYTE of a wider register (would wrap 0->255 on a >=30min log -- falsifiable prediction, logs so far are too short). Useful differentiated as instantaneous fuel consumption; do NOT use as absolute tank level.";
+
+BO_ 1176 HYBRID_STATUS: 8 XXX
+ SG_ EV_DRIVE : 47|1@0+ (1,0) [0|1] "" XXX
+
+CM_ SG_ 1176 EV_DRIVE "CONFIRMED on two independent logs (original finding). byte[5] bit7. ON (100%) only while the vehicle is moving with the ICE stopped (pure electric propulsion, including regen); OFF while stopped even with ICE off (0-11%, residuals are hysteresis around standstill transitions) and OFF while driving with ICE running (3-9%, transition lag). Matches dash 'EV' indicator semantics; found by exhaustive per-bit agreement scan against the previously-validated proxy RPM<50 AND speed>1 (23/23 and 5/5 proxy transitions matched). Redundant inverse 'ICE stopped' bits also validated: 0x49C byte[5] bit6 and 0x4AD byte[3] bit6. Message family 0x498-0x4AF exists in commaai opendbc toyota_2017_ref_pt.dbc as opaque CGW (gateway) data-recorder frames ENG1D50..ENG1D60 / DRENGxx, and is ABSENT on the non-hybrid 2010 Camry (TUCRRC analysis) -- a hybrid-powertrain-specific telemetry family. See docs/signal_findings.md Addendum 2.";
+
+BO_ 1191 HV_BATTERY: 8 XXX
+ SG_ BATTERY_SOC : 23|8@0+ (0.5,0) [0|100] "%" XXX
+
+CM_ SG_ 1191 BATTERY_SOC "CONFIRMED on two independent logs (original finding; scale from Toyota convention). ID 0x4A7 (~2Hz, hybrid data-recorder family via gateway, see 0x498), byte[2] * 0.5 = HV battery SOC in %. Observed 54.0-71.5% (raw 108-143), exactly the real THS-II NiMH operating band (~40-80%). Physics fully validated on both logs: flat while parked/everything-off, steady climb during stationary ICE warm-up charging, slow decline (~0.5% per 4-6s) during every EV stretch, recovery during every ICE-on/regen stretch, never wraps; highest physics score of all 100 IDs in the derivative-based scan (0.88/0.98). The 0.5%/bit resolution matches Techstream SOC display and the Prius Gen2 (256C+D)/2 formula. Caveats: absolute scale not yet verified against a Techstream/Dr.Prius reference readout; both logs happen to start at raw=108 (54.0%) -- possibly coincidence, possibly a power-on default during battery-ECU init (check first seconds of the next long log). Earlier candidate 0x4A8 byte2 top-3-bits remains RETRACTED (cyclic counter). byte[7] of this message is constant 0xC8; bytes[0:2] form an unidentified signed 16-bit value (NOT MG rpm: corr with speed only ~0.37; NOT battery current: sign does not flip between charge and discharge).";
+CM_ "0x612 byte[5]: excluded as SOC -- slow random walk centered on 128 with no charge/discharge physics; byte[1] alternates 0x80/0x00 (heartbeat). Unidentified (possibly a 12V-battery current with offset 128). 0x4AE byte[7] (72-75, slowly rising in both logs): weak candidate for HV battery/inverter temperature, unconfirmed.";
+
+BO_ 800 PWR_DEMAND: 8 XXX
+ SG_ ACCEL_DEMAND : 39|8@0- (1,0) [-128|127] "" XXX
+ SG_ ACCEL_DEMAND_OFFSET_COPY : 63|8@0- (1,0) [-128|127] "" XXX
+
+CM_ BO_ 800 "STRONG HYPOTHESIS on semantics, scale unconfirmed (original finding). ID 0x320, ~20Hz. byte[4] as signed 8-bit: positive under acceleration demand (+10..+31 with pedal), negative while braking/coasting (-8..-48), ~0 at rest AND at steady cruise -- a longitudinal acceleration / torque-demand-like quantity, NOT HV battery current (stays positive during EV traction and does not go negative during stationary charging; found while explicitly searching for a charge/discharge sign-flip field with tools/find_batt_current.py -- no true battery current broadcast exists on this bus, and Prius-style 0x03B is absent). byte[7] tracks byte[4]+42 (same signal, constant offset); byte[5] is a {0,8} flag active only at standstill. Together with EV_DRIVE (0x498), ICE_RUNNING (0x245) and BATTERY_SOC (0x4A7), this fully explains how the Simplesoft RP5-TY-101 canbus box synthesizes its 'OilElectricityInfo' energy-flow display (function ID 0x1F, zugetor protocol: UART TTL 38400 8N1, frame 0x2E+func+len+data+checksum) from pure passive listening -- no active diagnostic polling needed.";
+
+CM_ "=== SIGNALS STILL NOT FOUND (see docs/signal_findings.md for full explanation) ===";
+CM_ "Remaining range / distance-to-empty (km): NOT FOUND on this bus (the only km counter is the 0x611 total odometer). Most likely computed inside the instrument cluster and never broadcast.";
+CM_ "HV battery current/power (signed): NOT FOUND as a broadcast; Prius Gen2/Gen3-style 0x03B/0x3CB/0x3CD/0x529 IDs are all absent on this platform. Available only via solicited UDS (Mode 21) to the battery ECU.";
