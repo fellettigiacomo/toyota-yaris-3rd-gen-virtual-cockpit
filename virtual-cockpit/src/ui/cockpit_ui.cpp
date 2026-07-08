@@ -15,9 +15,13 @@ constexpr int16_t kScreenW = 640;
 constexpr int16_t kScreenH = 172;
 // Root screen is 640x172 (center y=86), so an absolute target_y maps to an
 // LV_ALIGN_CENTER y-offset of (target_y - 86). Speed + the RPM/EV row below
-// it are treated as one vertically-centered block (speed dy=-14, RPM/EV
-// dy=+48, a 10px gap between them); gear/units keep their own original
-// target_y=90 anchor (dy=+4) independent of that block, per the owner's
+// it are treated as one vertically-centered block: speed dy=-21, RPM/EV
+// dy=+53, a 22px gap between them, computed from the fonts' actual
+// line_height (85 for speed, 19 for RPM/EV) so that the margin above speed
+// equals the margin below the RPM/EV row (~22-23px each) -- the first
+// attempt used only a 10px gap, which read as "RPM/EV too close to speed,
+// too much empty space at the bottom". Gear/units keep their own original
+// target_y=90 anchor (dy=+4) independent of this block, per the owner's
 // explicit "leave gear/units where they are" feedback.
 
 // CHG/PWR bar: x=70..570 (500px), y=0, h=16, 3px black divider at the center.
@@ -36,17 +40,16 @@ constexpr int16_t kDividerX = kBarX0 + kChgW;                       // 318
 constexpr int16_t kLeftX = 18;
 constexpr int16_t kLeftW = 74;
 
-// Right slot (74px column): HV battery gauge. Extended to nearly touch the
-// bottom edge (6px margin) per owner feedback; the icon/numeric readout
-// moved from the top of the column to the bottom, aligned with the bar's
-// own bottom edge.
+// Right slot (74px column): HV battery gauge. Equal top/bottom margin (16px,
+// matching the CHG/PWR bar's own height as a clean visual reference) --
+// the first attempt used a 22/6 split that read as "too far down".
 constexpr int16_t kRightW = 74;
 constexpr int16_t kRightX = kScreenW - 18 - kRightW; // 548
 constexpr int16_t kBattTickX = kRightX + kRightW - 14; // 608, 14px wide, flush to the column's right edge
-constexpr int16_t kBattTickY = 22;
-constexpr int16_t kBattBottomMargin = 6;
-constexpr int16_t kBattTickBottom = kScreenH - kBattBottomMargin; // 166
-constexpr int16_t kBattTickH = kBattTickBottom - kBattTickY;       // 144
+constexpr int16_t kBattMargin = 16;
+constexpr int16_t kBattTickY = kBattMargin;                        // 16
+constexpr int16_t kBattTickBottom = kScreenH - kBattMargin;        // 156
+constexpr int16_t kBattTickH = kBattTickBottom - kBattTickY;       // 140
 constexpr int16_t kBattTickW = 14;
 
 BarGauge::Handle g_chg;
@@ -182,15 +185,14 @@ void createLeftSlot(lv_obj_t *parent) {
 
 void createCenterGroup(lv_obj_t *parent) {
     // Speed + the RPM/EV row form one vertically-centered block (see the
-    // layout comment above): speed dy=-14, RPM/EV dy=+48, a fixed 10px gap
-    // between the speed glyph's bottom and the RPM/EV row's top (computed
-    // from the fonts' actual line_height: 85 for speed, 19 for RPM/EV).
+    // layout comment above): speed dy=-21, RPM/EV dy=+53, a 22px gap between
+    // the speed glyph's bottom and the RPM/EV row's top.
     g_speedLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_speedLabel, &dinnext_120_speed, 0);
     lv_obj_set_style_text_color(g_speedLabel, Colors::kText, 0);
     lv_obj_set_style_text_letter_space(g_speedLabel, -3, 0);
     lv_label_set_text(g_speedLabel, "0");
-    lv_obj_align(g_speedLabel, LV_ALIGN_CENTER, 0, -14);
+    lv_obj_align(g_speedLabel, LV_ALIGN_CENTER, 0, -21);
 
     // Gear keeps its original position (target y=90 => dy=4) independent of
     // the speed/RPM re-centering above -- only the font got bigger, per the
@@ -216,14 +218,14 @@ void createCenterGroup(lv_obj_t *parent) {
     lv_obj_set_style_text_color(g_rpmLabel, lv_color_white(), 0);
     lv_obj_set_style_text_letter_space(g_rpmLabel, 1, 0);
     lv_label_set_text(g_rpmLabel, "RPM 0");
-    lv_obj_align(g_rpmLabel, LV_ALIGN_CENTER, 0, 48);
+    lv_obj_align(g_rpmLabel, LV_ALIGN_CENTER, 0, 53);
 
     g_evLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_evLabel, &dinnext_28_ev, 0);
     lv_obj_set_style_text_color(g_evLabel, Colors::kEvGreen, 0);
     lv_obj_set_style_text_letter_space(g_evLabel, 2, 0);
     lv_label_set_text(g_evLabel, "EV");
-    lv_obj_align(g_evLabel, LV_ALIGN_CENTER, 0, 48);
+    lv_obj_align(g_evLabel, LV_ALIGN_CENTER, 0, 53);
     lv_obj_add_flag(g_evLabel, LV_OBJ_FLAG_HIDDEN);
 }
 
