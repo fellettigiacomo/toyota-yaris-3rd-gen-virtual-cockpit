@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Regenerates src/ui/fonts/*.c from fonts_src/. Dev-time only, not part of the
+# PlatformIO build -- the generated .c files are checked into the repo.
+#
+# Requires: node/npm (for `npx lv_font_conv`), and FontForge + its Python
+# bindings for the synthetic-bold step (`apt install fontforge
+# python3-fontforge`; the fontforge module is only importable from the
+# system cpython build it was compiled against, e.g. /usr/bin/python3.12,
+# not necessarily whatever `python3` resolves to on PATH).
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+# Step 1: only the Regular weight of DIN Next LT Pro was available (see the
+# plan doc's Fonts section). Synthesize a Bold weight via FontForge outline
+# emboldening before handing off to lv_font_conv, rather than shipping
+# Regular-weight glyphs for a design that calls for bold throughout.
+/usr/bin/python3.12 scripts/synth_bold.py
+
+BOLD=fonts_src/DIN_Next_LT_Pro_Bold_Synthetic.otf
+
+gen() {
+  local name="$1" size="$2" symbols="$3"
+  npx --yes lv_font_conv --font "$BOLD" --size "$size" --bpp 4 --format lvgl \
+    --symbols "$symbols" -o "src/ui/fonts/${name}.c" --lv-font-name "$name" --no-kerning
+}
+
+# One font per distinct pixel size in the design spec, each subsetted to only
+# the glyphs that size is ever used to render (keeps flash usage down --
+# e.g. the 120px speed font only needs digits).
+gen dinnext_120_speed   120 "0123456789"        # speed number
+gen dinnext_32_gear      32 "PRNDB"              # gear letter (P/R/N/D/B)
+gen dinnext_30_units     30 "KM/H"                # "KM/H" unit label
+gen dinnext_26_battery   26 "0123456789"          # HV battery SOC numeric
+gen dinnext_20_ev        20 "EV"                  # "EV" label
+gen dinnext_18_rpm       18 "RPM0123456789:°C "   # RPM label+value ("RPM 1234" needs a space); reused for left-slot temp/clock
+gen dinnext_14_chgpwr    14 "CHGPWR"              # "CHG"/"PWR" bar labels
+gen dinnext_13_pct       13 "%"                   # "%" suffix
+
+echo "done -- regenerated src/ui/fonts/*.c"
