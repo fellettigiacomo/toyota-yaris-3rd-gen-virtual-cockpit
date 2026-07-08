@@ -36,7 +36,15 @@ Tabella riassuntiva finale: vedi `dbc/toyota_yaris_xp130_reversed.dbc`.
 
 ---
 
-## 2. Autonomia residua / SOC HV — ❌ NON TROVATO (con giustificazione)
+## 2. Autonomia residua / SOC HV — ✅ SOC TROVATO (vedi Addendum 2) / range km non trovato
+
+> **AGGIORNAMENTO (Addendum 2, in fondo al documento): il SOC della batteria HV È
+> presente come broadcast passivo — ID 0x4A7, byte[2], formula `SOC% = raw * 0.5`,
+> validato fisicamente su entrambi i log.** Era sfuggito a tutte le scansioni
+> precedenti perché quelle cercavano correlazione *istantanea* con l'acceleratore,
+> mentre un SOC è l'*integrale* della potenza: a lag zero la correlazione è quasi
+> nulla. La sezione qui sotto resta come storia della ricerca (e resta valida per
+> l'autonomia residua in km, tuttora assente dal bus).
 
 Cercato sia "range residuo km" sia, come da mandato, "% carica batteria HV" come proxy.
 
@@ -145,7 +153,13 @@ Tuttavia, l'**ID 0x224** (presente, frequenza ~41 Hz, la stessa di SPEED e BRAKE
 
 ---
 
-## 8. EV mode — ❌ Bit esplicito NON TROVATO / ✅ PROXY costruito e validato
+## 8. EV mode — ✅ BIT REALE TROVATO (vedi Addendum 2)
+
+> **AGGIORNAMENTO (Addendum 2): trovato un bit reale di "trazione elettrica
+> attiva" — ID 0x498, byte[5] bit7 — validato su entrambi i log con semantica
+> più ricca del proxy (spento da fermo anche a ICE spento). Trovato anche il bit
+> "motore termico in moto": ID 0x245, byte[3] bit4.** La sezione sotto resta come
+> storia del proxy, che è stato lo strumento con cui il bit reale è stato scovato.
 
 **Bit esplicito**: come da ipotesi di partenza, il messaggio Prius `0x0529` (che su Prius Gen2 porta esattamente `EV-Mode Active {E:6}`, `EV-Mode Cancelled {E:7}`, `EV-Mode Denied {F:5,6,7}`) **non compare mai** in questo log (0 occorrenze, grep diretto). Nessun altro ID nel log porta un bit etichettabile come "EV mode" in nessuno dei DBC controllati. **Nota aggiornata**: questo log proviene dal connettore autoradio (pin 9/10, stesso punto della scatoletta cinese che invece mostra l'EV-mode), non da un ipotetico bus separato — quindi l'assenza qui punta più verso "serve una richiesta diagnostica attiva" che verso "bus irraggiungibile" (vedi punto 2 sopra per il ragionamento completo).
 
@@ -164,7 +178,8 @@ Tuttavia, l'**ID 0x224** (presente, frequenza ~41 Hz, la stessa di SPEED e BRAKE
 | # | Segnale | Stato | ID | Confidenza |
 |---|---|---|---|---|
 | 1 | Marcia P/R/N/D | ✅ trovato | 0x127 `GEAR` | Validato |
-| 2 | Autonomia / SOC HV | ❌ non trovato | — | Assenza motivata |
+| 2a | **SOC batteria HV %** | ✅ **trovato (Addendum 2)** | **0x4A7 byte[2] × 0.5** | **Validato su 2 log, scala da convenzione Toyota** |
+| 2b | Autonomia residua km | ❌ non trovato | — | Assenza motivata |
 | 3 | Temperatura (refrigerante?) | ⚠️ trovato | 0x618 byte[3] | Ipotesi forte, scala incerta |
 | 4 | Velocità | ✅ confermato | 0x0B4 `SPEED` | Validato (già noto) |
 | 5 | Frecce | ✅ trovato | 0x614 `TURN_SIGNALS` | Validato |
@@ -172,7 +187,10 @@ Tuttavia, l'**ID 0x224** (presente, frequenza ~41 Hz, la stessa di SPEED e BRAKE
 | 6b | Freno bit | ✅ trovato | 0x230 `BRAKE_PRESSED` | Validato |
 | 6c | Freno % / posizione | ⚠️ trovato | 0x224 byte[4:6] | Ipotesi forte, scala incerta |
 | 7 | Giri motore | ✅ confermato | 0x1C4 `RPM` | Validato (già noto) |
-| 8 | EV mode | ❌/✅ | proxy derivato | Bit assente (motivato); proxy validato |
+| 8a | **EV / trazione elettrica (bit)** | ✅ **trovato (Addendum 2)** | **0x498 byte[5] bit7** | **Validato su 2 log** |
+| 8b | **ICE in moto (bit)** | ✅ **trovato (Addendum 2)** | **0x245 byte[3] bit4** | **Validato su 2 log** |
+| 9 | Carburante | ⚠️ **riclassificato (Addendum 2)** | 0x3A0 byte[7] | Contatore di consumo, NON livello serbatoio |
+| 10 | Domanda di potenza/accel. (segno) | ⚠️ trovato (Addendum 2) | 0x320 byte[4] s8 | Ipotesi forte sulla semantica, scala incerta |
 
 File di output completo: `dbc/toyota_yaris_xp130_reversed.dbc`.
 
@@ -196,3 +214,181 @@ Secondo log (`data/logs/session_0047.log`, 272 511 frame, 440s, 100 ID unici) ca
 - **Conclusione per SOC/EV-mode**: non trovato nemmeno con questa scansione più estesa. Prossimo passo consigliato: catturare il lato **output della scatoletta verso l'autoradio** (non più l'input lato auto, già fatto due volte), per vedere direttamente il valore a 3 bit del function ID 0x1F che la scatoletta sintetizza, e da lì risalire per correlazione a cosa lo alimenta lato auto.
 
 Script aggiunti per questa analisi: `tools/diff_byte_activity.py` (cardinalità valori fra due log), `tools/find_battery_bars.py` (scansione enum a bassa cardinalità), `tools/find_soc_like.py` (correlazione con l'acceleratore), `tools/find_nibble_levels.py` (stessa ricerca a livello di nibble).
+
+---
+
+## Addendum 2 — SOC HV, bit EV e bit ICE TROVATI (analisi derivativa sui log esistenti)
+
+Questa sessione di analisi non ha usato nuovi log: ha ri-analizzato session_0044 e
+session_0047 con due metodi nuovi, entrambi motivati da un errore metodologico
+identificato nelle scansioni precedenti.
+
+### Perché le scansioni precedenti non l'avevano trovato
+
+Tutte le ricerche SOC precedenti (`find_soc_like.py`, `find_battery_bars.py`,
+`find_nibble_levels.py`) cercavano **correlazione istantanea** con l'acceleratore o
+enum a bassa cardinalità. Ma un SOC è l'**integrale** della potenza scambiata: a lag
+zero la correlazione col pedale è quasi nulla, e su un log di 7 minuti un SOC
+percorre 20-70 valori raw distinti (fuori dal range "barre 0-8" cercato da
+find_battery_bars). Il nuovo `tools/find_soc_derivative.py` valuta invece la
+**fisica di ogni singola variazione**: un SOC vero deve scendere durante la guida
+elettrica e salire con ICE acceso o in frenata rigenerativa. Analogamente,
+`tools/find_ev_bit.py` scansiona ogni bit di ogni ID misurando l'accordo con il
+proxy EV già validato (RPM<50 AND speed>1), su entrambi i log.
+
+### ✅ SOC batteria HV: ID 0x4A7, byte[2], `SOC% = raw × 0.5` — VALIDATO
+
+- **Messaggio**: 0x4A7, 8 byte, ~2 Hz (famiglia 0x498-0x4AF, vedi sotto).
+- **Campo**: byte[2], intero a 8 bit. Range osservato: 108–143 (0044) e 108–135
+  (0047) → **54.0–71.5%** con scala 0.5 — esattamente la banda operativa di un
+  THS-II reale (il sistema regola il SOC NiMH tra ~40% e ~80%).
+- **Validazione fisica su entrambi i log** (`tools/plot_soc_timeline.py 4a7 2`):
+  - fermo in P con tutto spento: piatto (108 = 54.0% per i primi 32s/94s);
+  - all'accensione dell'ICE da fermo (warmup, ~1300rpm): salita ripida e
+    continua 108→128 (carica forzata da fermo, comportamento THS-II da manuale);
+  - ogni tratto EV (bit EV=1, RPM=0): discesa lenta e regolare ~0.5% ogni 4-6s;
+  - ogni tratto con ICE in carica: risalita; **mai** un wrap o un salto;
+  - punteggio fisico del rilevatore derivativo: 0.88 (0044) e 0.98 (0047), il
+    più alto di tutti i 100 ID in entrambi i log.
+- **Scala**: 0.5%/bit è la convenzione Toyota nota (stessa risoluzione del SOC
+  Techstream e della formula Prius Gen2 `(256C+D)/2`). Non abbiamo ancora una
+  lettura di riferimento Techstream/Dr.Prius per la conferma assoluta, ma banda
+  (54-71%) e dinamica sono fisicamente perfette con questa scala.
+- Nota onesta: entrambi i log partono esattamente da raw=108 (54.0%). Con due soli
+  log non è distinguibile una coincidenza da un eventuale "valore di default
+  post-accensione" durante l'inizializzazione della ECU batteria. I primi secondi
+  del prossimo log lungo chiariranno.
+- Perché 0x3CB/0x03B (gli ID SOC noti di Prius Gen2/Gen3) non compaiono: questa
+  piattaforma (XP130/NHP10, 2011+) usa evidentemente uno schema diverso — la
+  famiglia 0x49x/0x4Ax (vedi sotto).
+
+### ✅ Bit "trazione elettrica attiva" (EV): ID 0x498, byte[5] bit7 — VALIDATO
+
+Scansione esaustiva bit-per-bit contro il proxy EV, poi disambiguazione sui 4
+stati fisici (fermo/movimento × ICE acceso/spento) con `tools/ev_bit_states.py`:
+
+| stato | 0044 | 0047 |
+|---|---|---|
+| fermo, ICE off | 3.0% | 11.1% |
+| fermo, ICE on | 0.0% | 0.0% |
+| **movimento, ICE off** | **100.0%** | **100.0%** |
+| movimento, ICE on | 8.9% | 3.5% |
+
+Acceso **solo** quando il veicolo si muove in elettrico puro; spento da fermo
+anche con ICE spento (i residui 3-11% da fermo sono l'isteresi negli istanti a
+cavallo dell'arresto, e gli 3-9% in movimento/ICE-on sono il ritardo di
+transizione mentre l'ICE riparte). È la semantica esatta della spia "EV" del
+cruscotto — più ricca del proxy (che non distingue il fermo). 23/23 e 5/5
+transizioni in accordo col proxy nei due log.
+
+Bit affini trovati e validati nella stessa scansione (utili come ridondanza):
+- **0x49C byte[5] bit6** e **0x4AD byte[3] bit6**: "ICE spento" puro (accesi al
+  100% con ICE fermo sia in moto che da fermo, ~0-8% con ICE acceso).
+
+### ✅ Bit "motore termico in moto" (ICE): ID 0x245, byte[3] bit4 — VALIDATO
+
+Nel messaggio GAS_PEDAL già noto: acceso al 98-99% quando RPM>~800 e allo
+0-0.7% quando l'ICE è fermo, **indipendentemente dal movimento**, su entrambi i
+log. Più pulito e più pronto del thresholding sugli RPM; insieme al bit EV
+copre l'intera macchina a stati del powertrain.
+
+### La famiglia 0x498-0x4AF: frame "data recorder" del powertrain via gateway
+
+Conferma esterna trovata: nel DBC di riferimento `toyota_2017_ref_pt.dbc` di
+comma.ai (opendbc upstream) gli ID 1176-1199 (0x498-0x4AF) esistono come
+messaggi **`ENG1D50`…`ENG1D60` emessi dal nodo `CGW` (Central GateWay)**, con
+otto segnali opachi per byte chiamati `DRENGxx` — cioè frame di telemetria
+del powertrain ("DR" = data recorder) inoltrati dal gateway, senza semantica
+pubblica. Coerente con quanto osservato: è lì dentro che vivono SOC e stato
+ibrido. Ulteriore conferma indiretta: sull'analisi TUCRRC di una Camry 2010
+**non ibrida** (engr.colostate.edu/~jdaily/tucrrc/ToyotaCAN.html) questa
+famiglia di ID non compare affatto — è specifica del powertrain ibrido — mentre
+la stessa pagina conferma indipendentemente il nostro 0x224 byte[5:6] come
+"Brake Pressure" (stessi byte!) e 0x611 come odometro.
+
+### ⚠️ RICLASSIFICATO: 0x3A0 byte[7] NON è il livello del serbatoio
+
+La verifica di plausibilità promessa è stata fatta, e l'ipotesi "livello
+carburante" **non regge**:
+
+- I decrementi correlano con il **tempo di ICE acceso**, non col tempo totale né
+  con la distanza: 1 unità ogni ~20-25s di ICE in moto, in modo notevolmente
+  coerente **tra i due log** (8 unità/193s-ICE in 0044, 6 unità/155s-ICE in 0047,
+  ~±7% di differenza).
+- Se fosse il livello di un serbatoio da 36L su una scala a byte (~0.4-0.6 L/unità),
+  il tasso implicherebbe 50+ L/h di consumo: fisicamente impossibile (15-20×
+  troppo veloce) per un 1NZ-FXE in guida urbana.
+- In 0047 oscilla 58↔59 anche da fermo a ICE spento (rumore di lettura, non
+  consumo).
+
+**Nuova interpretazione (ipotesi forte)**: è un **contatore di carburante
+consumato ad alta risoluzione che decresce** — quantum stimato ~10-30 mL
+(1.4-3.7 L/h impliciti, giusti per guida urbana ibrida) — molto probabilmente il
+**byte basso di un registro più ampio** ("carburante rimanente" ad alta
+risoluzione) i cui bit alti non sono in questo messaggio. Predizione falsificabile:
+su un log ≥30 min di guida si deve osservare il wrap 255→…→0→255. Uso pratico:
+derivandolo si ottiene il **consumo istantaneo**; NON usarlo come livello assoluto.
+Il livello "a barre" del quadro probabilmente non transita affatto su questo bus
+(il galleggiante è cablato direttamente al quadro strumenti su questa piattaforma).
+
+### ⚠️ NUOVO: 0x320 byte[4] — domanda di potenza/accelerazione longitudinale (con segno)
+
+Cercando una "corrente batteria HV" (campo con segno che si inverte tra scarica e
+carica) con `tools/find_batt_current.py`, l'unico sopravvissuto ad alta frequenza
+su entrambi i log è **0x320 byte[4]** (s8, ~20 Hz): positivo accelerando
+(+10..+31 col pedale premuto), negativo frenando o in rilascio (-8..-48), ~0 da
+fermo E in crociera costante. La coppia (segno ↔ trazione/frenata) però resta
+positiva anche in trazione EV e non diventa negativa nella carica da fermo →
+**non è la corrente batteria**: è una **domanda di coppia/accelerazione
+longitudinale**. byte[7] è lo stesso segnale con offset costante +42, byte[5] è
+un flag {0,8} attivo solo a veicolo fermo. Scala non confermata (plausibile
+~0.02-0.05 m/s² per LSB). Una vera corrente/potenza batteria con segno **non è
+presente in broadcast** su questo bus (confermato: il Prius 0x03B non esiste qui).
+
+### Il mistero della scatoletta è risolto (senza catturare l'output)
+
+Con questi risultati, il function ID 0x1F "OilElectricityInfo" della Simplesoft
+è interamente sintetizzabile in **puro ascolto passivo** dei segnali ora mappati:
+
+- *livello batteria a 3 bit (0-7 barre)* ← quantizzazione di **SOC 0x4A7 byte[2]**;
+- *flag "hybrid"* ← presenza della famiglia 0x49x;
+- *frecce del flusso energia* ← combinazione di **bit EV (0x498 b5.7)**, **bit ICE
+  (0x245 b3.4)**, **segno di 0x320 byte[4]** (trazione vs regen) e velocità.
+
+Non serve più ipotizzare polling diagnostico attivo: i ~10s di ritardo della
+schermata sono verosimilmente solo inizializzazione dell'app dell'autoradio. I 10
+ID costanti apparsi in session_0047 restano un handshake/keep-alive della
+scatoletta, come già concluso.
+
+### Dettagli utili per la cattura (facoltativa) del lato scatoletta→autoradio
+
+Dal `decoder.py` del repo zugetor (verificato direttamente nel sorgente):
+**UART TTL a 38400 baud, 8N1**. Frame: `[0x2E, FunctionID, DataLength,
+Data..., Checksum]` con `Checksum = (somma di FunctionID+Length+Data) & 0xFF ^ 0xFF`.
+Con un ESP32: collegare RX a 38400 sul filo TX della scatoletta verso
+l'autoradio (solo ascolto, GND comune). Ora serve però solo come *verifica di
+conferma* (vedere il livello a 3 bit e confrontarlo con 0x4A7), non più come
+unica strada per il SOC.
+
+### Cosa resta aperto
+
+1. **Conferma di scala SOC** contro una lettura di riferimento (Techstream,
+   Dr. Prius via OBD dongle, o la cattura UART di cui sopra). La dinamica è
+   inattaccabile; solo il fattore 0.5 è "da convenzione".
+2. **Autonomia residua in km**: tuttora nessun candidato su questo bus (l'unico
+   contachilometri è l'odometro 0x611). Probabilmente calcolata dal quadro
+   strumenti internamente e mai pubblicata.
+3. **Wrap del contatore carburante 0x3A0**: serve un log ≥30 min per la conferma
+   definitiva dell'ipotesi "byte basso di contatore".
+4. **0x612 byte[5]**: random-walk lento centrato su 128 (±16), byte[1] è un
+   bit di heartbeat che alterna 0x80/0x00. Escluso come SOC (nessuna coerenza
+   con gli stati di carica/scarica). Non identificato — possibile corrente
+   batteria 12V con offset 128 o un trim. Bassa priorità.
+5. **0x4AE byte[7]** (72-75, sale lentamente in entrambi i log): debole candidato
+   temperatura batteria HV/inverter. Da riguardare su un log lungo estivo.
+
+Script aggiunti in questa sessione: `find_ev_bit.py` (scansione bit vs proxy EV),
+`ev_bit_states.py` (tabella 4-stati per disambiguare EV vs ICE-status),
+`find_soc_derivative.py` (rilevatore SOC a fisica derivativa),
+`plot_soc_timeline.py` (timeline ASCII con contesto veicolo),
+`find_batt_current.py` (ricerca campi con inversione di segno carica/scarica).

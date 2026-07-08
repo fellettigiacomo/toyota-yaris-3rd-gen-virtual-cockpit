@@ -1,8 +1,10 @@
 CM_ "Toyota Yaris Hybrid 2014 (XP130, THS-II NoDSU) - reverse engineered from a candump (500kbps) captured on the";
 CM_ "factory head-unit connector (28-pin, p/n 90980-12555, CAN-H=pin9/CAN-L=pin10), NOT the OBD-II diagnostic port.";
 CM_ "Base messages taken from BogGyver/opendbc (tesla_unity_dev) toyota_nodsu_hybrid_pt_generated.dbc and empirically validated";
-CM_ "against a real ~7min drive log (data/logs/session_0044.log). Additions for BRAKE_ANALOG (0x224) and";
-CM_ "COMBO_METER_0x34 (0x618) are original findings from this project, not present in opendbc.";
+CM_ "against two independent real drive logs (data/logs/session_0044.log ~430s, session_0047.log ~440s). Additions for";
+CM_ "BRAKE_ANALOG (0x224), COMBO_METER_0x34 (0x618), FUEL_COUNTER (0x3A0), HYBRID_STATUS/EV_DRIVE (0x498),";
+CM_ "HV_BATTERY/BATTERY_SOC (0x4A7), ICE_RUNNING (0x245 b3.4) and PWR_DEMAND (0x320) are original findings from this";
+CM_ "project, not present in opendbc.";
 CM_ "See docs/signal_findings.md for full validation methodology and confidence levels.";
 
 BO_ 180 SPEED: 8 XXX
@@ -38,8 +40,10 @@ CM_ BO_ 548 "STRONG HYPOTHESIS (not in any opendbc DBC - original finding). ID 0
 
 BO_ 581 GAS_PEDAL: 8 XXX
  SG_ GAS_PEDAL : 23|8@0+ (0.005,0) [0|1] "" XXX
+ SG_ ICE_RUNNING : 28|1@0+ (1,0) [0|1] "" XXX
 
 CM_ SG_ 581 GAS_PEDAL "CONFIRMED. 0.0-0.35 (0-35%) range observed, closely tracking the accelerate/coast pattern of city driving and preceding each RPM/SPEED rise.";
+CM_ SG_ 581 ICE_RUNNING "CONFIRMED on two independent logs (original finding). byte[3] bit4. 1 while the combustion engine is actually spinning (RPM>~800), 0 while it is stopped, INDEPENDENT of vehicle motion: 98-99% agreement with RPM(0x1C4)>50 across all four (moving/stopped x ICE on/off) states in both logs. Cleaner than thresholding RPM. See docs/signal_findings.md Addendum 2.";
 
 BO_ 1553 UI_SETTING: 8 XXX
  SG_ UNITS : 26|2@0+ (1,0) [0|3] "" XXX
@@ -93,11 +97,28 @@ BO_ 1560 COMBO_METER_0x34: 8 XXX
 
 CM_ BO_ 1560 "STRONG HYPOTHESIS, original finding (not in any opendbc DBC). ID 0x618 belongs to a family of low-frequency (~0.1Hz) 'combination meter' multiplex messages (0x610-0x615, 0x618-0x61c) where byte[0] is a constant per-ID parameter-index tag (unrelated to numeric CAN ID order). byte[3] (TEMP_RAW here) climbs monotonically and smoothly from 0 at cold start/idle (t=0-64s, matches GEAR=P) to a plateau around 230-240 by t=350-430s, in lock-step with the engine actually running (matches GEAR shifting to R/D at t=50-60s). This is the textbook shape of an engine coolant warm-up curve reaching thermostat-regulated operating temperature after ~5 minutes of driving. Candidate formula (UNCONFIRMED SCALE): temp_C = TEMP_RAW * 0.375, which places the plateau at a plausible 90 deg C; this scale factor is a best-fit guess, not derived from a reference thermometer reading. Could equally be transmission/CVT fluid temperature rather than coolant -- not distinguishable from this data alone.";
 
-BO_ 928 FUEL_LEVEL: 8 XXX
- SG_ FUEL_RAW : 63|8@0+ (1,0) [0|255] "" XXX
+BO_ 928 FUEL_COUNTER: 8 XXX
+ SG_ FUEL_COUNTER_RAW : 63|8@0+ (1,0) [0|255] "" XXX
 
-CM_ BO_ 928 "STRONG HYPOTHESIS, original finding (not in any opendbc DBC). ID 0x3A0, byte[7] is the only non-zero byte in an otherwise all-zero 8-byte message, transmitted at a steady 10Hz. In two independent drives it decreases slowly and almost monotonically for the whole session (session_0044: 61->53 over 350s; session_0047: 58->52 over 430s), with small back-and-forth noise between adjacent values (consistent with a fuel sender sloshing) but never rising or wrapping around. Textbook shape for a slowly-consumed fuel level. Scale/units NOT confirmed (no known full-tank reference reading yet) -- do not trust FUEL_RAW as liters or % as-is.";
+CM_ BO_ 928 "RECLASSIFIED (was FUEL_LEVEL, strong hypothesis retracted after plausibility check -- see docs/signal_findings.md Addendum 2). ID 0x3A0 byte[7], only non-zero byte, 10Hz. Decrements correlate with ICE-ON RUNTIME (1 unit per ~20-25s of engine running, consistent to ~7% across both logs), not with wall time or distance; it even flickers 58<->59 while parked with the engine off. A 36L-tank level on a byte scale would deplete 15-20x slower than observed, so this is NOT the fuel gauge level. Best hypothesis: a decrementing high-resolution fuel-consumed/remaining counter, quantum ~10-30mL (implied burn rate 1.4-3.7 L/h, plausible for city hybrid driving), most likely the LOW BYTE of a wider register (would wrap 0->255 on a >=30min log -- falsifiable prediction, logs so far are too short). Useful differentiated as instantaneous fuel consumption; do NOT use as absolute tank level.";
 
-CM_ "=== MANDATORY SIGNALS NOT FOUND (see docs/signal_findings.md for full explanation) ===";
-CM_ "Remaining range (km) / HV battery SOC%: NOT FOUND. Prius-family reference docs (EAA-PHEV wiki, PriusChat Gen2 CAN/OBD2 PID list) show HV SOC only available via (a) solicited UDS diagnostic requests to the Battery ECU (0x7E2/0x7E3, Mode 21 PIDs C3/CE), not broadcast periodically, or (b) the unsolicited 0x0529 message (MFD SOC bars + EV-mode bits). Neither appears in this capture, taken from the head-unit's own CAN-H/CAN-L pins (same bus the aftermarket Android head unit's canbus box uses to display SOC/EV-mode). Since that connector otherwise carries the same broadcast set expected on the main HS-CAN, the leading hypothesis is now that the aftermarket box obtains SOC/EV-mode via active diagnostic polling, not passive listening -- not that it sits on a separate unreachable bus. To be confirmed with a capture taken in parallel with the aftermarket box running.";
-CM_ "EV mode (explicit bit): NOT FOUND, same as above. PROXY IMPLEMENTED instead: RPM(0x1C4) < 50 while SPEED(0x0B4) > 1 kph. Over this log, 53.0% of time spent moving matches this proxy, with 23 transitions in/out of it -- consistent with typical THS-II engine start/stop cycling during city driving. This is a derived/inferred signal, not a decoded CAN bit.";
+BO_ 1176 HYBRID_STATUS: 8 XXX
+ SG_ EV_DRIVE : 47|1@0+ (1,0) [0|1] "" XXX
+
+CM_ SG_ 1176 EV_DRIVE "CONFIRMED on two independent logs (original finding). byte[5] bit7. ON (100%) only while the vehicle is moving with the ICE stopped (pure electric propulsion, including regen); OFF while stopped even with ICE off (0-11%, residuals are hysteresis around standstill transitions) and OFF while driving with ICE running (3-9%, transition lag). Matches dash 'EV' indicator semantics; found by exhaustive per-bit agreement scan against the previously-validated proxy RPM<50 AND speed>1 (23/23 and 5/5 proxy transitions matched). Redundant inverse 'ICE stopped' bits also validated: 0x49C byte[5] bit6 and 0x4AD byte[3] bit6. Message family 0x498-0x4AF exists in commaai opendbc toyota_2017_ref_pt.dbc as opaque CGW (gateway) data-recorder frames ENG1D50..ENG1D60 / DRENGxx, and is ABSENT on the non-hybrid 2010 Camry (TUCRRC analysis) -- a hybrid-powertrain-specific telemetry family. See docs/signal_findings.md Addendum 2.";
+
+BO_ 1191 HV_BATTERY: 8 XXX
+ SG_ BATTERY_SOC : 23|8@0+ (0.5,0) [0|100] "%" XXX
+
+CM_ SG_ 1191 BATTERY_SOC "CONFIRMED on two independent logs (original finding; scale from Toyota convention). ID 0x4A7 (~2Hz, hybrid data-recorder family via gateway, see 0x498), byte[2] * 0.5 = HV battery SOC in %. Observed 54.0-71.5% (raw 108-143), exactly the real THS-II NiMH operating band (~40-80%). Physics fully validated on both logs: flat while parked/everything-off, steady climb during stationary ICE warm-up charging, slow decline (~0.5% per 4-6s) during every EV stretch, recovery during every ICE-on/regen stretch, never wraps; highest physics score of all 100 IDs in the derivative-based scan (0.88/0.98). The 0.5%/bit resolution matches Techstream SOC display and the Prius Gen2 (256C+D)/2 formula. Caveats: absolute scale not yet verified against a Techstream/Dr.Prius reference readout; both logs happen to start at raw=108 (54.0%) -- possibly coincidence, possibly a power-on default during battery-ECU init (check first seconds of the next long log). Earlier candidate 0x4A8 byte2 top-3-bits remains RETRACTED (cyclic counter). byte[7] of this message is constant 0xC8; bytes[0:2] form an unidentified signed 16-bit value (NOT MG rpm: corr with speed only ~0.37; NOT battery current: sign does not flip between charge and discharge).";
+CM_ "0x612 byte[5]: excluded as SOC -- slow random walk centered on 128 with no charge/discharge physics; byte[1] alternates 0x80/0x00 (heartbeat). Unidentified (possibly a 12V-battery current with offset 128). 0x4AE byte[7] (72-75, slowly rising in both logs): weak candidate for HV battery/inverter temperature, unconfirmed.";
+
+BO_ 800 PWR_DEMAND: 8 XXX
+ SG_ ACCEL_DEMAND : 39|8@0- (1,0) [-128|127] "" XXX
+ SG_ ACCEL_DEMAND_OFFSET_COPY : 63|8@0- (1,0) [-128|127] "" XXX
+
+CM_ BO_ 800 "STRONG HYPOTHESIS on semantics, scale unconfirmed (original finding). ID 0x320, ~20Hz. byte[4] as signed 8-bit: positive under acceleration demand (+10..+31 with pedal), negative while braking/coasting (-8..-48), ~0 at rest AND at steady cruise -- a longitudinal acceleration / torque-demand-like quantity, NOT HV battery current (stays positive during EV traction and does not go negative during stationary charging; found while explicitly searching for a charge/discharge sign-flip field with tools/find_batt_current.py -- no true battery current broadcast exists on this bus, and Prius-style 0x03B is absent). byte[7] tracks byte[4]+42 (same signal, constant offset); byte[5] is a {0,8} flag active only at standstill. Together with EV_DRIVE (0x498), ICE_RUNNING (0x245) and BATTERY_SOC (0x4A7), this fully explains how the Simplesoft RP5-TY-101 canbus box synthesizes its 'OilElectricityInfo' energy-flow display (function ID 0x1F, zugetor protocol: UART TTL 38400 8N1, frame 0x2E+func+len+data+checksum) from pure passive listening -- no active diagnostic polling needed.";
+
+CM_ "=== SIGNALS STILL NOT FOUND (see docs/signal_findings.md for full explanation) ===";
+CM_ "Remaining range / distance-to-empty (km): NOT FOUND on this bus (the only km counter is the 0x611 total odometer). Most likely computed inside the instrument cluster and never broadcast.";
+CM_ "HV battery current/power (signed): NOT FOUND as a broadcast; Prius Gen2/Gen3-style 0x03B/0x3CB/0x3CD/0x529 IDs are all absent on this platform. Available only via solicited UDS (Mode 21) to the battery ECU.";
