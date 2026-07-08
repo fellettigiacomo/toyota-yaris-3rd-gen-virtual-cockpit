@@ -1,6 +1,7 @@
 #pragma once
 
-// Bring-up of the AXS15231B display (via Arduino_GFX) bridged to LVGL, and
+// Bring-up of the AXS15231B display (via ESP-IDF esp_lcd + Waveshare's own
+// panel driver, see src/axs15231b/ -- not Arduino_GFX) bridged to LVGL, and
 // the LVGL task that owns all lv_* calls (LVGL itself is not thread-safe --
 // every lv_* call in this firmware happens from lvglTask, never from
 // canRxTask or the Arduino loop()).
