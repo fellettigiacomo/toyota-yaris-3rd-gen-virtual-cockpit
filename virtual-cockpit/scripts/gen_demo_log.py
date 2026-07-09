@@ -3,7 +3,7 @@
 the demo build (pio run -e demo, DEMO_FAKE_DATA) replays an actual drive
 through the real can_decoder.cpp bit-math instead of a synthetic sweep.
 
-Only the ~8 CAN IDs can_decoder.cpp actually decodes are kept (the rest of
+Only the CAN IDs can_decoder.cpp actually decodes are kept (the rest of
 the ~100 IDs on the bus are irrelevant to this UI and would just bloat the
 embedded array). Timestamps become milliseconds relative to the first kept
 frame, monotonic, for the demo replay loop in can_decoder.cpp to step
@@ -30,7 +30,7 @@ DEFAULT_LOG = REPO_ROOT / "data" / "logs" / "session_0047.log"
 OUTPUT = Path(__file__).resolve().parents[1] / "src" / "demo_log_data.cpp"
 
 # Must match the IDs can_decoder.cpp's decodeIntoState() switches on.
-RELEVANT_IDS = {0x0B4, 0x1C4, 0x127, 0x245, 0x498, 0x247, 0x4A7, 0x442}
+RELEVANT_IDS = {0x0B4, 0x1C4, 0x127, 0x245, 0x498, 0x247, 0x4A7, 0x442, 0x320, 0x230}
 
 # The UI only syncs at ~30Hz (UI_SYNC_INTERVAL_MS), so the ~33-47Hz native
 # rate of some of these signals (SPEED/RPM/GEAR/GAS_PEDAL/HSI) is more
