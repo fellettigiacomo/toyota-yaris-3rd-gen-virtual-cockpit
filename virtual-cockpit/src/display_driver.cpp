@@ -3,7 +3,8 @@
 #include "app_config.h"
 #include "can_decoder.h"
 #include "rtc_clock.h"
-#include "ui/cockpit_ui.h"
+#include "ui/app_ui.h"
+#include "touch_input.h"
 #include "axs15231b/esp_lcd_axs15231b.h"
 
 #include <Arduino.h>
@@ -218,7 +219,8 @@ void initLvgl() {
 void lvglTask(void *) {
     initPanel();
     initLvgl();
-    CockpitUi::build();
+    TouchInput::begin();
+    AppUi::build();
 
     uint32_t lastSyncMs = 0;
     for (;;) {
@@ -235,7 +237,7 @@ void lvglTask(void *) {
 #else
             time_t clockEpoch = RtcClock::isValid() ? RtcClock::now() : 0;
 #endif
-            CockpitUi::update(state, clockEpoch);
+            AppUi::update(state, clockEpoch);
         }
 
         vTaskDelay(pdMS_TO_TICKS(LVGL_TASK_DELAY_MS));
