@@ -37,6 +37,16 @@ void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16
     // Label sits in a (w-6)-wide box, text-aligned toward the divider side
     // and inset 6px from it, vertically centered within the bar's height.
     // Text itself ("<prefix> <pct>%") is set by setFillPct(), called below.
+    //
+    // Centering uses the font's actual line_height (10px for this
+    // letters+digits subset at nominal 14px -- uppercase-only/no-descender
+    // subsets render shorter than their nominal point size, same as the
+    // other custom fonts in this project), not the nominal 14px size --
+    // using the nominal size left the text sitting 2px too high, looking
+    // "stuck to the top edge" of the 16px-tall bar.
+    constexpr int16_t kLabelLineHeight = 10;
+    int16_t labelY = y + (h - kLabelLineHeight) / 2;
+
     hd->label = lv_label_create(parent);
     lv_obj_set_style_text_font(hd->label, &dinnext_14_chgpwr, 0);
     lv_obj_set_style_text_letter_space(hd->label, 1, 0);
@@ -46,12 +56,12 @@ void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16
         // CHG: divider is the canvas's right edge -- right-align text, box
         // flush to the canvas's own left edge so the 6px gap lands on the right.
         lv_obj_set_style_text_align(hd->label, LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_set_pos(hd->label, x, y + 1);
+        lv_obj_set_pos(hd->label, x, labelY);
     } else {
         // PWR: divider is the canvas's left edge -- left-align text, box
         // shifted 6px in from that edge.
         lv_obj_set_style_text_align(hd->label, LV_TEXT_ALIGN_LEFT, 0);
-        lv_obj_set_pos(hd->label, x + 6, y + 1);
+        lv_obj_set_pos(hd->label, x + 6, labelY);
     }
 
     setFillPct(hd, 0.0f); // paint the initial empty state now, not a garbage buffer
