@@ -10,43 +10,44 @@ namespace {
 
 // --- Node layout, 640x172 tile ---
 // Row 1 (ENGINE/MOTOR/BATTERY): labels at y=2..16, icons centered at y=42.
-// Row 2 (WHEELS): icon centered at y=132, label at y=150..164.
-// A horizontal chain (ENGINE-MOTOR-BATTERY) plus a vertical drop
-// (MOTOR-WHEELS) mirrors the reference Toyota energy monitor's topology,
-// adapted to this display's ultra-wide/short aspect ratio; ENGINE-WHEELS is
-// a separate diagonal bypassing MOTOR, since the ICE can drive the wheels
-// directly (planetary power-split) without a mechanical dependency on the
-// motor/generator.
-constexpr int16_t kEngineCx = 100, kEngineCy = 42;
-constexpr int16_t kMotorCx = 330, kMotorCy = 42;
-constexpr int16_t kBatteryCx = 555, kBatteryCy = 42;
-constexpr int16_t kWheelsCx = 330, kWheelsCy = 132;
+// Row 2 (WHEELS): icon centered at y=122, label at y=148..164. ENGINE and
+// BATTERY sit closer to MOTOR (and further from the screen edges) than an
+// earlier layout that stretched them out to x=100/555 -- 150px between each
+// pair of centers, evenly spaced, with generous (~130px) margin from the
+// left/right screen edges even counting the labels. ENGINE-WHEELS bends 90
+// degrees at the ENGINE column's x, straight down to WHEELS' row then
+// straight across -- a real mechanical link (planetary power-split), not
+// meant to read as a diagonal shortcut through the diagram.
+constexpr int16_t kEngineCx = 170, kEngineCy = 42;
+constexpr int16_t kMotorCx = 320, kMotorCy = 42;
+constexpr int16_t kBatteryCx = 470, kBatteryCy = 42;
+constexpr int16_t kWheelsCx = 320, kWheelsCy = 122;
 
 constexpr int16_t kEngineHalfW = 26, kEngineHalfH = 14; // body rect
 constexpr int16_t kMotorRadius = 20;                    // outer rim
 constexpr int16_t kBatteryHalfW = 13, kBatteryHalfH = 9; // body rect
-// Wider than it looks necessary at a glance -- the WHEELS node is the only
-// place two arrowheads (motorWheels from the top, engineWheels from the
-// left) converge on the same small area. A tighter radius here puts their
-// arrowhead flares within a couple px of touching, which (since FlowArrow
-// canvases are opaque, drawn in z-order) can let one arrow's bounding box
-// paint over the other's real pixels. This radius was sized by hand-tracing
-// both arrowheads' worst-case extent to keep a comfortable gap between them.
-constexpr int16_t kWheelsRadius = 20;
+constexpr int16_t kWheelsRadius = 20;                    // outer rim
 
 constexpr int16_t kLabelRowY = 2;
-constexpr int16_t kWheelsLabelY = 156;
+constexpr int16_t kWheelsLabelY = 148;
 constexpr int16_t kLabelW = 80;
 
+// Small visible gap between each arrow endpoint and the node it connects
+// to, so the (opaque, z-ordered-on-top) node icon never clips/overlaps the
+// arrow's own rendered shaft -- keeps every segment's true thickness
+// visible right up to the node, instead of the last couple px reading as
+// thinner where an icon's edge cuts across it.
+constexpr int16_t kEndpointGap = 3;
+
 // Segment endpoints, derived from the node geometry above.
-constexpr int16_t kEngineRightX = kEngineCx + kEngineHalfW; // 126
-constexpr int16_t kEngineBottomY = kEngineCy + kEngineHalfH; // 56
-constexpr int16_t kMotorLeftX = kMotorCx - kMotorRadius;     // 310
-constexpr int16_t kMotorRightX = kMotorCx + kMotorRadius;    // 350
-constexpr int16_t kMotorBottomY = kMotorCy + kMotorRadius;   // 62
-constexpr int16_t kBatteryLeftX = kBatteryCx - kBatteryHalfW; // 542
-constexpr int16_t kWheelsTopY = kWheelsCy - kWheelsRadius;    // 116
-constexpr int16_t kWheelsLeftX = kWheelsCx - kWheelsRadius;   // 314
+constexpr int16_t kEngineRightX = kEngineCx + kEngineHalfW + kEndpointGap;
+constexpr int16_t kEngineBottomY = kEngineCy + kEngineHalfH + kEndpointGap;
+constexpr int16_t kMotorLeftX = kMotorCx - kMotorRadius - kEndpointGap;
+constexpr int16_t kMotorRightX = kMotorCx + kMotorRadius + kEndpointGap;
+constexpr int16_t kMotorBottomY = kMotorCy + kMotorRadius + kEndpointGap;
+constexpr int16_t kBatteryLeftX = kBatteryCx - kBatteryHalfW - kEndpointGap;
+constexpr int16_t kWheelsTopY = kWheelsCy - kWheelsRadius - kEndpointGap;
+constexpr int16_t kWheelsLeftX = kWheelsCx - kWheelsRadius - kEndpointGap;
 
 constexpr int16_t kArrowThickness = 10;
 
@@ -158,7 +159,7 @@ FlowState deriveFlow(const VehicleState &state) {
 void createIconLabel(lv_obj_t *parent, int16_t cx, int16_t labelY, const char *text) {
     lv_obj_t *l = lv_label_create(parent);
     lv_obj_set_style_text_font(l, &lv_font_montserrat_14, 0);
-    lv_obj_set_style_text_color(l, Colors::kMutedText, 0);
+    lv_obj_set_style_text_color(l, Colors::kText, 0);
     lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(l, kLabelW);
     lv_obj_set_pos(l, static_cast<int16_t>(cx - kLabelW / 2), labelY);
@@ -271,8 +272,11 @@ void build(lv_obj_t *parent) {
                        kArrowThickness, Colors::kChgGreen);
     FlowArrow::create(&g_motorWheelsArrow, root, kMotorCx, kMotorBottomY, kWheelsCx, kWheelsTopY,
                        kArrowThickness, Colors::kAccentCyan);
-    FlowArrow::create(&g_engineWheelsArrow, root, kEngineCx, kEngineBottomY, kWheelsLeftX, kWheelsCy,
-                       kArrowThickness, Colors::kEngineRed);
+    // Bent 90 degrees at (kEngineCx, kWheelsCy): straight down from ENGINE,
+    // then straight across into WHEELS' left edge -- a right-angle corner
+    // instead of a diagonal line.
+    FlowArrow::createBent(&g_engineWheelsArrow, root, kEngineCx, kEngineBottomY, kEngineCx, kWheelsCy,
+                          kWheelsLeftX, kWheelsCy, kArrowThickness, Colors::kEngineRed);
 
     createEngineIcon(root);
     createMotorIcon(root);
