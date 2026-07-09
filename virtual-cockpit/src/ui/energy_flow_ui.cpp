@@ -57,6 +57,16 @@ FlowArrow::Handle g_engineWheelsArrow;
 
 uint32_t g_lastUpdateMs = 0;
 
+// Each FlowArrow::tick() re-rasterizes its canvas pixel-by-pixel -- doing
+// that at the full ~30Hz AppUi::update() rate (reported, on real hardware,
+// to make both this tile and the swipe transition into/out of it noticeably
+// laggy) costs far more than it's worth for a "does it look like it's
+// flowing" animation. Redraw the animation itself at a much lower rate;
+// direction/color changes (FlowArrow::setState(), below) stay fully
+// responsive every call regardless, since those are rare and cheap.
+constexpr float kAnimTickIntervalS = 0.15f; // ~6-7Hz redraw instead of ~30Hz
+float g_animAccumS = 0.0f;
+
 // --- Hysteresis for "is the vehicle stopped" (avoids flicker right at
 // standstill, same idea as debouncing a noisy digital input) ---
 constexpr float kStopEnterKph = 2.0f; // speed must drop below this to become "stopped"
@@ -283,10 +293,14 @@ void update(const VehicleState &state) {
     FlowArrow::setState(&g_motorWheelsArrow, f.motorWheels,
                          f.motorWheels == FlowArrow::Dir::Forward ? Colors::kAccentCyan : Colors::kChgGreen);
 
-    FlowArrow::tick(&g_engineMotorArrow, dtS);
-    FlowArrow::tick(&g_motorBatteryArrow, dtS);
-    FlowArrow::tick(&g_motorWheelsArrow, dtS);
-    FlowArrow::tick(&g_engineWheelsArrow, dtS);
+    g_animAccumS += dtS;
+    if (g_animAccumS >= kAnimTickIntervalS) {
+        FlowArrow::tick(&g_engineMotorArrow, g_animAccumS);
+        FlowArrow::tick(&g_motorBatteryArrow, g_animAccumS);
+        FlowArrow::tick(&g_motorWheelsArrow, g_animAccumS);
+        FlowArrow::tick(&g_engineWheelsArrow, g_animAccumS);
+        g_animAccumS = 0.0f;
+    }
 }
 
 } // namespace EnergyFlowUi
