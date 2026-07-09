@@ -3,9 +3,9 @@
 Runs the real cluster UI (`src/ui/*`) in an SDL2 window on your Mac, fed by
 the same real-drive-log replay the `pio run -e demo` firmware build uses
 (`can_decoder.cpp` + `demo_log_data.cpp`, unmodified) -- no ESP32 board, no
-flashing. It does **not** exercise `touch_input.cpp`, `display_driver.cpp`,
-or anything ESP-IDF/hardware-specific; those stay firmware-only. Mouse
-click-and-drag stands in for a finger swipe on the tileview.
+flashing. It does **not** exercise `display_driver.cpp` or anything
+ESP-IDF/hardware-specific; that stays firmware-only. The BOOT-button screen
+switch (`screen_nav.cpp`) is simulated via the spacebar.
 
 ## Build
 
@@ -29,8 +29,8 @@ cmake -B build -DCMAKE_PREFIX_PATH=$(brew --prefix)
 
 ## Use
 
-- Click and drag left/right inside the window to swipe between the cockpit
-  and energy-flow tiles, same gesture as on the real touch panel.
+- Press SPACE to switch between the cockpit and energy-flow screens, same
+  as pressing the board's BOOT button (GPIO0) on real hardware.
 - The drive log loops automatically (~5.7 minutes/lap) and includes real
   EV/regen/charge/cruise/kick-down transitions, so the energy-flow arrows
   should visibly change direction and color as it plays.
@@ -45,9 +45,6 @@ SDL2/CMake toolchain, no Mac, no display available there). If `cmake`/the
 build fails, that's expected to be entirely fixable -- it just hasn't been
 exercised yet. The most likely rough edges, in rough order of likelihood:
 
-- `SDL_RenderWindowToLogical` (`lv_port_indev_sdl.cpp`) requires SDL >= 2.0.18;
-  Homebrew's current SDL2 is well past that, but check `sdl2-config --version`
-  if it fails to link/compile.
 - The `LV_CONF_PATH`/`LV_CONF_INCLUDE_SIMPLE` wiring in `CMakeLists.txt` was
   checked against LVGL's actual `env_support/cmake/custom.cmake` for v8.3.11,
   not assumed -- but CMake variable-scoping subtleties around

@@ -58,13 +58,15 @@ FlowArrow::Handle g_engineWheelsArrow;
 uint32_t g_lastUpdateMs = 0;
 
 // Each FlowArrow::tick() re-rasterizes its canvas pixel-by-pixel -- doing
-// that at the full ~30Hz AppUi::update() rate (reported, on real hardware,
-// to make both this tile and the swipe transition into/out of it noticeably
-// laggy) costs far more than it's worth for a "does it look like it's
-// flowing" animation. Redraw the animation itself at a much lower rate;
-// direction/color changes (FlowArrow::setState(), below) stay fully
-// responsive every call regardless, since those are rare and cheap.
-constexpr float kAnimTickIntervalS = 0.15f; // ~6-7Hz redraw instead of ~30Hz
+// that at the full ~30Hz AppUi::update() rate was reported, on real
+// hardware, to make this tile (and the old touch-swipe transition into/out
+// of it) badly laggy; a first pass at ~6-7Hz was still laggy, meaning the
+// per-redraw cost itself (up to 4 full canvas repaints) is the dominant
+// expense, not just how often it runs. Direction/color changes
+// (FlowArrow::setState(), below) stay fully responsive every call
+// regardless, since those are rare and cheap -- only the continuous
+// flowing animation is throttled this hard.
+constexpr float kAnimTickIntervalS = 0.5f; // ~2Hz redraw instead of ~30Hz
 float g_animAccumS = 0.0f;
 
 // --- Hysteresis for "is the vehicle stopped" (avoids flicker right at
@@ -252,8 +254,8 @@ constexpr int16_t kScreenH = 172;
 } // namespace
 
 void build(lv_obj_t *parent) {
-    // Same reasoning as CockpitUi::build(): don't restyle the tileview tile
-    // itself, build onto a plain child object instead.
+    // Same reasoning as CockpitUi::build(): build onto its own child object
+    // rather than restyling `parent` directly.
     lv_obj_t *root = lv_obj_create(parent);
     lv_obj_remove_style_all(root);
     lv_obj_set_size(root, kScreenW, kScreenH);

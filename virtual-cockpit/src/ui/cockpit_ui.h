@@ -10,8 +10,9 @@
 // from there.
 namespace CockpitUi {
 
-// Constructs the static widget tree once, parented to `parent` (an
-// lv_tileview tile). Call after lv_disp_drv_register().
+// Constructs the static widget tree once, parented to `parent` (a plain
+// full-screen container -- see AppUi::build()). Call after
+// lv_disp_drv_register().
 void build(lv_obj_t *parent);
 
 // Pushes a fresh VehicleState (and, separately, wall-clock time for the

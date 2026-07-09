@@ -2,15 +2,19 @@
 #include <SDL2/SDL.h>
 
 #include "lv_port_disp_sdl.h"
-#include "lv_port_indev_sdl.h"
 
 #include "ui/app_ui.h"
 #include "can_decoder.h"
 #include "app_config.h"
+#include "screen_nav.h"
 
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
+
+// Arduino.h shim's simulated GPIO for screen_nav.cpp's BOOT-button read;
+// set from the spacebar below.
+extern bool g_simButtonHeld;
 
 namespace {
 constexpr int kLogicalW = 640; // matches the real panel's logical (post-rotation) resolution
@@ -39,20 +43,18 @@ int main(int, char **) {
         return 1;
     }
     // Lets the window be freely resized while everything drawn through
-    // `renderer` still uses 640x172 coordinates -- SDL handles the scaling,
-    // and SdlIndevPort::handleEvent() converts mouse coords back through the
-    // same mapping so touch/click coordinates stay correct at any size.
+    // `renderer` still uses 640x172 coordinates -- SDL handles the scaling.
     SDL_RenderSetLogicalSize(renderer, kLogicalW, kLogicalH);
 
     lv_init();
     SdlDispPort::init(renderer, kLogicalW, kLogicalH);
-    SdlIndevPort::init();
 
+    ScreenNav::begin();
     CanDecoder::begin();
     AppUi::build();
 
-    std::printf("Yaris virtual cockpit simulator -- click and drag to swipe between the cockpit "
-                "and energy-flow tiles, close the window to quit.\n");
+    std::printf("Yaris virtual cockpit simulator -- press SPACE to switch between the cockpit and "
+                "energy-flow screens, close the window to quit.\n");
 
     uint32_t lastTickMs = SDL_GetTicks();
     uint32_t lastSyncMs = 0;
@@ -63,8 +65,11 @@ int main(int, char **) {
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) {
                 running = false;
+            } else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_SPACE && !e.key.repeat) {
+                g_simButtonHeld = true;
+            } else if (e.type == SDL_KEYUP && e.key.keysym.sym == SDLK_SPACE) {
+                g_simButtonHeld = false;
             }
-            SdlIndevPort::handleEvent(e, renderer);
         }
 
         uint32_t nowMs = SDL_GetTicks();
