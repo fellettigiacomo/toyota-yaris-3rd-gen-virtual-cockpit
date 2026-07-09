@@ -13,6 +13,11 @@ Usage: python3 scripts/gen_demo_log.py [session_log_path]
 Defaults to data/logs/session_0047.log (440s, includes the full P/R/N/D/B
 gear cycle and both EV and ICE driving -- see docs/signal_findings.md's
 Addendum for why this session is the more complete one of the two).
+
+The session starts with the car parked in P for a while before the driver
+pulls away -- that lead-in is trimmed (see find_gear_exit_ts()) so the demo
+loop starts from the first gear change out of P instead of sitting at
+0km/h/P for the first ~100s of every lap.
 """
 import sys
 from pathlib import Path
@@ -36,12 +41,32 @@ RELEVANT_IDS = {0x0B4, 0x1C4, 0x127, 0x245, 0x498, 0x247, 0x4A7, 0x442}
 TARGET_HZ = 15.0
 
 
+def find_gear_exit_ts(relevant):
+    """Timestamp of the first frame where GEAR_PACKET (0x127) decodes to
+    something other than P -- same bit position as decodeIntoState()'s
+    0x127 case in can_decoder.cpp. Returns None if the car never leaves P."""
+    for ts, can_id, data in relevant:
+        if can_id == 0x127 and len(data) >= 6:
+            raw = (data[5] >> 4) & 0x0F
+            if raw != 0:
+                return ts
+    return None
+
+
 def main():
     log_path = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_LOG
     frames = parse(str(log_path))
     relevant = [(ts, can_id, data) for ts, can_id, data in frames if can_id in RELEVANT_IDS]
     if not relevant:
         sys.exit(f"no relevant frames found in {log_path}")
+
+    lead_in_start_ts = relevant[0][0]
+    cutoff_ts = find_gear_exit_ts(relevant)
+    if cutoff_ts is not None:
+        lead_in_frames = sum(1 for ts, _, _ in relevant if ts < cutoff_ts)
+        relevant = [f for f in relevant if f[0] >= cutoff_ts]
+        print(f"trimmed {lead_in_frames} frames ({cutoff_ts - lead_in_start_ts:.1f}s) "
+              "of parked-in-P lead-in", file=sys.stderr)
 
     duration_s = relevant[-1][0] - relevant[0][0]
     counts = {}
