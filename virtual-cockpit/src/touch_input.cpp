@@ -81,11 +81,17 @@ void begin() {
     i2c_master_bus_handle_t busHandle = nullptr;
     ESP_ERROR_CHECK(i2c_new_master_bus(&busConfig, &busHandle));
 
-    // The plain (non-_EX) macro leaves scl_speed_hz at its designated-init
-    // default of 0 -- use _EX with the same 300kHz clock i2c_bsp.c already
-    // uses for this same touch device, rather than risk an unconfigured bus
-    // clock stalling every touch transaction.
-    esp_lcd_panel_io_i2c_config_t ioConfig = ESP_LCD_TOUCH_IO_I2C_AXS15231B_CONFIG_EX(300000);
+    // NOTE: ESP_LCD_TOUCH_IO_I2C_AXS15231B_CONFIG_EX(scl_speed_hz) (the vendored
+    // header's own "pass an explicit clock" variant) is unusable as a macro
+    // call: its parameter is named scl_speed_hz, the exact same token as the
+    // ".scl_speed_hz" designated-initializer field it expands into, so the
+    // preprocessor substitutes both occurrences and emits ".300000 = 300000,"
+    // -- a syntax error, confirmed by an actual build. Use the plain macro
+    // (which leaves scl_speed_hz at its designated-init default of 0) and set
+    // the clock as a normal follow-up assignment instead, same 300kHz i2c_bsp.c
+    // already uses for this same touch device.
+    esp_lcd_panel_io_i2c_config_t ioConfig = ESP_LCD_TOUCH_IO_I2C_AXS15231B_CONFIG();
+    ioConfig.scl_speed_hz = 300000;
     esp_lcd_panel_io_handle_t panelIo = nullptr;
     ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(busHandle, &ioConfig, &panelIo));
 
