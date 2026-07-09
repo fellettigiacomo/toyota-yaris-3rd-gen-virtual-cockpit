@@ -228,7 +228,13 @@ void lvglTask(void *) {
         if (nowMs - lastSyncMs >= UI_SYNC_INTERVAL_MS) {
             lastSyncMs = nowMs;
             VehicleState state = CanDecoder::getSnapshot();
+#ifdef DEMO_FAKE_DATA
+            // Placeholder ticking clock so the left slot is visible in bench
+            // demos even without an RTC set/present.
+            time_t clockEpoch = 1700000000 + nowMs / 1000;
+#else
             time_t clockEpoch = RtcClock::isValid() ? RtcClock::now() : 0;
+#endif
             CockpitUi::update(state, clockEpoch);
         }
 
