@@ -4,7 +4,7 @@
 #include "can_decoder.h"
 #include "rtc_clock.h"
 #include "ui/app_ui.h"
-#include "touch_input.h"
+#include "screen_nav.h"
 #include "axs15231b/esp_lcd_axs15231b.h"
 
 #include <Arduino.h>
@@ -219,7 +219,7 @@ void initLvgl() {
 void lvglTask(void *) {
     initPanel();
     initLvgl();
-    TouchInput::begin();
+    ScreenNav::begin();
     AppUi::build();
 
     uint32_t lastSyncMs = 0;

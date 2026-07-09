@@ -17,9 +17,8 @@ find_package(SDL2 REQUIRED)
 # LV_CONF_PATH points LVGL's own CMake at this project's real include/lv_conf.h
 # (not a separate simulator-only copy) so the simulator renders with the exact
 # same widget/color config the firmware ships with -- e.g. LV_COLOR_16_SWAP=1
-# and LV_USE_TILEVIEW=1 both matter for correctness here, see
-# lv_port_disp_sdl.cpp's flush_cb for why the byte-swap setting specifically
-# needs undoing for SDL.
+# matters for correctness here, see lv_port_disp_sdl.cpp's flush_cb for why
+# the byte-swap setting specifically needs undoing for SDL.
 set(LV_CONF_PATH ${PROJECT_ROOT}/include/lv_conf.h)
 set(LV_CONF_INCLUDE_SIMPLE ON)
 set(LV_LVGL_H_INCLUDE_SIMPLE ON)
@@ -35,9 +34,9 @@ FetchContent_MakeAvailable(lvgl)
 add_executable(sim
     main_sim.cpp
     lv_port_disp_sdl.cpp
-    lv_port_indev_sdl.cpp
     ${PROJECT_ROOT}/src/can_decoder.cpp
     ${PROJECT_ROOT}/src/demo_log_data.cpp
+    ${PROJECT_ROOT}/src/screen_nav.cpp
     ${PROJECT_ROOT}/src/ui/bar_gauge.cpp
     ${PROJECT_ROOT}/src/ui/cockpit_ui.cpp
     ${PROJECT_ROOT}/src/ui/energy_flow_ui.cpp

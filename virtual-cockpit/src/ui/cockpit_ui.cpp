@@ -254,10 +254,10 @@ void createCenterGroup(lv_obj_t *parent) {
 } // namespace
 
 void build(lv_obj_t *parent) {
-    // A tileview tile is not a blank object -- lv_tileview_add_tile() already
-    // configured its scroll/snap flags for swipe navigation, so this builds
-    // onto a plain child object instead of stripping/restyling the tile
-    // itself (which would fight the tileview's own scrolling setup).
+    // Builds onto its own child object rather than restyling `parent`
+    // directly, so this stays agnostic to whatever `parent` actually is
+    // (AppUi currently passes a plain per-screen container -- see
+    // AppUi::build()).
     lv_obj_t *root = lv_obj_create(parent);
     lv_obj_remove_style_all(root);
     lv_obj_set_size(root, kScreenW, kScreenH);
