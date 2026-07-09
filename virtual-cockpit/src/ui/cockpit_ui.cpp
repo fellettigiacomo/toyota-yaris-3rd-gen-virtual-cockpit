@@ -17,12 +17,13 @@ constexpr int16_t kScreenH = 172;
 // LV_ALIGN_CENTER y-offset of (target_y - 86). Speed + the RPM/EV row below
 // it are treated as one vertically-centered block, but the "center" is
 // anchored between the CHG/PWR bar's bottom edge (y=16) and the screen's
-// bottom edge (y=172), not the screen's raw midpoint -- speed dy=-13,
-// RPM/EV dy=+62, a ~22-23px gap between them, chosen so the gap from the
-// CHG/PWR bar down to speed's top equals the gap from the RPM/EV row's
-// bottom down to the screen's bottom edge (~14.5px each). Gear/units keep
-// their own original target_y=90 anchor (dy=+4) independent of this block,
-// per the owner's explicit "leave gear/units where they are" feedback.
+// bottom edge (y=172), not the screen's raw midpoint -- speed dy=-11,
+// RPM/EV dy=+58, a ~17px gap between them (slightly tightened from an
+// earlier ~22-23px per owner feedback), with the margin above speed still
+// close to the margin below the RPM/EV row (~16-17px each). Gear/units
+// keep their own original target_y=90 anchor (dy=+4) independent of this
+// block, per the owner's explicit "leave gear/units where they are"
+// feedback.
 
 // CHG/PWR bar: x=70..570 (500px), y=0, h=16, 3px black divider at the center.
 constexpr int16_t kBarY = 0;
@@ -46,20 +47,22 @@ constexpr int16_t kBattTickBottom = kScreenH - kBattMargin;        // 156
 constexpr int16_t kBattTickH = kBattTickBottom - kBattTickY;       // 140
 constexpr int16_t kBattTickW = 14;
 
-// Shared row Y-positions for the two mirrored side columns: a "bottom row"
-// (battery numeric value / left-slot clock, bottom-aligned with the bar)
-// and a "top row" above it with a small gap (battery icon / left-slot
-// ambient temperature).
+// Shared "bottom row" Y for the two mirrored side columns (battery numeric
+// value / left-slot clock, bottom-aligned with the bar).
 constexpr int16_t kSideValueY = kBattTickBottom - 18; // 18 = dinnext_26_battery/dinnext_26_rpm's line_height
+// Battery icon sits in its own "top row" above that, sized for the 12px
+// icon specifically (not reused for the left slot -- its temperature label
+// is 19px-tall text, not a small icon, and needs its own gap below, see
+// kLeftTempY).
 constexpr int16_t kSideIconY = kSideValueY - 3 - 12;   // 3px gap above the value row, icon is 12px tall
 
 // Left slot (74px column, replacing the design's unusable fuel gauge -- no
 // real fuel-level signal exists on this bus, see docs/signal_findings.md):
-// ambient temperature (top row, mirrors the battery icon's row) + clock
-// time (bottom row, mirrors the battery numeric value's row, same font
-// size) instead.
+// ambient temperature (top row) + clock time (bottom row, mirrors the
+// battery numeric value's row, same font size) instead.
 constexpr int16_t kLeftX = 18;
 constexpr int16_t kLeftW = 74;
+constexpr int16_t kLeftTempY = kSideValueY - 4 - 19; // 4px gap above the clock row, dinnext_26_rpm's line_height=19
 
 BarGauge::Handle g_chg;
 BarGauge::Handle g_pwr;
@@ -179,11 +182,11 @@ void createLeftSlot(lv_obj_t *parent) {
     lv_obj_set_style_text_align(g_leftTempLabel, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(g_leftTempLabel, kLeftW);
     lv_label_set_text(g_leftTempLabel, ""); // populated by the first update() call
-    lv_obj_set_pos(g_leftTempLabel, kLeftX, kSideIconY);
+    lv_obj_set_pos(g_leftTempLabel, kLeftX, kLeftTempY);
 
     g_leftClockLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_leftClockLabel, &dinnext_26_rpm, 0);
-    lv_obj_set_style_text_color(g_leftClockLabel, Colors::kMutedText, 0);
+    lv_obj_set_style_text_color(g_leftClockLabel, Colors::kText, 0); // white, not muted -- per owner feedback
     lv_obj_set_style_text_align(g_leftClockLabel, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_width(g_leftClockLabel, kLeftW);
     lv_label_set_text(g_leftClockLabel, "");
@@ -192,13 +195,13 @@ void createLeftSlot(lv_obj_t *parent) {
 
 void createCenterGroup(lv_obj_t *parent) {
     // Speed + the RPM/EV row form one vertically-centered block (see the
-    // layout comment above): speed dy=-13, RPM/EV dy=+62.
+    // layout comment above): speed dy=-11, RPM/EV dy=+58.
     g_speedLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_speedLabel, &dinnext_120_speed, 0);
     lv_obj_set_style_text_color(g_speedLabel, Colors::kText, 0);
     lv_obj_set_style_text_letter_space(g_speedLabel, -3, 0);
     lv_label_set_text(g_speedLabel, "0");
-    lv_obj_align(g_speedLabel, LV_ALIGN_CENTER, 0, -13);
+    lv_obj_align(g_speedLabel, LV_ALIGN_CENTER, 0, -11);
 
     // Gear keeps its original position (target y=90 => dy=4) independent of
     // the speed/RPM re-centering above -- only the font got bigger, per the
@@ -224,14 +227,14 @@ void createCenterGroup(lv_obj_t *parent) {
     lv_obj_set_style_text_color(g_rpmLabel, lv_color_white(), 0);
     lv_obj_set_style_text_letter_space(g_rpmLabel, 1, 0);
     lv_label_set_text(g_rpmLabel, "RPM 0");
-    lv_obj_align(g_rpmLabel, LV_ALIGN_CENTER, 0, 62);
+    lv_obj_align(g_rpmLabel, LV_ALIGN_CENTER, 0, 58);
 
     g_evLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_evLabel, &dinnext_28_ev, 0);
     lv_obj_set_style_text_color(g_evLabel, Colors::kEvGreen, 0);
     lv_obj_set_style_text_letter_space(g_evLabel, 2, 0);
     lv_label_set_text(g_evLabel, "EV");
-    lv_obj_align(g_evLabel, LV_ALIGN_CENTER, 0, 62);
+    lv_obj_align(g_evLabel, LV_ALIGN_CENTER, 0, 58);
     lv_obj_add_flag(g_evLabel, LV_OBJ_FLAG_HIDDEN);
 }
 
