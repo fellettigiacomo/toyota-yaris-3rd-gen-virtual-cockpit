@@ -23,14 +23,17 @@ struct Handle {
     bool isChg = false; // true=CHG (left, fill anchored right/inner, bevel on left/outer)
                          // false=PWR (right, fill anchored left/inner, bevel on right/outer)
     float lastPct = -1.0f; // -1 forces the first draw
+    char labelPrefix[4] = {0}; // "CHG" or "PWR", label text is "<prefix> <pct>%"
 };
 
 // Creates the canvas + overlaid label, parented to `parent`, at (x,y,w,h).
+// labelPrefix is "CHG" or "PWR" -- the label always reads "<prefix> <pct>%".
 void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h,
-            bool isChg, const char *labelText);
+            bool isChg, const char *labelPrefix);
 
-// pct in 0..100. Re-rasterizes only if pct changed by a visible amount since
-// the last call (cheap early-out, since the value is often static).
+// pct in 0..100. Re-rasterizes and updates the "<prefix> <pct>%" label text
+// only if pct changed by a visible amount since the last call (cheap
+// early-out, since the value is often static).
 void setFillPct(Handle *hd, float pct);
 
 } // namespace BarGauge

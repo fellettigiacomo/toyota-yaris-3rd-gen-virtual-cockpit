@@ -3,7 +3,9 @@
 #include "fonts/fonts.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 namespace BarGauge {
 
@@ -20,11 +22,13 @@ inline int rowInset(int y, int h) {
 } // namespace
 
 void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h,
-            bool isChg, const char *labelText) {
+            bool isChg, const char *labelPrefix) {
     hd->w = w;
     hd->h = h;
     hd->isChg = isChg;
     hd->buf = static_cast<lv_color_t *>(malloc(static_cast<size_t>(w) * h * sizeof(lv_color_t)));
+    std::strncpy(hd->labelPrefix, labelPrefix, sizeof(hd->labelPrefix) - 1);
+    hd->labelPrefix[sizeof(hd->labelPrefix) - 1] = '\0';
 
     hd->canvas = lv_canvas_create(parent);
     lv_canvas_set_buffer(hd->canvas, hd->buf, w, h, LV_IMG_CF_TRUE_COLOR);
@@ -32,11 +36,11 @@ void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16
 
     // Label sits in a (w-6)-wide box, text-aligned toward the divider side
     // and inset 6px from it, vertically centered within the bar's height.
+    // Text itself ("<prefix> <pct>%") is set by setFillPct(), called below.
     hd->label = lv_label_create(parent);
     lv_obj_set_style_text_font(hd->label, &dinnext_14_chgpwr, 0);
     lv_obj_set_style_text_letter_space(hd->label, 1, 0);
     lv_obj_set_style_bg_opa(hd->label, LV_OPA_TRANSP, 0);
-    lv_label_set_text(hd->label, labelText);
     lv_obj_set_width(hd->label, w - 6);
     if (isChg) {
         // CHG: divider is the canvas's right edge -- right-align text, box
@@ -94,6 +98,10 @@ void setFillPct(Handle *hd, float pct) {
             lv_canvas_set_px_color(hd->canvas, x, y, px);
         }
     }
+
+    char text[16];
+    std::snprintf(text, sizeof(text), "%s %d%%", hd->labelPrefix, static_cast<int>(pct + 0.5f));
+    lv_label_set_text(hd->label, text);
 
     // Label color flips dark once the fill likely passes under it (>5%),
     // matching the spec's contrast rule.
