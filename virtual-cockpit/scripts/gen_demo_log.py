@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates src/demo_log_data.c from a real candump log in data/logs/, so
+"""Generates src/demo_log_data.cpp from a real candump log in data/logs/, so
 the demo build (pio run -e demo, DEMO_FAKE_DATA) replays an actual drive
 through the real can_decoder.cpp bit-math instead of a synthetic sweep.
 
@@ -22,7 +22,7 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 from parse_log import parse  # noqa: E402
 
 DEFAULT_LOG = REPO_ROOT / "data" / "logs" / "session_0047.log"
-OUTPUT = Path(__file__).resolve().parents[1] / "src" / "demo_log_data.c"
+OUTPUT = Path(__file__).resolve().parents[1] / "src" / "demo_log_data.cpp"
 
 # Must match the IDs can_decoder.cpp's decodeIntoState() switches on.
 RELEVANT_IDS = {0x0B4, 0x1C4, 0x127, 0x245, 0x498, 0x247, 0x4A7, 0x442}
