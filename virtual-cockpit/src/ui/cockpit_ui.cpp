@@ -35,34 +35,40 @@ constexpr int16_t kChgW = (kBarX1 - kBarX0 - kDividerW) / 2;        // 248
 constexpr int16_t kPwrW = (kBarX1 - kBarX0 - kDividerW) - kChgW;    // 249
 constexpr int16_t kDividerX = kBarX0 + kChgW;                       // 318
 
-// Right slot (74px column): HV battery gauge. Equal top/bottom margin (16px,
-// matching the CHG/PWR bar's own height as a clean visual reference) --
-// the first attempt used a 22/6 split that read as "too far down".
+// Left/right 74px side columns.
+constexpr int16_t kLeftX = 18;
 constexpr int16_t kRightW = 74;
 constexpr int16_t kRightX = kScreenW - 18 - kRightW; // 548
-constexpr int16_t kBattTickX = kRightX + kRightW - 14; // 608, 14px wide, flush to the column's right edge
+
+// Left slot: HV battery gauge (moved here from the right per owner
+// feedback). Equal top/bottom margin (16px, matching the CHG/PWR bar's own
+// height as a clean visual reference). The tick gauge is flush to the
+// column's own outer/left edge; the icon/nub/numeric readout sit on the
+// inner side, toward screen center.
+constexpr int16_t kBattTickX = kLeftX; // 18, 14px wide, flush to the column's outer/left edge
+constexpr int16_t kBattInnerX = kLeftX + 48; // 66, icon's x; nub/value sit 2px further left (toward the ticks)
 constexpr int16_t kBattMargin = 16;
 constexpr int16_t kBattTickY = kBattMargin;                        // 16
 constexpr int16_t kBattTickBottom = kScreenH - kBattMargin;        // 156
 constexpr int16_t kBattTickH = kBattTickBottom - kBattTickY;       // 140
 constexpr int16_t kBattTickW = 14;
 
-// Shared "bottom row" Y for the two mirrored side columns (battery numeric
-// value / left-slot clock, bottom-aligned with the bar).
+// Shared "bottom row" Y for the two side columns (battery numeric value /
+// right-slot clock, bottom-aligned with the bar).
 constexpr int16_t kSideValueY = kBattTickBottom - 18; // 18 = dinnext_26_battery/dinnext_26_rpm's line_height
 // Battery icon sits in its own "top row" above that, sized for the 12px
-// icon specifically (not reused for the left slot -- its temperature label
-// is 19px-tall text, not a small icon, and needs its own gap below, see
-// kLeftTempY).
+// icon specifically (not reused for the right slot -- its temperature
+// label is 19px-tall text, not a small icon, and needs its own gap below,
+// see kRightTempY).
 constexpr int16_t kSideIconY = kSideValueY - 3 - 12;   // 3px gap above the value row, icon is 12px tall
 
-// Left slot (74px column, replacing the design's unusable fuel gauge -- no
-// real fuel-level signal exists on this bus, see docs/signal_findings.md):
-// ambient temperature (top row) + clock time (bottom row, mirrors the
-// battery numeric value's row, same font size) instead.
-constexpr int16_t kLeftX = 18;
-constexpr int16_t kLeftW = 74;
-constexpr int16_t kLeftTempY = kSideValueY - 4 - 19; // 4px gap above the clock row, dinnext_26_rpm's line_height=19
+// Right slot (moved here from the left per owner feedback): ambient
+// temperature (top row) + clock time (bottom row, mirrors the battery
+// numeric value's row, same font size), both right-aligned within the
+// column so the two lines up flush on their right edge -- no real
+// fuel-level signal exists on this bus (see docs/signal_findings.md), so
+// this slot never held a fuel gauge to begin with.
+constexpr int16_t kRightTempY = kSideValueY - 4 - 19; // 4px gap above the clock row, dinnext_26_rpm's line_height=19
 
 BarGauge::Handle g_chg;
 BarGauge::Handle g_pwr;
@@ -71,8 +77,8 @@ lv_obj_t *g_battBar = nullptr;
 lv_obj_t *g_battValueLabel = nullptr;
 lv_obj_t *g_battPctLabel = nullptr;
 
-lv_obj_t *g_leftTempLabel = nullptr;
-lv_obj_t *g_leftClockLabel = nullptr;
+lv_obj_t *g_tempLabel = nullptr;
+lv_obj_t *g_clockLabel = nullptr;
 
 lv_obj_t *g_speedLabel = nullptr;
 lv_obj_t *g_gearLabel = nullptr;
@@ -103,14 +109,16 @@ void createDivider(lv_obj_t *parent) {
 
 void createBatteryGauge(lv_obj_t *parent) {
     // Icon + numeric readout sit at the BOTTOM of the column, aligned with
-    // the bar's own bottom edge (kSideValueY/kSideIconY, shared with the
-    // left slot's mirrored layout -- see the constants above).
-
-    // Outlined battery icon + small nub, above the numeric readout.
+    // the bar's own bottom edge (kSideValueY/kSideIconY). The tick gauge is
+    // flush to the column's outer/left edge (kBattTickX=kLeftX); icon/nub/
+    // value sit on the inner side (kBattInnerX), toward screen center, with
+    // the nub pointing back toward the ticks (mirrors the original
+    // right-column layout, where the nub pointed toward the ticks on that
+    // side's outer/right edge).
     lv_obj_t *icon = lv_obj_create(parent);
     lv_obj_remove_style_all(icon);
     lv_obj_set_size(icon, 16, 12);
-    lv_obj_set_pos(icon, kRightX + (kRightW - kBattTickW) / 2 - 20, kSideIconY);
+    lv_obj_set_pos(icon, kBattInnerX, kSideIconY);
     lv_obj_set_style_bg_opa(icon, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_color(icon, Colors::kBatteryBlue, 0);
     lv_obj_set_style_border_width(icon, 2, 0);
@@ -120,7 +128,7 @@ void createBatteryGauge(lv_obj_t *parent) {
     lv_obj_t *nub = lv_obj_create(parent);
     lv_obj_remove_style_all(nub);
     lv_obj_set_size(nub, 2, 4);
-    lv_obj_set_pos(nub, kRightX + (kRightW - kBattTickW) / 2 - 20 + 16, kSideIconY + 5);
+    lv_obj_set_pos(nub, kBattInnerX - 2, kSideIconY + 5);
     lv_obj_set_style_bg_color(nub, Colors::kBatteryBlue, 0);
     lv_obj_set_style_bg_opa(nub, LV_OPA_COVER, 0);
     lv_obj_clear_flag(nub, LV_OBJ_FLAG_SCROLLABLE);
@@ -130,7 +138,7 @@ void createBatteryGauge(lv_obj_t *parent) {
     lv_obj_set_style_text_font(g_battValueLabel, &dinnext_26_battery, 0);
     lv_obj_set_style_text_color(g_battValueLabel, Colors::kText, 0);
     lv_label_set_text(g_battValueLabel, "--");
-    lv_obj_set_pos(g_battValueLabel, kRightX + (kRightW - kBattTickW) / 2 - 22, kSideValueY);
+    lv_obj_set_pos(g_battValueLabel, kBattInnerX - 2, kSideValueY);
 
     g_battPctLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_battPctLabel, &dinnext_13_pct, 0);
@@ -171,26 +179,28 @@ void createBatteryGauge(lv_obj_t *parent) {
     }
 }
 
-void createLeftSlot(lv_obj_t *parent) {
+void createTempClockSlot(lv_obj_t *parent) {
     // Replaces the design's fuel gauge: no real fuel-level signal exists on
     // this bus (0x3A0 is a fuel-consumption counter, not a tank level -- see
     // docs/signal_findings.md), so this column shows ambient temperature and
-    // clock time instead, per the owner's decision.
-    g_leftTempLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_leftTempLabel, &dinnext_26_rpm, 0);
-    lv_obj_set_style_text_color(g_leftTempLabel, Colors::kText, 0);
-    lv_obj_set_style_text_align(g_leftTempLabel, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(g_leftTempLabel, kLeftW);
-    lv_label_set_text(g_leftTempLabel, ""); // populated by the first update() call
-    lv_obj_set_pos(g_leftTempLabel, kLeftX, kLeftTempY);
+    // clock time instead, per the owner's decision. Right-aligned (not
+    // centered) so the two lines share a common right edge, per owner
+    // feedback.
+    g_tempLabel = lv_label_create(parent);
+    lv_obj_set_style_text_font(g_tempLabel, &dinnext_26_rpm, 0);
+    lv_obj_set_style_text_color(g_tempLabel, Colors::kText, 0);
+    lv_obj_set_style_text_align(g_tempLabel, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_width(g_tempLabel, kRightW);
+    lv_label_set_text(g_tempLabel, ""); // populated by the first update() call
+    lv_obj_set_pos(g_tempLabel, kRightX, kRightTempY);
 
-    g_leftClockLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_leftClockLabel, &dinnext_26_rpm, 0);
-    lv_obj_set_style_text_color(g_leftClockLabel, Colors::kText, 0); // white, not muted -- per owner feedback
-    lv_obj_set_style_text_align(g_leftClockLabel, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_set_width(g_leftClockLabel, kLeftW);
-    lv_label_set_text(g_leftClockLabel, "");
-    lv_obj_set_pos(g_leftClockLabel, kLeftX, kSideValueY);
+    g_clockLabel = lv_label_create(parent);
+    lv_obj_set_style_text_font(g_clockLabel, &dinnext_26_rpm, 0);
+    lv_obj_set_style_text_color(g_clockLabel, Colors::kText, 0); // white, not muted -- per owner feedback
+    lv_obj_set_style_text_align(g_clockLabel, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_width(g_clockLabel, kRightW);
+    lv_label_set_text(g_clockLabel, "");
+    lv_obj_set_pos(g_clockLabel, kRightX, kSideValueY);
 }
 
 void createCenterGroup(lv_obj_t *parent) {
@@ -251,7 +261,7 @@ void build() {
     createDivider(scr);
     BarGauge::create(&g_pwr, scr, kDividerX + kDividerW, kBarY, kPwrW, kBarH, false, "PWR");
 
-    createLeftSlot(scr);
+    createTempClockSlot(scr);
     createBatteryGauge(scr);
     createCenterGroup(scr);
 }
@@ -273,19 +283,19 @@ void update(const VehicleState &state, time_t clockEpoch) {
     lv_label_set_text(g_battValueLabel, battBuf);
     lv_obj_align_to(g_battPctLabel, g_battValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
 
-    // Left slot: ambient temperature + clock.
+    // Right slot: ambient temperature + clock.
     char tempBuf[12];
     snprintf(tempBuf, sizeof(tempBuf), "%d\xC2\xB0" "C", static_cast<int>(state.ambient_temp_c + (state.ambient_temp_c >= 0 ? 0.5f : -0.5f)));
-    lv_label_set_text(g_leftTempLabel, tempBuf);
+    lv_label_set_text(g_tempLabel, tempBuf);
 
     if (clockEpoch > 0) {
         struct tm tmVal;
         gmtime_r(&clockEpoch, &tmVal); // UTC, no local-timezone offset -- per the owner's request
         char clockBuf[8];
         snprintf(clockBuf, sizeof(clockBuf), "%02d:%02d", tmVal.tm_hour, tmVal.tm_min);
-        lv_label_set_text(g_leftClockLabel, clockBuf);
+        lv_label_set_text(g_clockLabel, clockBuf);
     } else {
-        lv_label_set_text(g_leftClockLabel, "");
+        lv_label_set_text(g_clockLabel, "");
     }
 
     // Speed / gear / units.
