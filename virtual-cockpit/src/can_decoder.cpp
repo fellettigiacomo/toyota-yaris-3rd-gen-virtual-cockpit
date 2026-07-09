@@ -3,11 +3,66 @@
 #include "app_config.h"
 
 #include <Arduino.h>
+#include <algorithm>
 
 namespace {
 
 inline int16_t signExtend16(uint16_t raw) {
     return static_cast<int16_t>(raw);
+}
+
+// battery_soc_pct arrives in coarse 0.5% steps every few seconds -- too
+// noisy to read instantaneously to tell "charging" from "discharging" near
+// zero. This EMA only samples a new rate when the raw value actually ticks
+// (an SOC that hasn't moved yet doesn't mean the rate is zero, it means we
+// don't have a fresh sample), and decays the estimate toward zero if it
+// stays quiet for a while so a stale trend doesn't linger after the vehicle
+// settles into a steady state.
+float g_socTrendEma = 0.0f;
+float g_lastRawSoc = -1.0f; // sentinel: no sample observed yet
+uint32_t g_lastSocChangeMs = 0;
+uint32_t g_lastSocSampleMs = 0;
+constexpr float kSocEmaAlpha = 0.3f;
+constexpr uint32_t kSocDecayStartMs = 4000;
+constexpr float kSocDecayPerSec = 0.5f;
+
+void resetSocTrendState() {
+    g_socTrendEma = 0.0f;
+    g_lastRawSoc = -1.0f;
+    g_lastSocChangeMs = 0;
+    g_lastSocSampleMs = 0;
+}
+
+void updateSocTrend(VehicleState &state, float rawSocPct) {
+    uint32_t nowMs = millis();
+    if (g_lastRawSoc < 0.0f) {
+        g_lastRawSoc = rawSocPct;
+        g_lastSocChangeMs = nowMs;
+        g_lastSocSampleMs = nowMs;
+        state.soc_trend_pct_per_s = 0.0f;
+        return;
+    }
+
+    if (rawSocPct != g_lastRawSoc) {
+        float dtS = (nowMs - g_lastSocChangeMs) / 1000.0f;
+        if (dtS > 0.05f) {
+            float instRate = (rawSocPct - g_lastRawSoc) / dtS;
+            g_socTrendEma = kSocEmaAlpha * instRate + (1.0f - kSocEmaAlpha) * g_socTrendEma;
+        }
+        g_lastRawSoc = rawSocPct;
+        g_lastSocChangeMs = nowMs;
+    } else if (nowMs - g_lastSocChangeMs > kSocDecayStartMs) {
+        float dtS = (nowMs - g_lastSocSampleMs) / 1000.0f;
+        float decay = kSocDecayPerSec * dtS;
+        if (g_socTrendEma > 0.0f) {
+            g_socTrendEma = std::max(0.0f, g_socTrendEma - decay);
+        } else if (g_socTrendEma < 0.0f) {
+            g_socTrendEma = std::min(0.0f, g_socTrendEma + decay);
+        }
+    }
+
+    g_lastSocSampleMs = nowMs;
+    state.soc_trend_pct_per_s = g_socTrendEma;
 }
 
 // Per-signal byte/bit extraction below was cross-validated against
@@ -72,13 +127,28 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
 
         case 0x4A7: // HV_BATTERY
             if (dlc >= 3) {
-                state.battery_soc_pct = d[2] * 0.5f;
+                float soc = d[2] * 0.5f;
+                updateSocTrend(state, soc);
+                state.battery_soc_pct = soc;
             }
             break;
 
         case 0x442: // CLIMATE_0x442 (ambient temperature)
             if (dlc >= 1) {
                 state.ambient_temp_c = static_cast<float>(d[0]) - 40.0f;
+            }
+            break;
+
+        case 0x320: // PWR_DEMAND (ACCEL_DEMAND)
+            if (dlc >= 5) {
+                state.accel_demand = static_cast<int8_t>(d[4]);
+            }
+            break;
+
+        case 0x230: // BRAKE_MODULE2 (BRAKE_PRESSED)
+            if (dlc >= 4) {
+                // DBC: SG_ BRAKE_PRESSED : 26|1@0+ -- byte = 26/8 = 3, shift = 26 mod 8 = 2.
+                state.brake_pressed = ((d[3] >> 2) & 0x01) != 0;
             }
             break;
 
@@ -231,6 +301,7 @@ VehicleState getSnapshot() {
         g_playbackStartMs = millis();
         g_nextIdx = 0;
         g_demoState = VehicleState{};
+        resetSocTrendState();
         elapsedMs = 0;
     }
 

@@ -253,20 +253,26 @@ void createCenterGroup(lv_obj_t *parent) {
 
 } // namespace
 
-void build() {
-    lv_obj_t *scr = lv_scr_act();
-    lv_obj_remove_style_all(scr);
-    lv_obj_set_style_bg_color(scr, Colors::kBg, 0);
-    lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
-    lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
+void build(lv_obj_t *parent) {
+    // A tileview tile is not a blank object -- lv_tileview_add_tile() already
+    // configured its scroll/snap flags for swipe navigation, so this builds
+    // onto a plain child object instead of stripping/restyling the tile
+    // itself (which would fight the tileview's own scrolling setup).
+    lv_obj_t *root = lv_obj_create(parent);
+    lv_obj_remove_style_all(root);
+    lv_obj_set_size(root, kScreenW, kScreenH);
+    lv_obj_set_pos(root, 0, 0);
+    lv_obj_set_style_bg_color(root, Colors::kBg, 0);
+    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
+    lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
-    BarGauge::create(&g_chg, scr, kBarX0, kBarY, kChgW, kBarH, true, "CHG");
-    createDivider(scr);
-    BarGauge::create(&g_pwr, scr, kDividerX + kDividerW, kBarY, kPwrW, kBarH, false, "PWR");
+    BarGauge::create(&g_chg, root, kBarX0, kBarY, kChgW, kBarH, true, "CHG");
+    createDivider(root);
+    BarGauge::create(&g_pwr, root, kDividerX + kDividerW, kBarY, kPwrW, kBarH, false, "PWR");
 
-    createTempClockSlot(scr);
-    createBatteryGauge(scr);
-    createCenterGroup(scr);
+    createTempClockSlot(root);
+    createBatteryGauge(root);
+    createCenterGroup(root);
 }
 
 void update(const VehicleState &state, time_t clockEpoch) {
