@@ -45,13 +45,16 @@ constexpr int16_t kRightX = kScreenW - 18 - kRightW; // 548
 // height as a clean visual reference). The tick gauge is flush to the
 // column's own outer/left edge; the icon/nub/numeric readout sit on the
 // inner side, toward screen center.
-constexpr int16_t kBattTickX = kLeftX; // 18, 14px wide, flush to the column's outer/left edge
-constexpr int16_t kBattInnerX = kLeftX + 48; // 66, icon's x; nub/value sit 2px further left (toward the ticks)
+constexpr int16_t kBattTickW = 14;
+constexpr int16_t kBattTickX = kLeftX; // 18, flush to the column's outer/left edge
+// icon/value moved close to the bar: the gap from the bar's right edge to
+// the text's left edge now equals the screen's own left margin (kLeftX),
+// per owner feedback -- was a much wider ~34px gap before.
+constexpr int16_t kBattInnerX = kBattTickX + kBattTickW + kLeftX; // 50; nub/value sit 2px further left (toward the ticks)
 constexpr int16_t kBattMargin = 16;
 constexpr int16_t kBattTickY = kBattMargin;                        // 16
 constexpr int16_t kBattTickBottom = kScreenH - kBattMargin;        // 156
 constexpr int16_t kBattTickH = kBattTickBottom - kBattTickY;       // 140
-constexpr int16_t kBattTickW = 14;
 
 // Shared "bottom row" Y for the two side columns (battery numeric value /
 // right-slot clock, bottom-aligned with the bar).
