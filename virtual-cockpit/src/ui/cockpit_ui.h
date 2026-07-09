@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ctime>
+#include <lvgl.h>
 #include "vehicle_state.h"
 
 // Builds and updates the 640x172 gauge cluster widget tree, matching the
@@ -9,8 +10,9 @@
 // from there.
 namespace CockpitUi {
 
-// Constructs the static widget tree once. Call after lv_disp_drv_register().
-void build();
+// Constructs the static widget tree once, parented to `parent` (an
+// lv_tileview tile). Call after lv_disp_drv_register().
+void build(lv_obj_t *parent);
 
 // Pushes a fresh VehicleState (and, separately, wall-clock time for the
 // left-slot clock -- not part of VehicleState since it comes from the RTC,

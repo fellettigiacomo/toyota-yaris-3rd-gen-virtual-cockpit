@@ -23,4 +23,7 @@ struct VehicleState {
     int8_t hsi_power = 0;             // 0x247 HSI_VALUE, -100..100 (neg=CHG, pos=PWR)
     float battery_soc_pct = 0.0f;     // 0x4A7 BATTERY_SOC, already *0.5, 0-100
     float ambient_temp_c = 0.0f;      // 0x442 AMBIENT_TEMP, already -40 offset applied
+    int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
+    bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
+    float soc_trend_pct_per_s = 0.0f; // derived: EMA'd rate of change of battery_soc_pct, not a raw signal
 };
