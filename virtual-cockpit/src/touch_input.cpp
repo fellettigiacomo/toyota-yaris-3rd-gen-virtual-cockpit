@@ -5,6 +5,7 @@
 #include <Arduino.h>
 #include <lvgl.h>
 #include "driver/i2c_master.h"
+#include "esp_err.h"
 #include "esp_lcd_io_i2c.h"
 
 // UNVERIFIED ON REAL HARDWARE -- see the project-level gotcha list this was
@@ -52,14 +53,36 @@ constexpr uint16_t kNativeTouchYMax = 639; // native panel height (640) - 1, unu
 
 esp_lcd_touch_handle_t g_touchHandle = nullptr;
 
+// Diagnostic-only state -- not needed once touch is confirmed working, but
+// this is the only way to see what the chip is actually reporting without
+// a debugger attached.
+uint32_t g_lastLogMs = 0;
+esp_err_t g_lastReadErr = ESP_OK;
+
 void touchReadCb(lv_indev_drv_t *, lv_indev_data_t *data) {
-    esp_lcd_touch_read_data(g_touchHandle);
+    esp_err_t err = esp_lcd_touch_read_data(g_touchHandle);
+    uint32_t nowMs = millis();
+
+    if (err != ESP_OK) {
+        if (err != g_lastReadErr || nowMs - g_lastLogMs > 2000) {
+            Serial.printf("[touch_input] esp_lcd_touch_read_data failed: %s\n", esp_err_to_name(err));
+            g_lastLogMs = nowMs;
+        }
+        g_lastReadErr = err;
+        data->state = LV_INDEV_STATE_RELEASED;
+        return;
+    }
+    g_lastReadErr = ESP_OK;
 
     uint16_t x = 0, y = 0;
     uint8_t pointNum = 0;
     bool pressed = esp_lcd_touch_get_coordinates(g_touchHandle, &x, &y, nullptr, &pointNum, 1);
 
     if (pressed && pointNum > 0) {
+        if (nowMs - g_lastLogMs > 200) { // throttled so it's readable while dragging a finger
+            Serial.printf("[touch_input] touched: lvgl point x=%u y=%u\n", x, y);
+            g_lastLogMs = nowMs;
+        }
         data->point.x = x;
         data->point.y = y;
         data->state = LV_INDEV_STATE_PRESSED;
