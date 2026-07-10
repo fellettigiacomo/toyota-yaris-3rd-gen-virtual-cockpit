@@ -48,10 +48,10 @@ constexpr int16_t kMotorBottomY = kMotorCy + kNodeReach;
 constexpr int16_t kBatteryLeftX = kBatteryCx - kNodeReach;
 constexpr int16_t kWheelsTopY = kWheelsCy - kNodeReach;
 constexpr int16_t kWheelsLeftX = kWheelsCx - kNodeReach;
-// The bent ENGINE->WHEELS arrow enters the wheel's LOWER-left so it clears the
-// WHEELS label, which sits directly to the left of the wheel (vertically
-// centred on it).
-constexpr int16_t kEngineWheelsEnterY = kWheelsCy + 15;
+// The bent ENGINE->WHEELS arrow enters the wheel's left edge at its vertical
+// centre. The WHEELS label sits to the RIGHT of the wheel, so nothing on the
+// left needs dodging.
+constexpr int16_t kEngineWheelsEnterY = kWheelsCy;
 
 // Label boxes. Node labels use the 24px DIN font (dinnext_24_label, full
 // uppercase alphabet); white, to match the requested design.
@@ -308,12 +308,12 @@ void createLabels(lv_obj_t *parent) {
     lv_label_set_text(g_battPctLabel, "%");
     lv_obj_align_to(g_battPctLabel, g_battValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
 
-    // WHEELS: to the LEFT of the wheel, right-aligned, vertically centred on
-    // it. The ENGINE->WHEELS arrow enters the wheel's lower-left
-    // (kEngineWheelsEnterY), just below this label, so they don't collide.
+    // WHEELS: to the RIGHT of the wheel, left-aligned, vertically centred on
+    // it. The wheel's right side is otherwise empty, so this keeps the label
+    // clear of the ENGINE->WHEELS arrow (which comes in from the left).
     makeLabel(parent, "WHEELS", &dinnext_24_label, Colors::kText,
-              static_cast<int16_t>(kWheelsCx - kIconHalf - kEndpointGap - kLabelW),
-              static_cast<int16_t>(kWheelsCy - kLabelLineH / 2), kLabelW, LV_TEXT_ALIGN_RIGHT);
+              static_cast<int16_t>(kWheelsCx + kIconHalf + kEndpointGap),
+              static_cast<int16_t>(kWheelsCy - kLabelLineH / 2), kLabelW, LV_TEXT_ALIGN_LEFT);
 }
 
 constexpr int16_t kScreenW = 640;
