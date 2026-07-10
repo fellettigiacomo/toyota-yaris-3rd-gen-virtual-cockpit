@@ -53,9 +53,8 @@ constexpr int16_t kWheelsLeftX = kWheelsCx - kNodeReach;
 // left needs dodging.
 constexpr int16_t kEngineWheelsEnterY = kWheelsCy;
 
-// Label boxes. Node labels use the 24px DIN font (dinnext_24_label, full
-// uppercase alphabet); white, to match the requested design.
-constexpr int16_t kLabelW = 96;
+// Node labels use the 24px DIN font (dinnext_24_label, full uppercase
+// alphabet); white, to match the requested design.
 constexpr int16_t kLabelLineH = 18; // dinnext_24_label line height
 
 FlowArrow::Handle g_engineMotorArrow;
@@ -207,37 +206,57 @@ void thickLine(IconCanvas &ic, float x0, float y0, float x1, float y1, int r, lv
     }
 }
 
-// Engine block: main body + raised valve cover + two cylinder stubs + a
-// belt pulley on the right, with a couple of cooling-fin cut lines.
-void createEngineIcon(lv_obj_t *parent) {
-    IconCanvas ic = makeIconCanvas(parent, kEngineCx, kEngineCy);
-    lv_color_t c = Colors::kEngineRed;
-    fillRect(ic, 4, 20, 37, 38, c);   // lower body
-    fillRect(ic, 9, 12, 31, 20, c);   // valve cover
-    fillRect(ic, 12, 7, 17, 12, c);   // cylinder stub 1
-    fillRect(ic, 22, 7, 27, 12, c);   // cylinder stub 2
-    fillCircle(ic, 39, 30, 5, c);     // belt pulley (right)
-    // Cooling fins: thin background cut lines across the lower body.
-    fillRect(ic, 7, 26, 29, 26, Colors::kBg);
-    fillRect(ic, 7, 30, 29, 30, Colors::kBg);
-    fillRect(ic, 7, 34, 29, 34, Colors::kBg);
+// Filled polygon (even-odd scanline). Used for the lightning bolt.
+struct Pt { float x, y; };
+void fillPoly(IconCanvas &ic, const Pt *p, int n, lv_color_t c) {
+    float miny = p[0].y, maxy = p[0].y;
+    for (int i = 1; i < n; i++) {
+        miny = std::min(miny, p[i].y);
+        maxy = std::max(maxy, p[i].y);
+    }
+    for (int y = static_cast<int>(std::floor(miny)); y <= static_cast<int>(std::ceil(maxy)); y++) {
+        float xs[16];
+        int m = 0;
+        for (int i = 0; i < n && m < 16; i++) {
+            const Pt &a = p[i];
+            const Pt &b = p[(i + 1) % n];
+            if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
+                xs[m++] = a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x);
+            }
+        }
+        std::sort(xs, xs + m);
+        for (int i = 0; i + 1 < m; i += 2)
+            for (int x = static_cast<int>(std::ceil(xs[i])); x <= static_cast<int>(std::floor(xs[i + 1])); x++)
+                px(ic, x, y, c);
+    }
 }
 
-// Electric motor drawn as a cog/gear -- reads unambiguously as a machine and
-// stays visually distinct from the WHEELS tyre (which is a spoked ring). Body
-// disc + gear teeth + a punched-out centre hole + a shaft stub.
+// The classic check-engine (MIL) silhouette, from clean blocks + a rounded
+// right "bell housing". Shared by the ENGINE icon and the MOTOR icon (the
+// latter overlays a lightning bolt on the same shape, per the requested
+// "engine symbol with a bolt = electric motor").
+void drawEngineShape(IconCanvas &ic, lv_color_t c) {
+    fillRect(ic, 10, 17, 30, 31, c); // main body
+    fillRect(ic, 12, 11, 25, 17, c); // valve cover (raised, top-left)
+    fillRect(ic, 15, 6, 20, 11, c);  // oil filler nub on the cover
+    fillRect(ic, 5, 21, 10, 27, c);  // left mounting tab
+    fillRect(ic, 15, 31, 27, 35, c); // bottom foot
+    fillCircle(ic, 30, 24, 8, c);    // right bell housing (rounded end)
+    fillRect(ic, 34, 26, 40, 31, c); // small right foot
+}
+
+void createEngineIcon(lv_obj_t *parent) {
+    IconCanvas ic = makeIconCanvas(parent, kEngineCx, kEngineCy);
+    drawEngineShape(ic, Colors::kEngineRed);
+}
+
+// Electric motor = the same engine silhouette with a lightning bolt punched
+// through the body, so it reads as "engine, but electric".
 void createMotorIcon(lv_obj_t *parent) {
     IconCanvas ic = makeIconCanvas(parent, kMotorCx, kMotorCy);
-    lv_color_t c = Colors::kAccentCyan;
-    const int cx = kIconHalf, cy = kIconHalf;
-    for (int k = 0; k < 8; k++) { // gear teeth
-        float a = k * (kPi / 4.0f);
-        thickLine(ic, cx + 12 * std::cos(a), cy + 12 * std::sin(a),
-                  cx + 19 * std::cos(a), cy + 19 * std::sin(a), 2, c);
-    }
-    fillCircle(ic, cx, cy, 14, c);       // body
-    fillCircle(ic, cx, cy, 6, Colors::kBg); // centre hole -> unmistakably a cog
-    fillCircle(ic, cx, cy, 2, c);        // axle
+    drawEngineShape(ic, Colors::kAccentCyan);
+    const Pt bolt[] = {{26, 15}, {20, 25}, {24, 25}, {21, 32}, {29, 22}, {25, 22}, {28, 15}};
+    fillPoly(ic, bolt, 7, Colors::kBg);
 }
 
 // HV battery: outlined body + two terminals + internal cell dividers.
@@ -268,13 +287,22 @@ void createWheelsIcon(lv_obj_t *parent) {
 // ---------------------------------------------------------------------------
 // Labels
 // ---------------------------------------------------------------------------
+enum Anchor { AnchorLeft, AnchorCenter, AnchorRight };
+
+// Creates a single-line, content-sized label (no wrapping -- an earlier fixed
+// width made "BATTERY" wrap to "BATTER"/"Y") positioned so that `anchorX` is
+// its left edge / centre / right edge per `anchor`.
 lv_obj_t *makeLabel(lv_obj_t *parent, const char *txt, const lv_font_t *font, lv_color_t color,
-                    int16_t x, int16_t y, int16_t w, lv_text_align_t align) {
+                    int16_t anchorX, int16_t y, Anchor anchor) {
+    lv_point_t sz;
+    lv_txt_get_size(&sz, txt, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    int16_t x = anchorX;
+    if (anchor == AnchorCenter) x = static_cast<int16_t>(anchorX - sz.x / 2);
+    else if (anchor == AnchorRight) x = static_cast<int16_t>(anchorX - sz.x);
+
     lv_obj_t *l = lv_label_create(parent);
     lv_obj_set_style_text_font(l, font, 0);
     lv_obj_set_style_text_color(l, color, 0);
-    lv_obj_set_style_text_align(l, align, 0);
-    lv_obj_set_width(l, w);
     lv_obj_set_pos(l, x, y);
     lv_label_set_text(l, txt);
     return l;
@@ -283,37 +311,34 @@ lv_obj_t *makeLabel(lv_obj_t *parent, const char *txt, const lv_font_t *font, lv
 void createLabels(lv_obj_t *parent) {
     const int16_t vmid = kEngineCy - kLabelLineH / 2; // vertical-centre a label on the top row
 
-    // ENGINE: to the LEFT of its icon, right-aligned so it hugs the icon.
+    // ENGINE: to the LEFT of its icon, right edge hugging the icon.
     makeLabel(parent, "ENGINE", &dinnext_24_label, Colors::kText,
-              static_cast<int16_t>(kEngineCx - kIconHalf - kEndpointGap - kLabelW), vmid, kLabelW,
-              LV_TEXT_ALIGN_RIGHT);
+              static_cast<int16_t>(kEngineCx - kIconHalf - kEndpointGap), vmid, AnchorRight);
 
     // MOTOR: centred ABOVE its icon (centred node, no room to a side).
-    makeLabel(parent, "MOTOR", &dinnext_24_label, Colors::kText,
-              static_cast<int16_t>(kMotorCx - kLabelW / 2),
-              static_cast<int16_t>(kMotorCy - kIconHalf - 2 - kLabelLineH), kLabelW,
-              LV_TEXT_ALIGN_CENTER);
+    makeLabel(parent, "MOTOR", &dinnext_24_label, Colors::kText, kMotorCx,
+              static_cast<int16_t>(kMotorCy - kIconHalf - 2 - kLabelLineH), AnchorCenter);
 
-    // BATTERY: to the RIGHT of its icon, left-aligned, with the live SOC %
-    // number on a second line just below it.
+    // BATTERY: to the RIGHT of its icon, with the live SOC % number on a
+    // second line just below it.
     const int16_t battLabelX = kBatteryCx + kIconHalf + kEndpointGap;
     makeLabel(parent, "BATTERY", &dinnext_24_label, Colors::kText, battLabelX,
-              static_cast<int16_t>(kBatteryCy - kIconHalf), kLabelW, LV_TEXT_ALIGN_LEFT);
+              static_cast<int16_t>(kBatteryCy - kIconHalf), AnchorLeft);
 
     g_battValueLabel = makeLabel(parent, "--", &dinnext_26_battery, Colors::kText, battLabelX,
-                                 static_cast<int16_t>(kBatteryCy + 2), 60, LV_TEXT_ALIGN_LEFT);
+                                 static_cast<int16_t>(kBatteryCy + 2), AnchorLeft);
     g_battPctLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_battPctLabel, &dinnext_13_pct, 0);
     lv_obj_set_style_text_color(g_battPctLabel, Colors::kMutedText, 0);
     lv_label_set_text(g_battPctLabel, "%");
     lv_obj_align_to(g_battPctLabel, g_battValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
 
-    // WHEELS: to the RIGHT of the wheel, left-aligned, vertically centred on
-    // it. The wheel's right side is otherwise empty, so this keeps the label
-    // clear of the ENGINE->WHEELS arrow (which comes in from the left).
+    // WHEELS: to the RIGHT of the wheel, vertically centred on it. The wheel's
+    // right side is empty, so this keeps the label clear of the ENGINE->WHEELS
+    // arrow (which comes in from the left).
     makeLabel(parent, "WHEELS", &dinnext_24_label, Colors::kText,
               static_cast<int16_t>(kWheelsCx + kIconHalf + kEndpointGap),
-              static_cast<int16_t>(kWheelsCy - kLabelLineH / 2), kLabelW, LV_TEXT_ALIGN_LEFT);
+              static_cast<int16_t>(kWheelsCy - kLabelLineH / 2), AnchorLeft);
 }
 
 constexpr int16_t kScreenW = 640;
