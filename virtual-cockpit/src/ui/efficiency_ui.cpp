@@ -13,16 +13,22 @@ constexpr int16_t kScreenW = 640;
 constexpr int16_t kScreenH = 172;
 
 // EV / ENGINE headline + split bar.
-constexpr int16_t kHeadY = 22; // EV / ENGINE labels row
+//
+// Y positions are chosen so the whole content block (headline -> bar ->
+// tile captions -> tile values) sits vertically centered in the 172px
+// screen -- top margin (23px) ~= bottom margin (22px), using dinnext_28_stat's
+// actual line_height (21) and lv_font_montserrat_14's (16), not their
+// nominal point sizes.
+constexpr int16_t kHeadY = 23; // EV / ENGINE labels row
 constexpr int16_t kBarX = 30;
 constexpr int16_t kBarW = 580;
-constexpr int16_t kBarY = 52;
+constexpr int16_t kBarY = 55;
 constexpr int16_t kBarH = 26;
 
 // Four stat tiles along the bottom.
 constexpr int16_t kTileCount = 4;
-constexpr int16_t kTileCaptionY = 108;
-constexpr int16_t kTileValueY = 126;
+constexpr int16_t kTileCaptionY = 111;
+constexpr int16_t kTileValueY = 129;
 
 lv_obj_t *g_bar = nullptr;
 lv_obj_t *g_evLabel = nullptr;     // "EV 72%"
@@ -70,21 +76,22 @@ void build(lv_obj_t *parent) {
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
-    // EV / ENGINE headline labels above the bar.
-    g_evLabel = makeLabel(root, "EV", &dinnext_24_label, Colors::kEvGreen, kBarX, kHeadY, AnchorLeft);
-    g_engineLabel = makeLabel(root, "ENGINE", &dinnext_24_label, Colors::kEngineRed,
+    // EV / ENGINE headline labels above the bar. Kept to green + white for
+    // consistency with the rest of the UI (no red on this screen).
+    g_evLabel = makeLabel(root, "EV", &dinnext_28_stat, Colors::kEvGreen, kBarX, kHeadY, AnchorLeft);
+    g_engineLabel = makeLabel(root, "ENGINE", &dinnext_28_stat, Colors::kText,
                               static_cast<int16_t>(kBarX + kBarW), kHeadY, AnchorRight);
 
-    // Split bar: track = ENGINE (red), indicator = EV (green) growing from the
-    // left, so a full-EV drive is all green. The indicator's right edge is
-    // square -> a crisp EV|ENGINE boundary.
+    // Split bar: track = ENGINE (white), indicator = EV (green) growing from
+    // the left, so a full-EV drive is all green. The indicator's right edge
+    // is square -> a crisp EV|ENGINE boundary.
     g_bar = lv_bar_create(root);
     lv_obj_remove_style_all(g_bar);
     lv_obj_set_size(g_bar, kBarW, kBarH);
     lv_obj_set_pos(g_bar, kBarX, kBarY);
     lv_bar_set_range(g_bar, 0, 100);
     lv_bar_set_value(g_bar, 0, LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(g_bar, Colors::kEngineRed, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(g_bar, Colors::kText, LV_PART_MAIN);
     lv_obj_set_style_bg_opa(g_bar, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_radius(g_bar, kBarH / 2, LV_PART_MAIN);
     lv_obj_set_style_bg_color(g_bar, Colors::kEvGreen, LV_PART_INDICATOR);
@@ -97,7 +104,7 @@ void build(lv_obj_t *parent) {
     for (int i = 0; i < kTileCount; i++) {
         makeLabel(root, caps[i], &lv_font_montserrat_14, Colors::kMutedText, tileCx(i), kTileCaptionY,
                   AnchorCenter);
-        g_tileValue[i] = makeLabel(root, "--", &dinnext_24_label, Colors::kText, tileCx(i),
+        g_tileValue[i] = makeLabel(root, "--", &dinnext_28_stat, Colors::kText, tileCx(i),
                                    kTileValueY, AnchorCenter);
     }
 }
@@ -117,17 +124,17 @@ void update(const VehicleState &) {
     lv_label_set_text(g_engineLabel, buf);
     // Right label is right-anchored at the bar's end; re-place after text change.
     lv_point_t sz;
-    lv_txt_get_size(&sz, buf, &dinnext_24_label, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_txt_get_size(&sz, buf, &dinnext_28_stat, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     lv_obj_set_pos(g_engineLabel, static_cast<int16_t>(kBarX + kBarW - sz.x), kHeadY);
 
     snprintf(buf, sizeof(buf), "%.1f KM", static_cast<double>(s.distanceKm));
-    setCentered(g_tileValue[0], &dinnext_24_label, tileCx(0), kTileValueY, buf);
+    setCentered(g_tileValue[0], &dinnext_28_stat, tileCx(0), kTileValueY, buf);
     snprintf(buf, sizeof(buf), "%d%%", static_cast<int>(s.regenSharePct + 0.5f));
-    setCentered(g_tileValue[1], &dinnext_24_label, tileCx(1), kTileValueY, buf);
+    setCentered(g_tileValue[1], &dinnext_28_stat, tileCx(1), kTileValueY, buf);
     snprintf(buf, sizeof(buf), "%d KM/H", static_cast<int>(s.avgSpeedKph + 0.5f));
-    setCentered(g_tileValue[2], &dinnext_24_label, tileCx(2), kTileValueY, buf);
+    setCentered(g_tileValue[2], &dinnext_28_stat, tileCx(2), kTileValueY, buf);
     snprintf(buf, sizeof(buf), "%d KM/H", static_cast<int>(s.maxSpeedKph + 0.5f));
-    setCentered(g_tileValue[3], &dinnext_24_label, tileCx(3), kTileValueY, buf);
+    setCentered(g_tileValue[3], &dinnext_28_stat, tileCx(3), kTileValueY, buf);
 }
 
 } // namespace EfficiencyUi

@@ -23,6 +23,8 @@ inline int rowInset(int y, int h) {
 
 void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h,
             bool isChg, const char *labelPrefix) {
+    hd->x = x;
+    hd->y = y;
     hd->w = w;
     hd->h = h;
     hd->isChg = isChg;
@@ -46,23 +48,41 @@ void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16
     // "stuck to the top edge" of the 16px-tall bar.
     constexpr int16_t kLabelLineHeight = 10;
     int16_t labelY = y + (h - kLabelLineHeight) / 2;
+    int16_t labelBoxX = isChg ? x : static_cast<int16_t>(x + 6);
+    int16_t labelBoxW = static_cast<int16_t>(w - 6);
+    lv_text_align_t align = isChg ? LV_TEXT_ALIGN_RIGHT : LV_TEXT_ALIGN_LEFT;
 
+    // "Unfilled" layer: the full text, always drawn, colored to read against
+    // the dark not-yet-filled track (white for PWR, purple for CHG).
     hd->label = lv_label_create(parent);
     lv_obj_set_style_text_font(hd->label, &dinnext_14_chgpwr, 0);
     lv_obj_set_style_text_letter_space(hd->label, 1, 0);
     lv_obj_set_style_bg_opa(hd->label, LV_OPA_TRANSP, 0);
-    lv_obj_set_width(hd->label, w - 6);
-    if (isChg) {
-        // CHG: divider is the canvas's right edge -- right-align text, box
-        // flush to the canvas's own left edge so the 6px gap lands on the right.
-        lv_obj_set_style_text_align(hd->label, LV_TEXT_ALIGN_RIGHT, 0);
-        lv_obj_set_pos(hd->label, x, labelY);
-    } else {
-        // PWR: divider is the canvas's left edge -- left-align text, box
-        // shifted 6px in from that edge.
-        lv_obj_set_style_text_align(hd->label, LV_TEXT_ALIGN_LEFT, 0);
-        lv_obj_set_pos(hd->label, x + 6, labelY);
-    }
+    lv_obj_set_style_text_color(hd->label, isChg ? Colors::kChgPurple : Colors::kPwrWhite, 0);
+    lv_obj_set_width(hd->label, labelBoxW);
+    lv_obj_set_style_text_align(hd->label, align, 0);
+    lv_obj_set_pos(hd->label, labelBoxX, labelY);
+
+    // "Filled" layer: an identical dark-text duplicate, parented inside
+    // clipBox so LVGL's default child-clipping-to-parent-bounds reveals it
+    // only where the bright fill color already sits underneath. clipBox's
+    // box is resized/repositioned every setFillPct() call to track the fill
+    // boundary exactly (per-pixel, so a letter can end up half-revealed),
+    // mirroring each bar's own fill direction -- see setFillPct().
+    hd->clipBox = lv_obj_create(parent);
+    lv_obj_remove_style_all(hd->clipBox);
+    lv_obj_clear_flag(hd->clipBox, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(hd->clipBox, x, y);
+    lv_obj_set_size(hd->clipBox, 0, h);
+
+    hd->labelBlack = lv_label_create(hd->clipBox);
+    lv_obj_set_style_text_font(hd->labelBlack, &dinnext_14_chgpwr, 0);
+    lv_obj_set_style_text_letter_space(hd->labelBlack, 1, 0);
+    lv_obj_set_style_bg_opa(hd->labelBlack, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_color(hd->labelBlack, Colors::kBg, 0);
+    lv_obj_set_width(hd->labelBlack, labelBoxW);
+    lv_obj_set_style_text_align(hd->labelBlack, align, 0);
+    lv_obj_set_pos(hd->labelBlack, labelBoxX - x, labelY - y);
 
     setFillPct(hd, 0.0f); // paint the initial empty state now, not a garbage buffer
 }
@@ -112,11 +132,22 @@ void setFillPct(Handle *hd, float pct) {
     char text[16];
     std::snprintf(text, sizeof(text), "%s %d%%", hd->labelPrefix, static_cast<int>(pct + 0.5f));
     lv_label_set_text(hd->label, text);
+    lv_label_set_text(hd->labelBlack, text);
 
-    // Label color flips dark once the fill likely passes under it (>5%),
-    // matching the spec's contrast rule.
-    lv_color_t textColor = (pct > 5.0f) ? Colors::kBg : lv_color_white();
-    lv_obj_set_style_text_color(hd->label, textColor, 0);
+    // Slide clipBox to cover exactly the region currently under the bright
+    // fill, so the dark labelBlack layer is revealed there and nowhere else
+    // -- growing in the same direction as the fill itself. PWR's fill is
+    // anchored at its left/inner edge (clipBox left edge fixed at hd->x,
+    // widening rightward); CHG's fill is anchored at its right/inner edge
+    // (clipBox right edge fixed at hd->x + w, widening leftward).
+    int16_t clipX = hd->isChg ? static_cast<int16_t>(hd->x + (w - fillPx)) : hd->x;
+    lv_obj_set_pos(hd->clipBox, clipX, hd->y);
+    lv_obj_set_size(hd->clipBox, static_cast<int16_t>(fillPx), h);
+
+    constexpr int16_t kLabelLineHeight = 10;
+    int16_t labelY = hd->y + (h - kLabelLineHeight) / 2;
+    int16_t labelBoxX = hd->isChg ? hd->x : static_cast<int16_t>(hd->x + 6);
+    lv_obj_set_pos(hd->labelBlack, static_cast<int16_t>(labelBoxX - clipX), static_cast<int16_t>(labelY - hd->y));
 }
 
 } // namespace BarGauge
