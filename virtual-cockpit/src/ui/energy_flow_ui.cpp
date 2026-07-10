@@ -233,29 +233,31 @@ void fillPoly(IconCanvas &ic, const Pt *p, int n, lv_color_t c) {
 
 // The classic check-engine (MIL) silhouette, from clean blocks + a rounded
 // right "bell housing". Shared by the ENGINE icon and the MOTOR icon (the
-// latter overlays a lightning bolt on the same shape, per the requested
-// "engine symbol with a bolt = electric motor").
-void drawEngineShape(IconCanvas &ic, lv_color_t c) {
-    fillRect(ic, 10, 17, 30, 31, c); // main body
-    fillRect(ic, 12, 11, 25, 17, c); // valve cover (raised, top-left)
-    fillRect(ic, 15, 6, 20, 11, c);  // oil filler nub on the cover
-    fillRect(ic, 5, 21, 10, 27, c);  // left mounting tab
-    fillRect(ic, 15, 31, 27, 35, c); // bottom foot
-    fillCircle(ic, 30, 24, 8, c);    // right bell housing (rounded end)
-    fillRect(ic, 34, 26, 40, 31, c); // small right foot
+// latter is the same block minus the fins, with a lightning bolt punched
+// through it (per the requested "same as thermal, no fins, with a bolt").
+void drawEngineBlock(IconCanvas &ic, lv_color_t c) {
+    fillRect(ic, 4, 20, 37, 38, c);  // lower body
+    fillRect(ic, 9, 12, 31, 20, c);  // valve cover
+    fillRect(ic, 12, 7, 17, 12, c);  // cylinder stub 1
+    fillRect(ic, 22, 7, 27, 12, c);  // cylinder stub 2
+    fillCircle(ic, 39, 30, 5, c);    // belt pulley (right)
 }
 
 void createEngineIcon(lv_obj_t *parent) {
     IconCanvas ic = makeIconCanvas(parent, kEngineCx, kEngineCy);
-    drawEngineShape(ic, Colors::kEngineRed);
+    drawEngineBlock(ic, Colors::kEngineRed);
+    // Cooling fins: thin background cut lines across the lower body.
+    fillRect(ic, 7, 26, 29, 26, Colors::kBg);
+    fillRect(ic, 7, 30, 29, 30, Colors::kBg);
+    fillRect(ic, 7, 34, 29, 34, Colors::kBg);
 }
 
-// Electric motor = the same engine silhouette with a lightning bolt punched
-// through the body, so it reads as "engine, but electric".
+// Electric motor = the same engine block, no fins, with a lightning bolt
+// punched through the body -- reads as "engine, but electric".
 void createMotorIcon(lv_obj_t *parent) {
     IconCanvas ic = makeIconCanvas(parent, kMotorCx, kMotorCy);
-    drawEngineShape(ic, Colors::kAccentCyan);
-    const Pt bolt[] = {{26, 15}, {20, 25}, {24, 25}, {21, 32}, {29, 22}, {25, 22}, {28, 15}};
+    drawEngineBlock(ic, Colors::kAccentCyan);
+    const Pt bolt[] = {{23, 13}, {14, 27}, {20, 27}, {16, 35}, {27, 23}, {21, 23}, {25, 13}};
     fillPoly(ic, bolt, 7, Colors::kBg);
 }
 
