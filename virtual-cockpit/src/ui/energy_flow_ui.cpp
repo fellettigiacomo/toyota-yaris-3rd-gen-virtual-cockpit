@@ -257,7 +257,7 @@ void createEngineIcon(lv_obj_t *parent) {
 void createMotorIcon(lv_obj_t *parent) {
     IconCanvas ic = makeIconCanvas(parent, kMotorCx, kMotorCy);
     drawEngineBlock(ic, Colors::kAccentCyan);
-    const Pt bolt[] = {{23, 13}, {14, 27}, {20, 27}, {16, 35}, {27, 23}, {21, 23}, {25, 13}};
+    const Pt bolt[] = {{23, 16}, {14, 30}, {20, 30}, {16, 38}, {27, 26}, {21, 26}, {25, 16}};
     fillPoly(ic, bolt, 7, Colors::kBg);
 }
 
