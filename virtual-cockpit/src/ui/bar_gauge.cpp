@@ -79,7 +79,7 @@ void create(Handle *hd, lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16
     lv_obj_set_style_text_font(hd->labelBlack, &dinnext_14_chgpwr, 0);
     lv_obj_set_style_text_letter_space(hd->labelBlack, 1, 0);
     lv_obj_set_style_bg_opa(hd->labelBlack, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_text_color(hd->labelBlack, isChg ? Colors::kChgPurple : Colors::kBg, 0);  
+    lv_obj_set_style_text_color(hd->labelBlack, isChg ? Colors::kPwrWhite : Colors::kBg, 0);  
     lv_obj_set_width(hd->labelBlack, labelBoxW);
     lv_obj_set_style_text_align(hd->labelBlack, align, 0);
     lv_obj_set_pos(hd->labelBlack, labelBoxX - x, labelY - y);
