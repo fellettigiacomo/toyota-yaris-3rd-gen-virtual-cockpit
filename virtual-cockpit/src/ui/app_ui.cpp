@@ -1,26 +1,26 @@
 #include "app_ui.h"
 #include "cockpit_ui.h"
 #include "energy_flow_ui.h"
+#include "efficiency_ui.h"
 #include "colors.h"
 #include "screen_nav.h"
+#include "hybrid_stats.h"
 
 #include <lvgl.h>
 
-// Screen switching used to be an lv_tileview swipe (touch-driven); both the
-// swipe transition and the energy-flow tile itself were reported to be
-// badly laggy on real hardware. Touch is dropped entirely now -- this
-// switches between two plain, always-built full-screen containers with an
-// instant lv_obj_add_flag/clear_flag(LV_OBJ_FLAG_HIDDEN) toggle (no scroll
-// animation at all) driven by the board's BOOT button (see screen_nav.h).
+// The BOOT button cycles between plain, always-built full-screen containers
+// with an instant lv_obj_add/clear_flag(LV_OBJ_FLAG_HIDDEN) toggle (no scroll
+// animation -- touch/swipe was dropped for being laggy on real hardware).
+// Screens, in cycle order: cockpit -> energy flow -> efficiency -> cockpit.
 namespace AppUi {
 
 namespace {
 constexpr int16_t kScreenW = 640;
 constexpr int16_t kScreenH = 172;
 
-lv_obj_t *g_cockpitScreen = nullptr;
-lv_obj_t *g_energyScreen = nullptr;
-bool g_energyActive = false;
+enum Screen { ScreenCockpit = 0, ScreenEnergy, ScreenEfficiency, ScreenCount };
+lv_obj_t *g_screens[ScreenCount] = {nullptr, nullptr, nullptr};
+int g_active = ScreenCockpit;
 
 lv_obj_t *createScreenContainer(lv_obj_t *parent) {
     lv_obj_t *c = lv_obj_create(parent);
@@ -32,6 +32,13 @@ lv_obj_t *createScreenContainer(lv_obj_t *parent) {
     lv_obj_clear_flag(c, LV_OBJ_FLAG_SCROLLABLE);
     return c;
 }
+
+void showOnly(int active) {
+    for (int i = 0; i < ScreenCount; i++) {
+        if (i == active) lv_obj_clear_flag(g_screens[i], LV_OBJ_FLAG_HIDDEN);
+        else lv_obj_add_flag(g_screens[i], LV_OBJ_FLAG_HIDDEN);
+    }
+}
 } // namespace
 
 void build() {
@@ -41,35 +48,34 @@ void build() {
     lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
     lv_obj_clear_flag(scr, LV_OBJ_FLAG_SCROLLABLE);
 
-    g_cockpitScreen = createScreenContainer(scr);
-    g_energyScreen = createScreenContainer(scr);
+    for (int i = 0; i < ScreenCount; i++) g_screens[i] = createScreenContainer(scr);
 
-    CockpitUi::build(g_cockpitScreen);
-    EnergyFlowUi::build(g_energyScreen);
+    CockpitUi::build(g_screens[ScreenCockpit]);
+    EnergyFlowUi::build(g_screens[ScreenEnergy]);
+    EfficiencyUi::build(g_screens[ScreenEfficiency]);
 
-    g_energyActive = false;
-    lv_obj_add_flag(g_energyScreen, LV_OBJ_FLAG_HIDDEN);
+    g_active = ScreenCockpit;
+    showOnly(g_active);
 }
 
 void update(const VehicleState &state, time_t clockEpoch) {
     if (ScreenNav::pressed()) {
-        g_energyActive = !g_energyActive;
-        if (g_energyActive) {
-            lv_obj_clear_flag(g_energyScreen, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(g_cockpitScreen, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_clear_flag(g_cockpitScreen, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(g_energyScreen, LV_OBJ_FLAG_HIDDEN);
-        }
+        g_active = (g_active + 1) % ScreenCount;
+        showOnly(g_active);
     }
+
+    // Session stats integrate continuously, regardless of the visible screen.
+    HybridStats::update(state);
 
     CockpitUi::update(state, clockEpoch);
 
-    // Only pay for EnergyFlowUi's animated canvas redraws while its screen
-    // is actually the one shown -- exact now (no mid-transition ambiguity
-    // to guess at, unlike the old tileview-scroll-position heuristic).
-    if (g_energyActive) {
+    // The energy and efficiency screens are only updated while shown -- the
+    // energy arrows are expensive to redraw, and there's no reason to format
+    // labels for a hidden screen.
+    if (g_active == ScreenEnergy) {
         EnergyFlowUi::update(state);
+    } else if (g_active == ScreenEfficiency) {
+        EfficiencyUi::update(state);
     }
 }
 
