@@ -105,10 +105,16 @@ void redrawBent(Handle *hd) {
     float headLen = active ? kHeadLen : 0.0f;
 
     // The arrowhead only eats into whichever segment holds the head end;
-    // the elbow-adjacent end of each segment is always plain shaft.
+    // the elbow-adjacent end of each segment is always plain shaft. Each
+    // shaft also OVERSHOOTS the elbow centerline by half a thickness so the
+    // outer corner of the L fills solid -- without this, both segments stop
+    // exactly at the centerline and the outer half-thickness quadrant of the
+    // corner is left unpainted, a ~thickness/2-sized notch that reads as the
+    // arrow being "cut" at the bend.
+    float halfThick = hd->thickness / 2.0f;
     float shaftLoA = (active && !forward) ? headLen : 0.0f;
-    float shaftHiA = lenA;
-    float shaftLoB = 0.0f;
+    float shaftHiA = lenA + halfThick;
+    float shaftLoB = -halfThick;
     float shaftHiB = (active && forward) ? (lenB - headLen) : lenB;
 
     lv_color_t baseColor = active ? lv_color_mix(hd->color, Colors::kBg, 90) : Colors::kFlowOff;
