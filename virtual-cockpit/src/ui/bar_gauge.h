@@ -16,8 +16,12 @@ namespace BarGauge {
 
 struct Handle {
     lv_obj_t *canvas = nullptr;
-    lv_obj_t *label = nullptr;
+    lv_obj_t *label = nullptr;      // "unfilled" layer: always full text, white (PWR) or purple (CHG)
+    lv_obj_t *clipBox = nullptr;    // clips labelBlack to the region currently under the fill
+    lv_obj_t *labelBlack = nullptr; // "filled" layer: same text, dark, revealed by clipBox
     lv_color_t *buf = nullptr;
+    int16_t x = 0;
+    int16_t y = 0;
     int16_t w = 0;
     int16_t h = 0;
     bool isChg = false; // true=CHG (left, fill anchored right/inner, bevel on left/outer)

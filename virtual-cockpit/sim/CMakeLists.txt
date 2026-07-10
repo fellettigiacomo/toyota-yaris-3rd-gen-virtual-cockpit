@@ -53,6 +53,7 @@ add_executable(sim
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_30_units.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_gear.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_24_label.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_28_stat.c
 )
 
 target_compile_definitions(sim PRIVATE DEMO_FAKE_DATA)

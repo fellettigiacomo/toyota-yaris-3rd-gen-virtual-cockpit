@@ -36,5 +36,6 @@ gen dinnext_26_rpm       26 "RPM0123456789:°C "   # RPM label+value row (center
 gen dinnext_14_chgpwr    14 "CHGPWR0123456789% " # "CHG"/"PWR" bar labels, now with a live percentage
 gen dinnext_13_pct       13 "%"                   # "%" suffix
 gen dinnext_24_label     24 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./% " # energy-flow labels + efficiency-screen numbers/units
+gen dinnext_28_stat      28 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./% " # efficiency-screen headline + tile values
 
 echo "done -- regenerated src/ui/fonts/*.c"

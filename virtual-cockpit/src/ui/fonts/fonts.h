@@ -20,6 +20,7 @@ extern const lv_font_t dinnext_26_rpm;    // RPM label+value row (centered group
 extern const lv_font_t dinnext_14_chgpwr; // "CHG"/"PWR" bar labels
 extern const lv_font_t dinnext_13_pct;    // "%" suffix
 extern const lv_font_t dinnext_24_label;  // energy-flow node labels (full A-Z uppercase)
+extern const lv_font_t dinnext_28_stat;   // efficiency-screen headline + tile values (full A-Z uppercase)
 
 #ifdef __cplusplus
 }

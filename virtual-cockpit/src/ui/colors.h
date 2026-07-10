@@ -21,4 +21,7 @@ const lv_color_t kMutedText   = LV_COLOR_MAKE(0x8f, 0x9c, 0xa3); // approximates
 const lv_color_t kEngineRed = LV_COLOR_MAKE(0xe0, 0x3a, 0x2f); // ICE-driven segments/icon
 const lv_color_t kFlowOff   = LV_COLOR_MAKE(0x2a, 0x2c, 0x30); // inactive flow-arrow outline
 
+// CHG bar label's "unfilled" color (mirrors PWR's white with a distinct hue).
+const lv_color_t kChgPurple = LV_COLOR_MAKE(0xb0, 0x6a, 0xff);
+
 } // namespace Colors
