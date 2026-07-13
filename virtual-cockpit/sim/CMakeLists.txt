@@ -38,6 +38,7 @@ add_executable(sim
     ${PROJECT_ROOT}/src/demo_log_data.cpp
     ${PROJECT_ROOT}/src/screen_nav.cpp
     ${PROJECT_ROOT}/src/hybrid_stats.cpp
+    ${PROJECT_ROOT}/src/accel_timer.cpp
     ${PROJECT_ROOT}/src/ui/bar_gauge.cpp
     ${PROJECT_ROOT}/src/ui/cockpit_ui.cpp
     ${PROJECT_ROOT}/src/ui/energy_flow_ui.cpp
@@ -54,6 +55,8 @@ add_executable(sim
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_gear.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_24_label.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_28_stat.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_20_accel_time.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_15_accel_label.c
 )
 
 target_compile_definitions(sim PRIVATE DEMO_FAKE_DATA)
