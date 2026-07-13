@@ -5,6 +5,7 @@
 #include "colors.h"
 #include "screen_nav.h"
 #include "hybrid_stats.h"
+#include "accel_timer.h"
 
 #include <lvgl.h>
 
@@ -64,8 +65,11 @@ void update(const VehicleState &state, time_t clockEpoch) {
         showOnly(g_active);
     }
 
-    // Session stats integrate continuously, regardless of the visible screen.
+    // Session stats and the 0-50/0-100 timer integrate continuously,
+    // regardless of the visible screen -- a run started while the energy or
+    // efficiency screen is shown must still be caught.
     HybridStats::update(state);
+    AccelTimer::update(state);
 
     CockpitUi::update(state, clockEpoch);
 

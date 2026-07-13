@@ -2,6 +2,7 @@
 #include "colors.h"
 #include "bar_gauge.h"
 #include "fonts/fonts.h"
+#include "accel_timer.h"
 
 #include <cstdio>
 #include <lvgl.h>
@@ -88,6 +89,11 @@ lv_obj_t *g_gearLabel = nullptr;
 lv_obj_t *g_unitsLabel = nullptr;
 lv_obj_t *g_rpmLabel = nullptr;
 lv_obj_t *g_evLabel = nullptr;
+
+// 0-50/0-100 timer readout: shares the gear letter's slot (same anchor,
+// exactly one of the two is visible at a time), see AccelTimer.
+lv_obj_t *g_accelTimeLabel = nullptr;  // "6.55" -- elapsed seconds
+lv_obj_t *g_accelThresholdLabel = nullptr; // "0-50" / "0-100" -- which threshold
 
 char gearChar(Gear g) {
     switch (g) {
@@ -225,6 +231,25 @@ void createCenterGroup(lv_obj_t *parent) {
     lv_label_set_text(g_gearLabel, "P");
     lv_obj_align(g_gearLabel, LV_ALIGN_CENTER, -158, 4);
 
+    // 0-50/0-100 timer readout, sharing the gear letter's anchor (dx=-158) --
+    // hidden by default, swapped in for the gear letter by update() while
+    // AccelTimer has a result to show. Two stacked labels, same centering
+    // trick the RPM/EV row already uses one anchor over, just split into two
+    // rows here: seconds on top (dy=-6), threshold caption below (dy=13).
+    g_accelTimeLabel = lv_label_create(parent);
+    lv_obj_set_style_text_font(g_accelTimeLabel, &dinnext_20_accel_time, 0);
+    lv_obj_set_style_text_color(g_accelTimeLabel, Colors::kAccentCyan, 0);
+    lv_label_set_text(g_accelTimeLabel, "0.00");
+    lv_obj_align(g_accelTimeLabel, LV_ALIGN_CENTER, -158, -6);
+    lv_obj_add_flag(g_accelTimeLabel, LV_OBJ_FLAG_HIDDEN);
+
+    g_accelThresholdLabel = lv_label_create(parent);
+    lv_obj_set_style_text_font(g_accelThresholdLabel, &dinnext_15_accel_label, 0);
+    lv_obj_set_style_text_color(g_accelThresholdLabel, Colors::kMutedText, 0);
+    lv_label_set_text(g_accelThresholdLabel, "0-50");
+    lv_obj_align(g_accelThresholdLabel, LV_ALIGN_CENTER, -158, 13);
+    lv_obj_add_flag(g_accelThresholdLabel, LV_OBJ_FLAG_HIDDEN);
+
     // Units label: unchanged, per the owner's "leave km/h as is" request.
     g_unitsLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_unitsLabel, &dinnext_30_units, 0);
@@ -312,8 +337,24 @@ void update(const VehicleState &state, time_t clockEpoch) {
     snprintf(speedBuf, sizeof(speedBuf), "%d", static_cast<int>(state.speed_kph + 0.5f));
     lv_label_set_text(g_speedLabel, speedBuf);
 
-    char gearBuf[2] = {gearChar(state.gear), '\0'};
-    lv_label_set_text(g_gearLabel, gearBuf);
+    AccelTimer::Display accel = AccelTimer::getDisplay();
+    if (accel.active) {
+        char accelTimeBuf[8];
+        snprintf(accelTimeBuf, sizeof(accelTimeBuf), "%.2f", accel.seconds);
+        lv_label_set_text(g_accelTimeLabel, accelTimeBuf);
+        char thresholdBuf[8];
+        snprintf(thresholdBuf, sizeof(thresholdBuf), "0-%d", accel.thresholdKph);
+        lv_label_set_text(g_accelThresholdLabel, thresholdBuf);
+        lv_obj_add_flag(g_gearLabel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(g_accelTimeLabel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(g_accelThresholdLabel, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        char gearBuf[2] = {gearChar(state.gear), '\0'};
+        lv_label_set_text(g_gearLabel, gearBuf);
+        lv_obj_clear_flag(g_gearLabel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g_accelTimeLabel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g_accelThresholdLabel, LV_OBJ_FLAG_HIDDEN);
+    }
 
     // RPM-or-EV row.
     if (state.ev_drive) {
