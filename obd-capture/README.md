@@ -101,6 +101,41 @@ timestamps relative to the ESP32's own boot time (filenames get a
 `RTCUNSET` tag instead of a date, and each `.meta` file records
 `rtc_valid=0`).
 
+## Live USB streaming (debug / new-feature work without pulling the SD card)
+
+In addition to logging to the SD card, every captured frame can be streamed
+live over the same USB-CDC port used for flashing/the serial monitor, in the
+same candump text format as the `.log` files. This is a separate fan-out
+from `canRxTask` (own queue, own task, see `usb_stream.cpp`), so a slow or
+absent PC-side reader can never affect SD logging or drop frames from the
+capture.
+
+Over the serial monitor:
+
+```
+STREAM ON    # raw candump lines start flowing over the port
+STREAM OFF   # back to the normal [status]/[main]/... console output
+```
+
+While streaming is on, the periodic `[status]` line is suppressed so the
+port carries pure candump lines; occasional other firmware messages (e.g. a
+bus-off warning) can still interleave, so anything reading the stream should
+just ignore lines that don't match the candump shape.
+
+To capture straight to a file on a PC, use `tools/usb_stream_logger.py`
+(`pip install pyserial`):
+
+```
+python3 tools/usb_stream_logger.py /dev/ttyACM0
+python3 tools/usb_stream_logger.py /dev/ttyACM0 data/logs/bench_test.log --settime
+```
+
+It sends `STREAM ON`, writes every valid candump line to the output file
+(filtering out any non-candump firmware messages), and sends `STREAM OFF` +
+closes cleanly on Ctrl+C. The resulting file is byte-for-byte the same
+format as an SD `.log`, so it drops straight into `tools/parse_log.py`,
+SavvyCAN, `python-can`, or `cantools`.
+
 ## Bring-up order (do this in order, do not skip ahead)
 
 1. **Display/SD/RTC only.** Flash and check the serial monitor + screen with

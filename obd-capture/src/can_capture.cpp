@@ -12,6 +12,7 @@
 namespace {
 
 QueueHandle_t g_sdQueue = nullptr;
+QueueHandle_t g_usbQueue = nullptr;
 
 // Stats, updated only by canRxTask, read via getStats() from displayTask.
 // Single-writer/many-reader plain values are fine here: a torn read at worst
@@ -90,6 +91,9 @@ void canRxTask(void *) {
                 // itself visible via getStats().sd_queue_backlog_pct.
                 xQueueSend(g_sdQueue, &rec, 0);
             }
+            if (g_usbQueue != nullptr) {
+                xQueueSend(g_usbQueue, &rec, 0);
+            }
 
             g_totalFrames++;
             framesInWindow++;
@@ -116,8 +120,9 @@ void canRxTask(void *) {
 
 namespace CanCapture {
 
-void begin(QueueHandle_t sdQueueOut) {
+void begin(QueueHandle_t sdQueueOut, QueueHandle_t usbQueueOut) {
     g_sdQueue = sdQueueOut;
+    g_usbQueue = usbQueueOut;
     xTaskCreatePinnedToCore(canRxTask, "canRx", STACK_SIZE_CAN_RX, nullptr,
                              TASK_PRIO_CAN_RX, nullptr, CORE_CAN_RX);
 }
@@ -134,6 +139,10 @@ CanCaptureStats getStats() {
     if (g_sdQueue != nullptr) {
         s.sd_queue_backlog_pct =
             (uxQueueMessagesWaiting(g_sdQueue) * 100) / APP_SD_QUEUE_DEPTH;
+    }
+    if (g_usbQueue != nullptr) {
+        s.usb_queue_backlog_pct =
+            (uxQueueMessagesWaiting(g_usbQueue) * 100) / APP_USB_QUEUE_DEPTH;
     }
     return s;
 }
