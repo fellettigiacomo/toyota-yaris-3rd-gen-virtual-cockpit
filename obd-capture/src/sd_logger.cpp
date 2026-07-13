@@ -2,6 +2,7 @@
 #include "board_pins.h"
 #include "app_config.h"
 #include "rtc_clock.h"
+#include "candump_format.h"
 
 #include <Arduino.h>
 #include <FS.h>
@@ -38,41 +39,8 @@ uint32_t g_lastSyncMs = 0;
 uint32_t g_lastFreeSpacePollMs = 0;
 float g_freeSpaceGb = 0;
 
-// Formats one candump-compatible line:
-//   (<seconds>.<microseconds>) can0 <id_hex>#<data_hex_or_R>\n
-// ID is zero-padded to 3 hex digits (standard) or 8 hex digits (extended),
-// lowercase, matching SocketCAN's own candump/.log convention exactly so
-// SavvyCAN/python-can/cantools import it without any massaging.
-size_t formatCandumpLine(char *out, size_t outLen, const CanFrameRecord &rec) {
-    uint64_t absUs;
-    if (g_sessionRtcValid) {
-        absUs = static_cast<uint64_t>(g_sessionStartEpoch) * 1000000ULL +
-                (rec.timestamp_us - g_sessionStartMonotonicUs);
-    } else {
-        absUs = rec.timestamp_us - g_sessionStartMonotonicUs;
-    }
-    uint32_t sec = absUs / 1000000ULL;
-    uint32_t usec = absUs % 1000000ULL;
-
-    int n = snprintf(out, outLen, "(%lu.%06lu) %s %0*x#",
-                      static_cast<unsigned long>(sec), static_cast<unsigned long>(usec),
-                      CAN_IFACE_NAME, rec.extended ? 8 : 3, rec.id);
-    if (n < 0 || static_cast<size_t>(n) >= outLen) return 0;
-    size_t pos = static_cast<size_t>(n);
-
-    if (rec.rtr) {
-        if (pos + 1 >= outLen) return 0;
-        out[pos++] = 'R';
-    } else {
-        for (int i = 0; i < rec.dlc && pos + 2 < outLen; i++) {
-            int written = snprintf(out + pos, outLen - pos, "%02x", rec.data[i]);
-            if (written != 2) return 0;
-            pos += 2;
-        }
-    }
-    if (pos + 1 >= outLen) return 0;
-    out[pos++] = '\n';
-    return pos;
+CandumpTimeBase sessionTimeBase() {
+    return CandumpTimeBase{g_sessionRtcValid, g_sessionStartEpoch, g_sessionStartMonotonicUs};
 }
 
 void loadSessionNumber() {
@@ -175,7 +143,7 @@ void sdWriterTask(void *) {
         bool got = xQueueReceive(g_queue, &rec, pdMS_TO_TICKS(20)) == pdTRUE;
         if (got && g_cardMounted && g_sessionOpen) {
             char line[64];
-            size_t len = formatCandumpLine(line, sizeof(line), rec);
+            size_t len = formatCandumpLine(line, sizeof(line), rec, sessionTimeBase());
             if (len > 0) {
                 if (g_textBufLen + len >= SD_TEXT_BUFFER_BYTES) {
                     flushTextBuffer();
@@ -203,7 +171,7 @@ void sdWriterTask(void *) {
             // Drain whatever is left in the queue before closing.
             while (xQueueReceive(g_queue, &rec, 0) == pdTRUE) {
                 char line[64];
-                size_t len = formatCandumpLine(line, sizeof(line), rec);
+                size_t len = formatCandumpLine(line, sizeof(line), rec, sessionTimeBase());
                 if (len > 0) {
                     if (g_textBufLen + len >= SD_TEXT_BUFFER_BYTES) flushTextBuffer();
                     memcpy(g_textBuf + g_textBufLen, line, len);

@@ -25,6 +25,7 @@ struct CanCaptureStats {
     uint32_t rx_fifo_overrun_count;
     uint32_t total_frames;
     uint32_t sd_queue_backlog_pct;
+    uint32_t usb_queue_backlog_pct;
 };
 
 namespace CanCapture {
@@ -34,8 +35,11 @@ namespace CanCapture {
 // canRxTask pinned to CORE_CAN_RX at TASK_PRIO_CAN_RX.
 //
 // sdQueueOut receives every captured frame; the caller (sd_logger) owns
-// consuming it. Must be called after Serial.begin().
-void begin(QueueHandle_t sdQueueOut);
+// consuming it. usbQueueOut (may be nullptr) similarly receives every frame
+// for the caller (usb_stream) to consume; it is a second, independent fan-out
+// so a full/absent USB queue never affects SD logging or vice versa. Must be
+// called after Serial.begin().
+void begin(QueueHandle_t sdQueueOut, QueueHandle_t usbQueueOut);
 
 // Snapshot of rolling capture statistics, safe to call from displayTask.
 CanCaptureStats getStats();

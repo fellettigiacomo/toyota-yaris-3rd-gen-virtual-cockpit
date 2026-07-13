@@ -1,18 +1,21 @@
 // obd-capture: passive CAN bus logger for the Toyota Yaris Hybrid (3rd gen).
 //
-// Three FreeRTOS tasks (see app_config.h for priorities/cores):
-//   canRxTask    (can_capture.cpp)  - TWAI listen-only RX, highest priority, core 1
-//   sdWriterTask (sd_logger.cpp)    - buffered candump-format SD logging, core 0
-//   displayTask  (display_ui.cpp)  - live ID table + stats bar, lowest priority, core 0
+// Four FreeRTOS tasks (see app_config.h for priorities/cores):
+//   canRxTask     (can_capture.cpp) - TWAI listen-only RX, highest priority, core 1
+//   sdWriterTask  (sd_logger.cpp)   - buffered candump-format SD logging, core 0
+//   usbStreamTask (usb_stream.cpp)  - live candump stream over USB-CDC, core 0
+//   displayTask   (display_ui.cpp)  - live ID table + stats bar, lowest priority, core 0
 //
-// canRxTask never touches SD or display APIs, so an SD stall or slow redraw
-// can never cause a dropped CAN frame.
+// canRxTask never touches SD, USB streaming, or display APIs, so an SD
+// stall, a slow PC-side reader, or a slow redraw can never cause a dropped
+// CAN frame.
 
 #include <Arduino.h>
 #include "app_config.h"
 #include "rtc_clock.h"
 #include "sd_logger.h"
 #include "can_capture.h"
+#include "usb_stream.h"
 #include "display_ui.h"
 
 namespace {
@@ -25,8 +28,15 @@ void handleSerialCommand(const String &line) {
     } else if (line == "STOP") {
         SdLogger::requestStop();
         Serial.println("[main] capture session stop requested");
+    } else if (line == "STREAM ON") {
+        UsbStream::setEnabled(true);
+        Serial.println("[main] USB live stream ON -- raw candump lines follow, "
+                        "send 'STREAM OFF' to return to normal console output");
+    } else if (line == "STREAM OFF") {
+        UsbStream::setEnabled(false);
+        Serial.println("[main] USB live stream OFF");
     } else if (line.length() > 0) {
-        Serial.println("[main] unknown command. Known: SETTIME <unix_epoch>, STOP");
+        Serial.println("[main] unknown command. Known: SETTIME <unix_epoch>, STOP, STREAM ON, STREAM OFF");
     }
 }
 
@@ -38,10 +48,11 @@ void printStatusLine() {
     SdLoggerStats sdStats = SdLogger::getStats();
     uint32_t upSec = millis() / 1000;
 
-    Serial.printf("[status] %.1ff/s Bus:%.1f%% Err:%lu BusOff:%lu SD:%s",
+    Serial.printf("[status] %.1ff/s Bus:%.1f%% Err:%lu BusOff:%lu USBq:%lu%% SD:%s",
                   canStats.frames_per_sec, canStats.bus_load_pct,
                   static_cast<unsigned long>(canStats.bus_error_count),
                   static_cast<unsigned long>(canStats.bus_off_count),
+                  static_cast<unsigned long>(canStats.usb_queue_backlog_pct),
                   sdStats.card_mounted ? (sdStats.session_open ? "open" : "mounted") : "NONE");
     if (sdStats.card_mounted) {
         Serial.printf(" %.1fGBfree Q:%lu%% session:%lu frames:%lu",
@@ -70,7 +81,8 @@ void setup() {
     }
 
     QueueHandle_t sdQueue = SdLogger::begin();
-    CanCapture::begin(sdQueue);
+    QueueHandle_t usbQueue = UsbStream::begin();
+    CanCapture::begin(sdQueue, usbQueue);
     DisplayUi::begin();
 
     Serial.println("[main] all tasks started");
@@ -85,7 +97,10 @@ void loop() {
 
     static uint32_t lastStatusMs = 0;
     uint32_t nowMs = millis();
-    if (nowMs - lastStatusMs >= SERIAL_STATUS_INTERVAL_MS) {
+    // Suppressed while streaming: the live candump feed has the port to
+    // itself, so a PC-side reader can capture straight to a file without
+    // filtering out status lines.
+    if (!UsbStream::isEnabled() && nowMs - lastStatusMs >= SERIAL_STATUS_INTERVAL_MS) {
         lastStatusMs = nowMs;
         printStatusLine();
     }
