@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ctime>
 #include "vehicle_state.h"
 
 // Thin orchestrator: owns the two full-screen containers and delegates each
@@ -15,9 +14,9 @@ namespace AppUi {
 // Constructs both screens. Call after lv_disp_drv_register().
 void build();
 
-// Pushes a fresh VehicleState/clock into the cockpit screen, and into the
+// Pushes a fresh VehicleState into the cockpit screen, and into the
 // energy-flow screen only while it's the one actually shown (its animated
 // arrows are too expensive to redraw unconditionally, see energy_flow_ui.cpp).
-void update(const VehicleState &state, time_t clockEpoch);
+void update(const VehicleState &state);
 
 } // namespace AppUi

@@ -59,7 +59,7 @@ void build() {
     showOnly(g_active);
 }
 
-void update(const VehicleState &state, time_t clockEpoch) {
+void update(const VehicleState &state) {
     if (ScreenNav::pressed()) {
         g_active = (g_active + 1) % ScreenCount;
         showOnly(g_active);
@@ -71,7 +71,7 @@ void update(const VehicleState &state, time_t clockEpoch) {
     HybridStats::update(state);
     AccelTimer::update(state);
 
-    CockpitUi::update(state, clockEpoch);
+    CockpitUi::update(state);
 
     // The energy and efficiency screens are only updated while shown -- the
     // energy arrows are expensive to redraw, and there's no reason to format

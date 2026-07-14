@@ -32,10 +32,10 @@ Validated on two independent real-drive logs (~430s and ~440s).
 | Brake pressed (bit) | `0x230` | `BRAKE_PRESSED` | single bit |
 | EV drive (bit) | `0x498` | `EV_DRIVE` | byte5 bit7, on only while moving with ICE off |
 | HV battery SOC | `0x4A7` | `BATTERY_SOC` | `byte2 * 0.5` = % (observed 54–71.5%, matches THS-II operating band) |
-| CHG/ECO/PWR indicator | `0x247` | `HSI_VALUE` / `HSI_ZONE` | signed % of gauge scale (-100..+100), zone byte ready-made |
+| CHG/ECO/PWR indicator | `0x247` | `HSI_VALUE` / `HSI_ZONE` | signed % of gauge scale (-100..+100, positive ceiling above +100 unverified); firmware decodes byte[1] unsigned with the CHG floor anchored at raw≥156 to avoid an `int8_t` sign-wrap under hard PWR (see `signal_findings.md` Addendum 4) |
 | Turn signals | `0x614` | `TURN_SIGNALS` | 2-bit enum (+ hazard bit) |
 | Odometer (total) | `0x611` | `ODOMETER` | 20-bit, km/miles unit flag — NOT remaining range |
-| Ambient/outside temperature | `0x442` | `AMBIENT_TEMP` | `byte0 - 40` = °C, scale confirmed against real readings |
+| Ambient/outside temperature | `0x442` | `AMBIENT_TEMP` | `byte0 - 40` = °C, scale confirmed against real readings; decoded signal exists on the bus but is no longer shown on the cluster (it's outside air temp, not engine temp — no confirmed engine/coolant temp signal is wired into the firmware, see the "strong hypotheses" table below) |
 
 ## Strong hypotheses (semantics solid, exact scale/units not fully confirmed)
 

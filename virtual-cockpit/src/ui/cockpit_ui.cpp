@@ -36,10 +36,8 @@ constexpr int16_t kChgW = (kBarX1 - kBarX0 - kDividerW) / 2;        // 248
 constexpr int16_t kPwrW = (kBarX1 - kBarX0 - kDividerW) - kChgW;    // 249
 constexpr int16_t kDividerX = kBarX0 + kChgW;                       // 318
 
-// Left/right 74px side columns.
+// Left column.
 constexpr int16_t kLeftX = 18;
-constexpr int16_t kRightW = 74;
-constexpr int16_t kRightX = kScreenW - 18 - kRightW; // 548
 
 // Left slot: HV battery gauge (moved here from the right per owner
 // feedback). Equal top/bottom margin (16px, matching the CHG/PWR bar's own
@@ -57,22 +55,11 @@ constexpr int16_t kBattTickY = kBattMargin;                        // 16
 constexpr int16_t kBattTickBottom = kScreenH - kBattMargin;        // 156
 constexpr int16_t kBattTickH = kBattTickBottom - kBattTickY;       // 140
 
-// Shared "bottom row" Y for the two side columns (battery numeric value /
-// right-slot clock, bottom-aligned with the bar).
-constexpr int16_t kSideValueY = kBattTickBottom - 18; // 18 = dinnext_26_battery/dinnext_26_rpm's line_height
-// Battery icon sits in its own "top row" above that, sized for the 12px
-// icon specifically (not reused for the right slot -- its temperature
-// label is 19px-tall text, not a small icon, and needs its own gap below,
-// see kRightTempY).
+// Shared "bottom row" Y for the left column (battery numeric value),
+// bottom-aligned with the bar.
+constexpr int16_t kSideValueY = kBattTickBottom - 18; // 18 = dinnext_26_battery's line_height
+// Battery icon sits in its own "top row" above that, sized for the 12px icon.
 constexpr int16_t kSideIconY = kSideValueY - 3 - 12;   // 3px gap above the value row, icon is 12px tall
-
-// Right slot (moved here from the left per owner feedback): ambient
-// temperature (top row) + clock time (bottom row, mirrors the battery
-// numeric value's row, same font size), both right-aligned within the
-// column so the two lines up flush on their right edge -- no real
-// fuel-level signal exists on this bus (see docs/signal_findings.md), so
-// this slot never held a fuel gauge to begin with.
-constexpr int16_t kRightTempY = kSideValueY - 4 - 19; // 4px gap above the clock row, dinnext_26_rpm's line_height=19
 
 BarGauge::Handle g_chg;
 BarGauge::Handle g_pwr;
@@ -80,9 +67,6 @@ BarGauge::Handle g_pwr;
 lv_obj_t *g_battBar = nullptr;
 lv_obj_t *g_battValueLabel = nullptr;
 lv_obj_t *g_battPctLabel = nullptr;
-
-lv_obj_t *g_tempLabel = nullptr;
-lv_obj_t *g_clockLabel = nullptr;
 
 lv_obj_t *g_speedLabel = nullptr;
 lv_obj_t *g_gearLabel = nullptr;
@@ -188,30 +172,6 @@ void createBatteryGauge(lv_obj_t *parent) {
     }
 }
 
-void createTempClockSlot(lv_obj_t *parent) {
-    // Replaces the design's fuel gauge: no real fuel-level signal exists on
-    // this bus (0x3A0 is a fuel-consumption counter, not a tank level -- see
-    // docs/signal_findings.md), so this column shows ambient temperature and
-    // clock time instead, per the owner's decision. Right-aligned (not
-    // centered) so the two lines share a common right edge, per owner
-    // feedback.
-    g_tempLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_tempLabel, &dinnext_26_rpm, 0);
-    lv_obj_set_style_text_color(g_tempLabel, Colors::kText, 0);
-    lv_obj_set_style_text_align(g_tempLabel, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_width(g_tempLabel, kRightW);
-    lv_label_set_text(g_tempLabel, ""); // populated by the first update() call
-    lv_obj_set_pos(g_tempLabel, kRightX, kRightTempY);
-
-    g_clockLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_clockLabel, &dinnext_26_rpm, 0);
-    lv_obj_set_style_text_color(g_clockLabel, Colors::kText, 0); // white, not muted -- per owner feedback
-    lv_obj_set_style_text_align(g_clockLabel, LV_TEXT_ALIGN_RIGHT, 0);
-    lv_obj_set_width(g_clockLabel, kRightW);
-    lv_label_set_text(g_clockLabel, "");
-    lv_obj_set_pos(g_clockLabel, kRightX, kSideValueY);
-}
-
 void createCenterGroup(lv_obj_t *parent) {
     // Speed + the RPM/EV row form one vertically-centered block (see the
     // layout comment above): speed dy=-11, RPM/EV dy=+58.
@@ -295,13 +255,14 @@ void build(lv_obj_t *parent) {
     createDivider(root);
     BarGauge::create(&g_pwr, root, kDividerX + kDividerW, kBarY, kPwrW, kBarH, false, "PWR");
 
-    createTempClockSlot(root);
     createBatteryGauge(root);
     createCenterGroup(root);
 }
 
-void update(const VehicleState &state, time_t clockEpoch) {
-    // CHG/PWR bar: hsi_power is already -100..100, negative=CHG, positive=PWR.
+void update(const VehicleState &state) {
+    // CHG/PWR bar: hsi_power is -100..+155, negative=CHG, positive=PWR;
+    // BarGauge::setFillPct clamps to 0-100 so an unverified-ceiling PWR
+    // value pegs the bar at 100% instead of overflowing.
     float chgPct = state.hsi_power < 0 ? static_cast<float>(-state.hsi_power) : 0.0f;
     float pwrPct = state.hsi_power > 0 ? static_cast<float>(state.hsi_power) : 0.0f;
     BarGauge::setFillPct(&g_chg, chgPct);
@@ -316,21 +277,6 @@ void update(const VehicleState &state, time_t clockEpoch) {
     snprintf(battBuf, sizeof(battBuf), "%d", battPct);
     lv_label_set_text(g_battValueLabel, battBuf);
     lv_obj_align_to(g_battPctLabel, g_battValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
-
-    // Right slot: ambient temperature + clock.
-    char tempBuf[12];
-    snprintf(tempBuf, sizeof(tempBuf), "%d\xC2\xB0" "C", static_cast<int>(state.ambient_temp_c + (state.ambient_temp_c >= 0 ? 0.5f : -0.5f)));
-    lv_label_set_text(g_tempLabel, tempBuf);
-
-    if (clockEpoch > 0) {
-        struct tm tmVal;
-        gmtime_r(&clockEpoch, &tmVal); // UTC, no local-timezone offset -- per the owner's request
-        char clockBuf[8];
-        snprintf(clockBuf, sizeof(clockBuf), "%02d:%02d", tmVal.tm_hour, tmVal.tm_min);
-        lv_label_set_text(g_clockLabel, clockBuf);
-    } else {
-        lv_label_set_text(g_clockLabel, "");
-    }
 
     // Speed / gear / units.
     char speedBuf[8];
@@ -356,8 +302,10 @@ void update(const VehicleState &state, time_t clockEpoch) {
         lv_obj_add_flag(g_accelThresholdLabel, LV_OBJ_FLAG_HIDDEN);
     }
 
-    // RPM-or-EV row.
-    if (state.ev_drive) {
+    // RPM-or-EV row. Force "EV" whenever RPM reads 0 (boot before any CAN
+    // traffic, or any RPM==0 state) so the cluster never shows a broken
+    // "RPM 0". Raw ev_drive/ice_running are unaffected -- selection only.
+    if (state.ev_drive || state.rpm == 0) {
         lv_obj_add_flag(g_rpmLabel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(g_evLabel, LV_OBJ_FLAG_HIDDEN);
     } else {

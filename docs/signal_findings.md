@@ -542,3 +542,16 @@ Nota metodologica: 0x247 era visibile fin dal primo log (42.5 Hz, mai decodifica
 ma nessuno scan lo aveva agganciato perché byte[1] visto unsigned sembra rumore
 0-255; la firma emerge solo interpretandolo signed e bucketizzando per stato
 fisico (fermo/regen/coast/gas basso/gas alto).
+
+### Nota firmware (2026-07) — fix sign-wrap in PWR spinto
+
+Un retest su strada ha segnalato che la barra CHG si riempie erroneamente al
+100% quando si affonda il pedale in zona PWR — mai osservato in questi due log
+(guida tranquilla, mai oltre +86/+94). Causa: il firmware decodificava
+`byte[1]` come `int8_t`, che fa sign-wrap oltre raw unsigned 127, ben sotto il
+floor CHG confermato (raw unsigned ≥156 = -100 esatto). Un raw 128-155 (zona
+PWR mai catturata) veniva quindi letto come un valore fortemente negativo,
+mostrato come falso CHG. Il firmware ora interpreta il byte come unsigned e
+ancora la soglia negativa al floor confermato (≥156), così 101-155 legge come
+positivo/PWR. Il vero tetto massimo oltre +100 resta da verificare con una
+cattura che includa affondi decisi nel pedale.
