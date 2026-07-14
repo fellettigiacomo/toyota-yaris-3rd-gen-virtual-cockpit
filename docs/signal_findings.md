@@ -629,9 +629,92 @@ di messaggi periodici già viste su questo bus.
   pressione. Per l'uso reale (pressioni singole e distanziate) questo va
   bene — il fronte di salita idle→attivo corrisponde comunque a una
   pressione — ma non permette di contare tap multipli ravvicinati.
-- Il significato esatto dell'alternanza `0xD3`/`0xB3` (bit 5 vs bit 6) non
-  è chiaro — potrebbe essere un contatore di edge/ripetizione. Non
+- ~~Il significato esatto dell'alternanza `0xD3`/`0xB3` (bit 5 vs bit 6) non
+  è chiaro — potrebbe essere un contatore di edge/ripetizione.~~ **RISOLTO
+  (vedi aggiornamento sotto): l'alternanza è agganciata al contatore rotante
+  di byte[4] e non porta alcuna informazione sulle pressioni.** Non
   modellato nel firmware, che usa solo la maschera `0x90`.
 - **Validato su una sola cattura** (non incrociato con un secondo log
   indipendente, a differenza degli altri segnali "CONFIRMED" di questo
   documento).
+
+### Aggiornamento — analisi di affidabilità (stesso log, nessuna nuova cattura)
+
+Il ciclo schermate via MODE si è rivelato inaffidabile nel test su strada
+(a volte non risponde, a volte risponde con ritardo percepibile). Rilettura
+quantitativa della stessa cattura + revisione del firmware, senza nuovi dati.
+
+**Quantificazione dell'hold ECU (retriggerato, ~2s per pressione).** I frame
+0x4AC arrivano ogni 500ms±1ms sempre, anche a tasto idle (broadcast puro, non
+event-driven). Le 4 finestre attive:
+
+| finestra | frame attivi | durata attiva | contenuto |
+|---|---|---|---|
+| blip iniziale (troncato a inizio log) | 4 | ~1.5-2.0s | probabile pressione singola di test |
+| raffica 1/2/3 | 9 ciascuna | ~4.0-4.5s | 5 tap a ~500ms (span tap ~2.0-2.5s) |
+
+Per le raffiche: ultimo rilascio a ~2.0-2.5s dall'inizio, fine finestra a
+~4.0-4.5s → **coda di hold ≈ 1.5-2.5s dopo l'ultimo rilascio**. Il modello "hold
+fisso dalla prima pressione" è escluso (la finestra finirebbe a ~2s); il modello
+compatibile è **hold ~2s retriggerato da ogni pressione**. Il blip (4 frame ≈
+2s) è esattamente ciò che questo modello predice per una pressione singola —
+coerenza forte, con il caveat che il blip è troncato a inizio log e il numero
+di tap che lo ha generato non è certo al 100%.
+
+**Conseguenza 1 — l'aliasing sul broadcast a 2Hz è escluso come causa.** Con un
+hold ≥1.5s, ogni pressione (anche un tap brevissimo) è visibile in ≥3 frame
+consecutivi: per perderla servirebbe perdere 3-4 frame 0x4AC di fila.
+
+**Conseguenza 2 — pressioni ravvicinate vengono "inghiottite" (causa principale
+più probabile dei mancati cicli).** Dentro le raffiche byte[6] non torna MAI a
+0x03: 5 tap = 1 solo fronte idle→attivo. Quindi **qualunque pressione entro
+~2-2.5s dalla precedente non produce un nuovo fronte ed è invisibile al
+firmware**. Con 3 schermate, "tornare indietro di una" = 2 pressioni
+consecutive: se date a meno di ~2.5s l'una dall'altra, la seconda si perde.
+Idem la ri-pressione impaziente dopo il ritardo percepito. Questo è un limite
+del segnale lato ECU, non aggirabile in firmware.
+
+**Conseguenza 3 — latenza intrinseca 0-500ms.** Il flag viene campionato solo
+al successivo broadcast 0x4AC: media ~250ms, caso peggiore ~500ms (+33ms di
+sync UI). Spiega il "ci mette un attimo" ed è irriducibile.
+
+**L'alternanza D3/B3 è risolta ed è inutilizzabile per contare i tap.** Su
+tutti i 62 frame della cattura, senza eccezioni: byte[6]=0xD3 compare solo
+quando il contatore rotante byte[4] vale `c1/c9/cd`, 0xB3 solo con
+`c2/c7/ca/ce/d9/da` — nel blip come nelle raffiche, con pattern identico in
+tutte e 3 le raffiche. È una funzione deterministica della fase del messaggio,
+zero informazione sulle pressioni. Chiude la speranza di distinguere tap
+multipli dentro la finestra di hold da questi bit.
+
+**Irrobustimenti firmware implementati** (nessuno risolve la Conseguenza 2,
+che è fisica del segnale):
+
+1. Conteggio dei fronti idle→attivo spostato nel decoder, a granularità di
+   frame CAN (`VehicleState::mode_button_edges`); la UI consuma il delta del
+   contatore invece di fare edge-detection sul livello campionato a 30Hz —
+   una pressione non può più perdersi per stallo/ritardo del task UI.
+2. Azzeramento del latch se nessun frame 0x4AC arriva per >1.6s
+   (`MODE_BUTTON_STALE_MS`): senza, una finestra di frame persi che copre i
+   frame "di ritorno a idle" lascerebbe il latch bloccato attivo, sopprimendo
+   il fronte della pressione reale successiva. Nota: è la polarità *opposta*
+   a un "grace period" che tenga il flag attivo più a lungo — allungare
+   l'attivo peggiorerebbe la Conseguenza 2, e il buco che coprirebbe non può
+   verificarsi (lo stato cambia solo quando un frame viene decodificato,
+   quindi i frame persi non generano falsi idle).
+3. Telemetria di overflow RX: gli alert `TWAI_ALERT_RX_QUEUE_FULL` /
+   `RX_FIFO_OVERRUN` erano abilitati ma silenziosamente scartati; ora sono
+   contati (`CanDecoderStats::rx_overflow_count`) e loggati su seriale. Serve
+   a verificare in auto, senza nuove catture CAN, l'ipotesi residua "perdita
+   frame sotto traffico reale" (improbabile: ~780 frame/s di guida reale
+   contro una coda da 100 con task dedicato su core proprio, ma finora era
+   inverificabile).
+
+**Cosa NON è determinabile da questa cattura (e servirebbe in una futura):**
+comportamento del segnale a quadro acceso/in guida (la cattura è a motore
+spento — non escludibile che l'ECU tratti il tasto diversamente quando il
+quadro usa MODE per le sue funzioni); durata esatta dell'hold e sua costanza
+(finestra stimata 1.5-2.5s dalla quantizzazione a 500ms); verità di terra su
+una pressione singola isolata (il blip è troncato); comportamento su
+pressione lunga mantenuta (mai catturata). Cattura ideale: quadro acceso,
+tap singoli isolati distanziati >5s, coppie di tap a 1.0/1.5/2.0/2.5/3.0s di
+distanza (per misurare la soglia di merge), e una pressione mantenuta ~5s.

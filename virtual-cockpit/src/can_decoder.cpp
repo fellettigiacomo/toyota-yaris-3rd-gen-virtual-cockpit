@@ -162,9 +162,17 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
             if (dlc >= 7) {
                 // byte[6] idle = 0x03; while the MODE button is pressed/held
                 // (including a quick repeated-tap burst) it becomes 0xd3 or
-                // 0xb3, alternating -- bits 4+7 (0x90) are the part common to
-                // both, so mask on those rather than an exact-value match.
-                state.mode_button = (d[6] & 0x90) == 0x90;
+                // 0xb3 -- bits 4+7 (0x90) are the part common to both, so
+                // mask on those rather than an exact-value match. The d3/b3
+                // alternation is phase-locked to the rolling counter in
+                // byte[4] (verified: zero exceptions across the whole
+                // capture) and carries no per-tap information, so the 0x90
+                // latch really is all the press info this message has.
+                bool active = (d[6] & 0x90) == 0x90;
+                if (active && !state.mode_button) {
+                    state.mode_button_edges++;
+                }
+                state.mode_button = active;
             }
             break;
 
@@ -189,6 +197,11 @@ portMUX_TYPE g_stateMux = portMUX_INITIALIZER_UNLOCKED;
 volatile float g_framesPerSec = 0;
 volatile uint32_t g_busErrorCount = 0;
 volatile uint32_t g_busOffCount = 0;
+volatile uint32_t g_rxOverflowCount = 0;
+
+// millis() of the last 0x4AC frame decoded, used by the staleness check in
+// canRxTask. Only ever touched from canRxTask, no locking needed.
+uint32_t g_lastModeFrameMs = 0;
 
 void twaiInit() {
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
@@ -216,6 +229,20 @@ void pollAlerts() {
         return;
     }
     if (alerts & TWAI_ALERT_BUS_ERROR) g_busErrorCount++;
+    if (alerts & (TWAI_ALERT_RX_QUEUE_FULL | TWAI_ALERT_RX_FIFO_OVERRUN)) {
+        // Frames were silently dropped by the driver/controller. These alerts
+        // were always enabled in twaiInit() but never counted, which made
+        // "did we lose the 0x4AC window under real driving traffic?" an
+        // unanswerable question -- now it shows up here and in getStats().
+        g_rxOverflowCount++;
+        static uint32_t lastWarnMs = 0;
+        uint32_t nowMs = millis();
+        if (nowMs - lastWarnMs >= 1000) {
+            lastWarnMs = nowMs;
+            Serial.printf("[can_decoder] WARNING: RX overflow, frames dropped (count=%lu)\n",
+                          static_cast<unsigned long>(g_rxOverflowCount));
+        }
+    }
     if (alerts & TWAI_ALERT_BUS_OFF) {
         g_busOffCount++;
         Serial.println("[can_decoder] WARNING: TWAI bus-off detected, restarting driver");
@@ -237,6 +264,24 @@ void canRxTask(void *) {
             decodeIntoState(g_state, msg.identifier, msg.data, msg.data_length_code);
             taskEXIT_CRITICAL(&g_stateMux);
             framesInWindow++;
+            if (msg.identifier == 0x4AC) {
+                g_lastModeFrameMs = millis();
+            }
+        }
+
+        // mode_button only changes when a 0x4AC frame is actually decoded, so
+        // if the frames that would have reported idle again are all lost (RX
+        // overflow burst, bus error window), the latch stays stuck active and
+        // silently swallows the rising edge of the NEXT real press. 0x4AC
+        // broadcasts every 500ms even when idle, so an active latch with no
+        // 0x4AC seen for >3 periods is provably stale -- clear it. This is
+        // deliberately the opposite polarity of a "hold it active longer"
+        // grace period, which would widen the ECU's own ~2s press-merging
+        // window and make close presses worse, not better.
+        if (g_state.mode_button && millis() - g_lastModeFrameMs > MODE_BUTTON_STALE_MS) {
+            taskENTER_CRITICAL(&g_stateMux);
+            g_state.mode_button = false;
+            taskEXIT_CRITICAL(&g_stateMux);
         }
 
         pollAlerts();
@@ -273,6 +318,7 @@ CanDecoderStats getStats() {
     s.frames_per_sec = g_framesPerSec;
     s.bus_error_count = g_busErrorCount;
     s.bus_off_count = g_busOffCount;
+    s.rx_overflow_count = g_rxOverflowCount;
     return s;
 }
 
@@ -331,7 +377,7 @@ VehicleState getSnapshot() {
 }
 
 CanDecoderStats getStats() {
-    return CanDecoderStats{0.0f, 0, 0};
+    return CanDecoderStats{0.0f, 0, 0, 0};
 }
 
 } // namespace CanDecoder

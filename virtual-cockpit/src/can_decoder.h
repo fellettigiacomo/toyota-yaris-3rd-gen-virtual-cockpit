@@ -24,6 +24,7 @@ struct CanDecoderStats {
     float frames_per_sec;
     uint32_t bus_error_count;
     uint32_t bus_off_count;
+    uint32_t rx_overflow_count; // TWAI RX queue-full / FIFO-overrun alerts (frames were dropped)
 };
 
 // Optional debug overlay data -- not shown in the shipped UI, but cheap to
