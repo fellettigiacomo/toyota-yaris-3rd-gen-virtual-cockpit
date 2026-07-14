@@ -55,8 +55,8 @@ add_executable(sim
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_gear.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_24_label.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_28_stat.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_20_accel_time.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_15_accel_label.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_accel_time.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_accel_label.c
 )
 
 target_compile_definitions(sim PRIVATE DEMO_FAKE_DATA)
