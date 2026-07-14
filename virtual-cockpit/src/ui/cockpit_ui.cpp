@@ -260,11 +260,17 @@ void build(lv_obj_t *parent) {
 }
 
 void update(const VehicleState &state) {
-    // CHG/PWR bar: hsi_power is -100..+155, negative=CHG, positive=PWR;
-    // BarGauge::setFillPct clamps to 0-100 so an unverified-ceiling PWR
-    // value pegs the bar at 100% instead of overflowing.
+    // CHG/PWR bar: hsi_power is -100..+155, negative=CHG, positive=PWR.
+    // CHG is shown 1:1 (floor confirmed at exactly -100). PWR is halved for
+    // display: per the owner's on-car observation, the ECO/PWR boundary
+    // (raw~100, previously shown as 100% PWR) is actually the midpoint of
+    // the real gauge's PWR sweep, not its top -- so raw~100 now reads ~50%
+    // and true full PWR would read 100% at raw~200. PROVISIONAL: the
+    // confirmed CHG floor at raw=156 caps this single byte's positive range
+    // at 155, so 100% PWR isn't actually reachable with the current signal
+    // until a hard-PWR capture confirms the true raw ceiling.
     float chgPct = state.hsi_power < 0 ? static_cast<float>(-state.hsi_power) : 0.0f;
-    float pwrPct = state.hsi_power > 0 ? static_cast<float>(state.hsi_power) : 0.0f;
+    float pwrPct = state.hsi_power > 0 ? static_cast<float>(state.hsi_power) * 0.5f : 0.0f;
     BarGauge::setFillPct(&g_chg, chgPct);
     BarGauge::setFillPct(&g_pwr, pwrPct);
 

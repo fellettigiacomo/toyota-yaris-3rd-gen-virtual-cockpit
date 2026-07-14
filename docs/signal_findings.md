@@ -555,3 +555,20 @@ mostrato come falso CHG. Il firmware ora interpreta il byte come unsigned e
 ancora la soglia negativa al floor confermato (≥156), così 101-155 legge come
 positivo/PWR. Il vero tetto massimo oltre +100 resta da verificare con una
 cattura che includa affondi decisi nel pedale.
+
+### Nota display (2026-07) — dimezzamento lato PWR
+
+Secondo l'osservazione diretta dell'owner sul quadro reale, raw~100 (il
+confine ECO/PWR, che sullo schermo virtuale mostrava prima 100% PWR) è in
+realtà solo il punto medio della corsa PWR del quadro vero, non il fondo
+scala — il vero fondo scala PWR è stimato attorno a raw~200. Lo schermo ora
+dimezza il valore positivo per la visualizzazione (PWR% = raw/2), quindi
+raw~100 mostra ~50%. Il lato CHG resta invariato (1:1, floor confermato a
+-100 esatto).
+
+**Nota provvisoria**: questo è un singolo byte signed e non può
+letteralmente contenere un raw di 200 senza collidere col floor CHG
+confermato a raw=156, che limita il range positivo del byte a 155 (~77%
+massimo mostrabile con il segnale attuale). Serve una cattura con affondi
+decisi in PWR per confermare il vero tetto raw e riconciliare questo
+vincolo.
