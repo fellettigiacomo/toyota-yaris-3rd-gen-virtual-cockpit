@@ -15,6 +15,15 @@ namespace {
 constexpr float kStoppedKph = 1.0f; // below this, (re)arm for the next run
 constexpr uint32_t kHoldMs = 7000;  // how long a result stays on screen
 
+// A crossing that took longer than this isn't a real acceleration figure --
+// more likely stop-and-go traffic than a sprint -- so it's dropped instead
+// of shown. Generous enough to cover unhurried everyday driving (this
+// hybrid's own 0-100 spec is ~11.8s flat out) while rejecting multi-minute
+// crawls. Each threshold has its own cap so a slow 0-50 split doesn't
+// disqualify a 0-100 that still finishes in reasonable total time.
+constexpr uint32_t kMaxReasonableMs50 = 15000;
+constexpr uint32_t kMaxReasonableMs100 = 30000;
+
 bool g_running = false;
 uint32_t g_startMs = 0;
 bool g_got50 = false;
@@ -62,12 +71,16 @@ void update(const VehicleState &state) {
 
     if (!g_got50 && state.speed_kph >= 50.0f) {
         g_got50 = true;
-        latch(50, nowMs);
+        if (nowMs - g_startMs <= kMaxReasonableMs50) {
+            latch(50, nowMs);
+        }
     }
     if (!g_got100 && state.speed_kph >= 100.0f) {
         g_got100 = true;
         g_running = false; // nothing further to time
-        latch(100, nowMs);
+        if (nowMs - g_startMs <= kMaxReasonableMs100) {
+            latch(100, nowMs); // overwrites whatever 0-50 result (if any) is currently shown
+        }
     }
 }
 

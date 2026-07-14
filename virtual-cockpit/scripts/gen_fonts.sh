@@ -37,7 +37,7 @@ gen dinnext_14_chgpwr    14 "CHGPWR0123456789% " # "CHG"/"PWR" bar labels, now w
 gen dinnext_13_pct       13 "%"                   # "%" suffix
 gen dinnext_24_label     24 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./% " # energy-flow labels + efficiency-screen numbers/units
 gen dinnext_28_stat      28 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./% " # efficiency-screen headline + tile values
-gen dinnext_20_accel_time  20 "0123456789."  # 0-50/0-100 timer: elapsed seconds, e.g. "6.55" (replaces the gear letter while shown)
-gen dinnext_15_accel_label 15 "0123456789-"  # 0-50/0-100 timer: "0-50"/"0-100" threshold caption, below the seconds
+gen dinnext_40_accel_time  40 "0123456789."  # 0-50/0-100 timer: elapsed seconds, e.g. "6.55" (replaces the gear letter while shown)
+gen dinnext_40_accel_label 40 "0123456789-"  # 0-50/0-100 timer: "0-50"/"0-100" threshold caption, below the seconds -- same size as the gear letter, was 15px and illegible
 
 echo "done -- regenerated src/ui/fonts/*.c"
