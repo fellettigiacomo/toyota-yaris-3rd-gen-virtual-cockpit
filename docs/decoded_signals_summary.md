@@ -37,6 +37,12 @@ Validated on two independent real-drive logs (~430s and ~440s).
 | Odometer (total) | `0x611` | `ODOMETER` | 20-bit, km/miles unit flag — NOT remaining range |
 | Ambient/outside temperature | `0x442` | `AMBIENT_TEMP` | `byte0 - 40` = °C, scale confirmed against real readings; decoded signal exists on the bus but is no longer shown on the cluster (it's outside air temp, not engine temp — no confirmed engine/coolant temp signal is wired into the firmware, see the "strong hypotheses" table below) |
 
+## Confirmed on a single targeted capture (not yet cross-validated on a second log)
+
+| Signal | CAN ID | Field | Formula / meaning |
+|---|---|---|---|
+| Steering-wheel MODE button | `0x4AC` | `MODE_BUTTON_RAW` | byte[6]: idle `0x03`, pressed `0xD3`/`0xB3` (alternating) — firmware checks `(byte[6] & 0x90) == 0x90`; doesn't isolate individual taps within a rapid-tap burst (see `signal_findings.md` Addendum 5) |
+
 ## Strong hypotheses (semantics solid, exact scale/units not fully confirmed)
 
 | Signal | CAN ID | Field | Notes |

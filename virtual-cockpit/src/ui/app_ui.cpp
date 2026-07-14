@@ -9,10 +9,11 @@
 
 #include <lvgl.h>
 
-// The BOOT button cycles between plain, always-built full-screen containers
-// with an instant lv_obj_add/clear_flag(LV_OBJ_FLAG_HIDDEN) toggle (no scroll
-// animation -- touch/swipe was dropped for being laggy on real hardware).
-// Screens, in cycle order: cockpit -> energy flow -> efficiency -> cockpit.
+// The BOOT button (or the steering-wheel MODE button, see mode_button below)
+// cycles between plain, always-built full-screen containers with an instant
+// lv_obj_add/clear_flag(LV_OBJ_FLAG_HIDDEN) toggle (no scroll animation --
+// touch/swipe was dropped for being laggy on real hardware). Screens, in
+// cycle order: cockpit -> energy flow -> efficiency -> cockpit.
 namespace AppUi {
 
 namespace {
@@ -22,6 +23,19 @@ constexpr int16_t kScreenH = 172;
 enum Screen { ScreenCockpit = 0, ScreenEnergy, ScreenEfficiency, ScreenCount };
 lv_obj_t *g_screens[ScreenCount] = {nullptr, nullptr, nullptr};
 int g_active = ScreenCockpit;
+
+// mode_button (0x4AC) stays active for a whole press/repeat-tap window
+// rather than pulsing once per tap (see vehicle_state.h), so this is a
+// plain rising-edge detector, not a debouncer -- a single real-world MODE
+// press (with natural pauses between presses) yields one edge, same as
+// ScreenNav::pressed() for the physical BOOT button.
+bool g_modeButtonWasActive = false;
+
+bool modeButtonPressed(const VehicleState &state) {
+    bool firedThisCall = state.mode_button && !g_modeButtonWasActive;
+    g_modeButtonWasActive = state.mode_button;
+    return firedThisCall;
+}
 
 lv_obj_t *createScreenContainer(lv_obj_t *parent) {
     lv_obj_t *c = lv_obj_create(parent);
@@ -60,7 +74,11 @@ void build() {
 }
 
 void update(const VehicleState &state) {
-    if (ScreenNav::pressed()) {
+    // Both must run unconditionally (not short-circuited) -- modeButtonPressed
+    // has to see every frame to track its rising edge correctly.
+    bool bootPressed = ScreenNav::pressed();
+    bool modePressed = modeButtonPressed(state);
+    if (bootPressed || modePressed) {
         g_active = (g_active + 1) % ScreenCount;
         showOnly(g_active);
     }

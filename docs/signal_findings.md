@@ -572,3 +572,66 @@ confermato a raw=156, che limita il range positivo del byte a 155 (~77%
 massimo mostrabile con il segnale attuale). Serve una cattura con affondi
 decisi in PWR per confermare il vero tetto raw e riconciliare questo
 vincolo.
+
+---
+
+## Addendum 5 — Tasto MODE al volante: ✅ TROVATO (singola cattura) — ID 0x4AC
+
+Richiesta: ciclare le schermate del cruscotto virtuale col tasto MODE dei
+comandi al volante invece che col tasto BOOT fisico.
+
+Nessun segnale volante era presente nel DBC/firmware prima di questa
+ricerca. Nessuna cattura di guida esistente lo conteneva (il tasto non
+viene mai premuto durante una guida normale usata solo per catturare altri
+segnali) — serviva una cattura mirata.
+
+### Metodologia della cattura
+
+Streaming CAN live via USB (`obd-capture`'s `STREAM ON` +
+`tools/usb_stream_logger.py`), auto ferma con RPM/velocità a zero per
+tutta la registrazione (31s, basso rumore di fondo). Pattern di pressione:
+3 serie di 5 pressioni rapide (~500ms l'una dall'altra), con una pausa di
+circa 5s tra una serie e l'altra. Log salvato in
+`data/logs/mode_button_capture_20260714.log`.
+
+### Ricerca del segnale
+
+Dato che non esiste un segnale "proxy" già decodificato con cui
+correlare (a differenza di EV/RPM per `find_ev_bit.py`), la ricerca è
+stata fatta per **forma temporale**: cercare un byte/bit che resti quasi
+sempre a un valore "idle" dominante, tranne in 3 finestre di attività
+separate da alcuni secondi di silenzio, con durata di ciascuna finestra
+coerente con una raffica di 5 tap ravvicinati. Script:
+`tools/find_mode_button.py` (scan esaustivo su tutti gli ID/byte/bit del
+log, punteggio basato su quanto la forma osservata combacia con quella
+attesa).
+
+### Risultato
+
+**ID `0x4AC` (1196), byte[6]**. Idle = `0x03`. Durante il tasto premuto
+(inclusa una raffica di tap ravvicinati) diventa `0xD3` o `0xB3`,
+alternati — i bit 4 e 7 (maschera `0x90`) sono comuni a entrambi i valori
+e sono il modo affidabile per rilevare "tasto attivo": `(byte[6] & 0x90)
+== 0x90`. Trovate 3 finestre attive coerenti con la cattura: `[6.58,
+10.58]`, `[15.57, 19.57]`, `[24.57, 28.57]` secondi — durata ~4s ciascuna,
+gap di ~5-5.5s tra loro, quasi esattamente il pattern atteso (c'è anche un
+4° blip a inizio file, probabile pressione di test prima delle 3 serie
+"ufficiali").
+
+Il resto del messaggio (`byte[0:3]`) contiene un contatore/mux rotante a 3
+stati (`98/18/28`) indipendente da questo segnale, tipico delle famiglie
+di messaggi periodici già viste su questo bus.
+
+### Limiti noti
+
+- **Non isola i singoli tap**: il segnale resta "attivo" per tutta la
+  finestra della raffica (~4s per 5 tap), non pulsa una volta per
+  pressione. Per l'uso reale (pressioni singole e distanziate) questo va
+  bene — il fronte di salita idle→attivo corrisponde comunque a una
+  pressione — ma non permette di contare tap multipli ravvicinati.
+- Il significato esatto dell'alternanza `0xD3`/`0xB3` (bit 5 vs bit 6) non
+  è chiaro — potrebbe essere un contatore di edge/ripetizione. Non
+  modellato nel firmware, che usa solo la maschera `0x90`.
+- **Validato su una sola cattura** (non incrociato con un secondo log
+  indipendente, a differenza degli altri segnali "CONFIRMED" di questo
+  documento).
