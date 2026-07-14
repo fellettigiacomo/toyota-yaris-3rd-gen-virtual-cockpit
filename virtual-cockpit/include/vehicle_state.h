@@ -25,5 +25,8 @@ struct VehicleState {
     float battery_soc_pct = 0.0f;     // 0x4A7 BATTERY_SOC, already *0.5, 0-100
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
+    bool mode_button = false;         // 0x4AC byte[6] bits 4+7 (0x90 mask); steering-wheel MODE
+                                       // button, stays active for the whole press/repeat window
+                                       // (not a clean per-tap pulse) -- see docs/signal_findings.md
     float soc_trend_pct_per_s = 0.0f; // derived: EMA'd rate of change of battery_soc_pct, not a raw signal
 };

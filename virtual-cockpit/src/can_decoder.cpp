@@ -158,6 +158,16 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
             }
             break;
 
+        case 0x4AC: // STEERING_SW (MODE button)
+            if (dlc >= 7) {
+                // byte[6] idle = 0x03; while the MODE button is pressed/held
+                // (including a quick repeated-tap burst) it becomes 0xd3 or
+                // 0xb3, alternating -- bits 4+7 (0x90) are the part common to
+                // both, so mask on those rather than an exact-value match.
+                state.mode_button = (d[6] & 0x90) == 0x90;
+            }
+            break;
+
         default:
             break;
     }
