@@ -21,8 +21,8 @@ extern const lv_font_t dinnext_14_chgpwr; // "CHG"/"PWR" bar labels
 extern const lv_font_t dinnext_13_pct;    // "%" suffix
 extern const lv_font_t dinnext_24_label;  // energy-flow node labels (full A-Z uppercase)
 extern const lv_font_t dinnext_28_stat;   // efficiency-screen headline + tile values (full A-Z uppercase)
-extern const lv_font_t dinnext_20_accel_time;  // 0-50/0-100 timer: elapsed seconds (replaces the gear letter while shown)
-extern const lv_font_t dinnext_15_accel_label; // 0-50/0-100 timer: "0-50"/"0-100" threshold caption, below the seconds
+extern const lv_font_t dinnext_40_accel_time;  // 0-50/0-100 timer: elapsed seconds -- same size as dinnext_40_gear, replaces the gear letter while shown
+extern const lv_font_t dinnext_40_accel_label; // 0-50/0-100 timer: "0-50"/"0-100" threshold caption, below the seconds
 
 #ifdef __cplusplus
 }

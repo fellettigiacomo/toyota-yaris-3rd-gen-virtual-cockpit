@@ -194,20 +194,24 @@ void createCenterGroup(lv_obj_t *parent) {
     // 0-50/0-100 timer readout, sharing the gear letter's anchor (dx=-158) --
     // hidden by default, swapped in for the gear letter by update() while
     // AccelTimer has a result to show. Two stacked labels, same centering
-    // trick the RPM/EV row already uses one anchor over, just split into two
-    // rows here: seconds on top (dy=-6), threshold caption below (dy=13).
+    // trick the RPM/EV row already uses one anchor over. Both lines use the
+    // same 40px size as the gear letter itself (dinnext_40_gear's
+    // line_height is 28px) -- the original 20px/15px pair was unreadable at
+    // a glance, per owner feedback. Centered on the gear letter's own
+    // anchor (dy=4): seconds on top (dy=-14), threshold caption below
+    // (dy=22), 36px apart so the two 28px-tall lines don't touch.
     g_accelTimeLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_accelTimeLabel, &dinnext_20_accel_time, 0);
+    lv_obj_set_style_text_font(g_accelTimeLabel, &dinnext_40_accel_time, 0);
     lv_obj_set_style_text_color(g_accelTimeLabel, Colors::kAccentCyan, 0);
     lv_label_set_text(g_accelTimeLabel, "0.00");
-    lv_obj_align(g_accelTimeLabel, LV_ALIGN_CENTER, -158, -6);
+    lv_obj_align(g_accelTimeLabel, LV_ALIGN_CENTER, -158, -14);
     lv_obj_add_flag(g_accelTimeLabel, LV_OBJ_FLAG_HIDDEN);
 
     g_accelThresholdLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_accelThresholdLabel, &dinnext_15_accel_label, 0);
+    lv_obj_set_style_text_font(g_accelThresholdLabel, &dinnext_40_accel_label, 0);
     lv_obj_set_style_text_color(g_accelThresholdLabel, Colors::kMutedText, 0);
     lv_label_set_text(g_accelThresholdLabel, "0-50");
-    lv_obj_align(g_accelThresholdLabel, LV_ALIGN_CENTER, -158, 13);
+    lv_obj_align(g_accelThresholdLabel, LV_ALIGN_CENTER, -158, 22);
     lv_obj_add_flag(g_accelThresholdLabel, LV_OBJ_FLAG_HIDDEN);
 
     // Units label: unchanged, per the owner's "leave km/h as is" request.
