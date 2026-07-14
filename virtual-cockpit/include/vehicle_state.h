@@ -26,7 +26,13 @@ struct VehicleState {
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
     bool mode_button = false;         // 0x4AC byte[6] bits 4+7 (0x90 mask); steering-wheel MODE
-                                       // button, stays active for the whole press/repeat window
-                                       // (not a clean per-tap pulse) -- see docs/signal_findings.md
+                                       // button. The ECU latches this active for ~2s after each
+                                       // press (retriggered per tap), so presses closer than ~2.5s
+                                       // merge into one window -- see docs/signal_findings.md
+    uint32_t mode_button_edges = 0;   // count of idle->active transitions of mode_button, counted
+                                       // per decoded 0x4AC frame in the decoder (not per UI sample),
+                                       // so a press can't be lost to UI-task timing; consumers diff
+                                       // this against their last-seen value instead of edge-detecting
+                                       // the level themselves
     float soc_trend_pct_per_s = 0.0f; // derived: EMA'd rate of change of battery_soc_pct, not a raw signal
 };
