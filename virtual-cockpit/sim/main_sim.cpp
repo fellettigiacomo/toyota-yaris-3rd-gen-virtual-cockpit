@@ -82,10 +82,7 @@ int main(int, char **) {
         if (nowMs - lastSyncMs >= UI_SYNC_INTERVAL_MS) {
             lastSyncMs = nowMs;
             VehicleState state = CanDecoder::getSnapshot();
-            // Same placeholder ticking clock display_driver.cpp uses under
-            // DEMO_FAKE_DATA -- there's no RTC to read from on a desktop.
-            time_t clockEpoch = 1700000000 + nowMs / 1000;
-            AppUi::update(state, clockEpoch);
+            AppUi::update(state);
         }
 
         SDL_Delay(LVGL_TASK_DELAY_MS);

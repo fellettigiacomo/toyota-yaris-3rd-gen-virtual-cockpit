@@ -2,7 +2,6 @@
 #include "board_pins.h"
 #include "app_config.h"
 #include "can_decoder.h"
-#include "rtc_clock.h"
 #include "ui/app_ui.h"
 #include "screen_nav.h"
 #include "axs15231b/esp_lcd_axs15231b.h"
@@ -230,14 +229,7 @@ void lvglTask(void *) {
         if (nowMs - lastSyncMs >= UI_SYNC_INTERVAL_MS) {
             lastSyncMs = nowMs;
             VehicleState state = CanDecoder::getSnapshot();
-#ifdef DEMO_FAKE_DATA
-            // Placeholder ticking clock so the left slot is visible in bench
-            // demos even without an RTC set/present.
-            time_t clockEpoch = 1700000000 + nowMs / 1000;
-#else
-            time_t clockEpoch = RtcClock::isValid() ? RtcClock::now() : 0;
-#endif
-            AppUi::update(state, clockEpoch);
+            AppUi::update(state);
         }
 
         vTaskDelay(pdMS_TO_TICKS(LVGL_TASK_DELAY_MS));

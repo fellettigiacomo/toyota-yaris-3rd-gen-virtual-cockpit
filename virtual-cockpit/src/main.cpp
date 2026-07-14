@@ -9,23 +9,8 @@
 
 #include <Arduino.h>
 #include "app_config.h"
-#include "rtc_clock.h"
 #include "can_decoder.h"
 #include "display_driver.h"
-
-namespace {
-
-void handleSerialCommand(const String &line) {
-    if (line.startsWith("SETTIME ")) {
-        time_t epoch = strtoul(line.c_str() + 8, nullptr, 10);
-        RtcClock::set(epoch);
-        Serial.printf("[main] RTC set to epoch %ld\n", static_cast<long>(epoch));
-    } else if (line.length() > 0) {
-        Serial.println("[main] unknown command. Known: SETTIME <unix_epoch>");
-    }
-}
-
-} // namespace
 
 void setup() {
     Serial.begin(SERIAL_BAUD);
@@ -36,12 +21,6 @@ void setup() {
     Serial.println("[main] DEMO_FAKE_DATA build -- no CAN/vehicle connection needed");
 #endif
 
-    RtcClock::begin();
-    if (!RtcClock::isValid()) {
-        Serial.println("[main] RTC not set -- send 'SETTIME <unix_epoch_seconds>' over serial to set it. "
-                        "Until then, the left-slot clock is left blank.");
-    }
-
     CanDecoder::begin();
     DisplayDriver::begin();
 
@@ -49,10 +28,5 @@ void setup() {
 }
 
 void loop() {
-    if (Serial.available()) {
-        String line = Serial.readStringUntil('\n');
-        line.trim();
-        handleSerialCommand(line);
-    }
     vTaskDelay(pdMS_TO_TICKS(50));
 }

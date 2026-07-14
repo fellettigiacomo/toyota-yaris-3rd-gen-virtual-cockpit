@@ -26,6 +26,8 @@ constexpr float kSocEmaAlpha = 0.3f;
 constexpr uint32_t kSocDecayStartMs = 4000;
 constexpr float kSocDecayPerSec = 0.5f;
 
+constexpr uint8_t kHsiChgFloorRaw = 156;
+
 void resetSocTrendState() {
     g_socTrendEma = 0.0f;
     g_lastRawSoc = -1.0f;
@@ -121,7 +123,17 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
 
         case 0x247: // HYBRID_SYSTEM_INDICATOR (CHG/PWR bar)
             if (dlc >= 2) {
-                state.hsi_power = static_cast<int8_t>(d[1]);
+                // Byte is DBC-signed (@0-, [-100|100]) but the confirmed CHG
+                // floor is exactly -100 = raw unsigned >=156; the naive
+                // int8_t sign flip at 128 would wrap a hard-PWR raw of
+                // 128-155 into deeply-negative false-CHG. Raw 101-155
+                // (0x65-0x9b) has never appeared in the two real logs
+                // (neither includes hard accelerator-into-PWR driving), so
+                // anchor the negative branch at the confirmed floor instead.
+                uint8_t raw = d[1];
+                state.hsi_power = (raw >= kHsiChgFloorRaw)
+                    ? static_cast<int16_t>(static_cast<int>(raw) - 256) // CHG: -100..-1
+                    : static_cast<int16_t>(raw);                        // PWR/ECO: 0..155
             }
             break;
 
@@ -130,12 +142,6 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
                 float soc = d[2] * 0.5f;
                 updateSocTrend(state, soc);
                 state.battery_soc_pct = soc;
-            }
-            break;
-
-        case 0x442: // CLIMATE_0x442 (ambient temperature)
-            if (dlc >= 1) {
-                state.ambient_temp_c = static_cast<float>(d[0]) - 40.0f;
             }
             break;
 

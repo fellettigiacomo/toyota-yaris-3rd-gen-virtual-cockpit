@@ -1,6 +1,5 @@
 #pragma once
 
-#include <ctime>
 #include <lvgl.h>
 #include "vehicle_state.h"
 
@@ -15,10 +14,7 @@ namespace CockpitUi {
 // lv_disp_drv_register().
 void build(lv_obj_t *parent);
 
-// Pushes a fresh VehicleState (and, separately, wall-clock time for the
-// left-slot clock -- not part of VehicleState since it comes from the RTC,
-// not CAN) into the widget tree. clockEpoch==0 means "RTC not set/valid",
-// in which case the clock label is left blank rather than showing 1970.
-void update(const VehicleState &state, time_t clockEpoch);
+// Pushes a fresh VehicleState into the widget tree.
+void update(const VehicleState &state);
 
 } // namespace CockpitUi
