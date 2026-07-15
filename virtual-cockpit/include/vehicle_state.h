@@ -25,14 +25,13 @@ struct VehicleState {
     float battery_soc_pct = 0.0f;     // 0x4A7 BATTERY_SOC, already *0.5, 0-100
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
-    bool mode_button = false;         // 0x4AC byte[6] bits 4+7 (0x90 mask); steering-wheel MODE
-                                       // button. The ECU latches this active for ~2s after each
-                                       // press (retriggered per tap), so presses closer than ~2.5s
-                                       // merge into one window -- see docs/signal_findings.md
-    uint32_t mode_button_edges = 0;   // count of idle->active transitions of mode_button, counted
-                                       // per decoded 0x4AC frame in the decoder (not per UI sample),
-                                       // so a press can't be lost to UI-task timing; consumers diff
-                                       // this against their last-seen value instead of edge-detecting
-                                       // the level themselves
+    // NOTE: there is deliberately no steering-wheel MODE button field here.
+    // 0x4AC byte[6] (mask 0x90) was decoded as the MODE button for a while
+    // but is actually a free-running 4.5s-on/4.5s-off oscillator, present
+    // identically in every log with the button untouched -- it cycled the
+    // screens by itself every 9s on the road. The button does not appear
+    // anywhere on this CAN bus (exhaustive cross-validated search, see
+    // docs/signal_findings.md Addendum 5); it is almost certainly on the
+    // analog steering-switch ladder wires of the radio connector instead.
     float soc_trend_pct_per_s = 0.0f; // derived: EMA'd rate of change of battery_soc_pct, not a raw signal
 };

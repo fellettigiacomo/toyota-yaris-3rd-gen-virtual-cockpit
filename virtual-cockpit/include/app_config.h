@@ -25,14 +25,6 @@ constexpr uint32_t STACK_SIZE_LVGL   = 8192; // LVGL + canvas rasterization need
 constexpr int TWAI_DRIVER_RX_QUEUE_LEN = 100;
 constexpr int TWAI_DRIVER_TX_QUEUE_LEN = 0; // never transmit (listen-only)
 
-// --- MODE button (0x4AC) ---
-// 0x4AC broadcasts every 500ms even when the button is idle, so an active
-// mode_button latch that hasn't been refreshed by ANY 0x4AC frame for over
-// 3 periods means the idle-again frames were lost, not that the button is
-// still held. Clearing the latch then keeps a lost idle transition from
-// suppressing the next real press's rising edge.
-constexpr uint32_t MODE_BUTTON_STALE_MS = 1600;
-
 // --- LVGL timing ---
 constexpr uint32_t LVGL_TICK_PERIOD_MS = 5;   // lv_tick_inc() cadence (esp_timer periodic cb)
 constexpr uint32_t LVGL_TASK_DELAY_MS  = 16;  // ~60fps lv_timer_handler() loop

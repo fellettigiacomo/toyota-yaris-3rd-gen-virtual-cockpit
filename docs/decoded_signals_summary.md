@@ -37,12 +37,6 @@ Validated on two independent real-drive logs (~430s and ~440s).
 | Odometer (total) | `0x611` | `ODOMETER` | 20-bit, km/miles unit flag — NOT remaining range |
 | Ambient/outside temperature | `0x442` | `AMBIENT_TEMP` | `byte0 - 40` = °C, scale confirmed against real readings; decoded signal exists on the bus but is no longer shown on the cluster (it's outside air temp, not engine temp — no confirmed engine/coolant temp signal is wired into the firmware, see the "strong hypotheses" table below) |
 
-## Confirmed on a single targeted capture (not yet cross-validated on a second log)
-
-| Signal | CAN ID | Field | Formula / meaning |
-|---|---|---|---|
-| Steering-wheel MODE button | `0x4AC` | `MODE_BUTTON_RAW` | byte[6]: idle `0x03`, pressed `0xD3`/`0xB3` (alternating) — firmware checks `(byte[6] & 0x90) == 0x90`; doesn't isolate individual taps within a rapid-tap burst (see `signal_findings.md` Addendum 5) |
-
 ## Strong hypotheses (semantics solid, exact scale/units not fully confirmed)
 
 | Signal | CAN ID | Field | Notes |
@@ -65,11 +59,13 @@ Validated on two independent real-drive logs (~430s and ~440s).
 - `0x4A8` byte2 top-3-bits — looked like a battery bar level, retracted: cyclic counter (wraps every 60–100s)
 - `0x4A2` `CHASSIS_BRAKE2` — looked like battery power, actually a second brake/ABS-VSC signal
 - `0x612` byte5, `0x619` byte6, `0x63B` byte6 — unstable or heartbeat-like, not physical signals
+- `0x4AC` byte[6] (`OSC_9S_RAW`, was "steering-wheel MODE button") — retracted: free-running 4.5s-on/4.5s-off oscillator (9s period, phase-locked to the byte[4] rolling counter), runs identically in every log with the button untouched; cycled the cockpit screens by itself every 9s on the road. Found only because a 31s capture of a 9s square wave happens to look exactly like the 3-burst tap pattern the scan was told to find (see `signal_findings.md` Addendum 5 retraction)
 
 ## Confirmed absent from this bus (not obtainable by passive listening)
 
 - **Remaining driving range (km)** — only the total odometer exists; likely computed inside the instrument cluster only
 - **HV battery current / voltage / temperature** — no broadcast found; Prius-style diagnostic IDs (0x03B/0x3CB/0x529) are absent on this platform; would require solicited UDS requests to the battery ECU
+- **Steering-wheel MODE button** (and by extension the other steering audio switches) — exhaustive cross-validated re-scan of the dedicated tap capture (`tools/find_button_crossval.py`: bit deviations, value-change/event counters, event-triggered or early frames, capture-only IDs) found nothing matching the tap pattern that is also quiet while driving. Consistent with Toyota's architecture: the steering audio switches are an analog resistive ladder wired to the head-unit connector's SW pins, read by the Simplesoft CAN box as an analog key input — they never transit CAN. Getting MODE for real means reading that ladder with an ESP32 ADC (or sniffing the box's UART key events)
 
 ## Architecture note
 

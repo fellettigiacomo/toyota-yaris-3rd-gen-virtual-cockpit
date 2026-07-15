@@ -575,7 +575,18 @@ vincolo.
 
 ---
 
-## Addendum 5 — Tasto MODE al volante: ✅ TROVATO (singola cattura) — ID 0x4AC
+## Addendum 5 — Tasto MODE al volante: ❌ RITRATTATO — 0x4AC era un oscillatore libero, il tasto NON transita su questo bus
+
+> **RITRATTAZIONE (vedi sezione finale di questo addendum)**: il test su
+> strada ha mostrato le schermate che ciclavano **da sole a intervalli
+> costanti**. Ri-analisi con validazione incrociata sui log di guida:
+> 0x4AC byte[6] è un'**onda quadra libera 4.5s-attivo/4.5s-idle (periodo
+> 9.0s)** che gira identica in TUTTI i log, tasto premuto o no. La cattura
+> da 31s ne conteneva ~3.4 periodi, cioè esattamente "3 finestre attive da
+> ~4.5s separate da ~4.5s" — la forma che `find_mode_button.py` era stato
+> istruito a cercare. Una ri-scansione esaustiva cross-validata non trova
+> NESSUN segnale del tasto nella cattura: **il tasto MODE non passa su
+> questo bus CAN**. Le sezioni sotto restano come storia dell'errore.
 
 Richiesta: ciclare le schermate del cruscotto virtuale col tasto MODE dei
 comandi al volante invece che col tasto BOOT fisico.
@@ -639,6 +650,17 @@ di messaggi periodici già viste su questo bus.
   documento).
 
 ### Aggiornamento — analisi di affidabilità (stesso log, nessuna nuova cattura)
+
+> **SUPERATO DALLA RITRATTAZIONE (sezione successiva).** Tutta l'analisi
+> qui sotto — l'"hold ECU retriggerato di ~2s", il "merge delle pressioni
+> ravvicinate" — descriveva in realtà la semi-onda dell'oscillatore libero,
+> non un comportamento del tasto. I numeri restano corretti come descrizione
+> del segnale (le finestre attive durano davvero ~4.5s), ma l'interpretazione
+> causale era sbagliata. Resta valida una sola scoperta: l'alternanza D3/B3
+> è agganciata al contatore byte[4] (confermata anche nei log di guida).
+> Gli irrobustimenti firmware citati sotto sono stati rimossi insieme alla
+> decodifica del falso segnale, tranne la telemetria di overflow RX, che
+> resta utile in generale.
 
 Il ciclo schermate via MODE si è rivelato inaffidabile nel test su strada
 (a volte non risponde, a volte risponde con ritardo percepibile). Rilettura
@@ -718,3 +740,77 @@ una pressione singola isolata (il blip è troncato); comportamento su
 pressione lunga mantenuta (mai catturata). Cattura ideale: quadro acceso,
 tap singoli isolati distanziati >5s, coppie di tap a 1.0/1.5/2.0/2.5/3.0s di
 distanza (per misurare la soglia di merge), e una pressione mantenuta ~5s.
+
+### RITRATTAZIONE — 0x4AC byte[6] è un oscillatore libero; il tasto MODE non è su questo bus
+
+Secondo test su strada dopo gli irrobustimenti: **le schermate ciclano da
+sole, a intervalli costanti, senza toccare il tasto**. Sintomo decisivo, e
+la verifica che avrebbe dovuto essere fatta subito (controllare il segnale
+nei log di guida, dove il tasto non è mai stato premuto) lo spiega tutto:
+
+**Il segnale gira da solo, sempre, in ogni log.** In `session_0044` e
+`session_0047`, con il tasto mai toccato, byte[6] di 0x4AC alterna
+`0x03` (9 frame, 4.5s) ↔ `0xB3/0xD3` (9 frame, 4.5s) in continuo: 62+
+transizioni a distanza di 4.499s±1ms per sessione, periodo esatto 9.0s
+(= 2 giri del contatore rotante byte[4], che ha periodo 9 frame). Un
+fronte idle→attivo ogni 9.0s = un cambio schermata "fantasma" ogni 9s,
+esattamente il sintomo osservato. Anche nella cattura dedicata la
+sequenza per-frame è `1111 000000000 111111111 000000000 111111111
+000000000 111111111 0000`: il "blip iniziale" era la coda di una
+semi-onda attiva troncata dall'inizio del log, e le "3 raffiche" erano le
+3 semi-onde attive successive. **I tap non hanno lasciato alcuna traccia.**
+
+**Perché il falso positivo è passato**: una cattura di 31s di un'onda
+quadra con periodo 9s contiene ~3.4 periodi, cioè 3-4 finestre attive da
+~4.5s separate da ~4.5s di idle — quasi indistinguibile dalla forma "3
+raffiche da ~2-4s separate da ~5s" che `find_mode_button.py` era stato
+istruito a cercare, e il punteggio di forma l'ha premiata. È lo stesso
+errore metodologico già visto con 0x4A8 (falso SOC): un solo log non
+basta, serve sempre la validazione incrociata su un log indipendente in
+cui il fenomeno cercato è assente. L'apparente coincidenza temporale con
+i tap era solo fase: l'utente ha (comprensibilmente) creduto di vedere il
+proprio pattern nel risultato dello scan.
+
+**Ri-scansione esaustiva con validazione incrociata**
+(`tools/find_button_crossval.py`, nuovo): sulla cattura, cercando qualunque
+meccanismo di segnalazione evento che sia anche silenzioso in entrambi i
+log di guida —
+
+1. ogni bit di ogni byte di ogni ID che devii dal proprio valore idle in
+   cluster (unico sopravvissuto: rumore del sensore angolo sterzo 0x025,
+   8 cluster sparsi — il volante veniva toccato per premere il tasto);
+2. ogni byte con cambi di valore a cluster (contatori di eventi/enum):
+   solo 2 blip singoli isolati, nessuna struttura 3×5;
+3. ogni ID con frame anticipati/extra rispetto al proprio periodo mediano
+   (trasmissione event-triggered): **zero** — ogni ID della cattura è
+   perfettamente periodico;
+4. ID presenti solo nella cattura e assenti in guida: **zero**; gli ID
+   rari (0x381/0x382/0x383/0x613/0x38a) sono keep-alive periodici a
+   payload costante.
+
+**Conclusione: il tasto MODE non transita su questo bus CAN.** È coerente
+con l'architettura Toyota: i comandi audio al volante (MODE/VOL/SEEK) sono
+un **partitore resistivo analogico** cablato direttamente all'autoradio
+sui pin dedicati del connettore 28-pin (90980-12555) — le stesse linee
+"key" che la scatoletta Simplesoft legge in analogico per generare i suoi
+function ID tasto verso l'head unit. Non c'è nessuna ECU che li pubblichi
+in broadcast CAN su questa piattaforma.
+
+**Azioni fatte**: decodifica 0x4AC rimossa dal firmware (il ciclo
+schermate torna al solo tasto BOOT); DBC aggiornato (messaggio rinominato
+`DR_4AC`, segnale `OSC_9S_RAW`, commento RETRACTED esplicito per non
+reinvestigarlo); aggiunto `tools/find_button_crossval.py`.
+
+**Prossimi passi per avere davvero il tasto MODE** (fuori dal CAN):
+1. **Verifica rapida col multimetro**: resistenza tra i pin steering-switch
+   del connettore 28-pin (SW1/SW2 verso il loro GND) — deve cambiare a un
+   valore distinto e stabile mentre si tiene premuto MODE (ladder
+   resistivo, un valore per tasto).
+2. **Lettura via ADC dell'ESP32**: partitore di tensione sulla linea SW
+   (in parallelo, alta impedenza, senza disturbare la scatoletta) + soglie
+   per riconoscere il valore del tasto MODE. Da lì il firmware ha un
+   segnale per-pressione pulito e immediato (niente broadcast a 2Hz,
+   niente merge), molto migliore di quanto il CAN avrebbe mai offerto.
+3. In alternativa, sniffare l'**output UART della scatoletta** (38400 8N1,
+   framing `0x2E`+func+len+data+checksum, repo zugetor): i tasti volante
+   escono lì come function ID dedicati già decodificati.
