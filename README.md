@@ -56,6 +56,8 @@ button** (touch was tried and dropped — laggy on real hardware):
 │   │   └── can_decoder.cpp  #   DBC-driven CAN -> VehicleState decode
 │   └── sim/             #   SDL2 desktop simulator, no board required
 ├── obd-capture/         # Earlier firmware: passive CAN sniffer + SD logger
+├── sw-capture/          # ESP32-C3 ADC logger for the steering-wheel switch
+│                        #   resistive ladder (MODE button is analog, not CAN)
 ├── dbc/                 # Reverse-engineered DBC (toyota_yaris_xp130_reversed.dbc)
 ├── docs/                # Signal reverse-engineering notes and findings
 ├── tools/                # Python scripts used to reverse-engineer the bus

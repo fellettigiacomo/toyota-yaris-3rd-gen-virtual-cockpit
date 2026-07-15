@@ -806,11 +806,13 @@ reinvestigarlo); aggiunto `tools/find_button_crossval.py`.
    del connettore 28-pin (SW1/SW2 verso il loro GND) — deve cambiare a un
    valore distinto e stabile mentre si tiene premuto MODE (ladder
    resistivo, un valore per tasto).
-2. **Lettura via ADC dell'ESP32**: partitore di tensione sulla linea SW
-   (in parallelo, alta impedenza, senza disturbare la scatoletta) + soglie
-   per riconoscere il valore del tasto MODE. Da lì il firmware ha un
-   segnale per-pressione pulito e immediato (niente broadcast a 2Hz,
-   niente merge), molto migliore di quanto il CAN avrebbe mai offerto.
+2. **Lettura via ADC**: partitore di tensione sulla linea SW (in parallelo,
+   alta impedenza, senza disturbare la scatoletta) + soglie per riconoscere
+   il valore del tasto MODE. Da lì il firmware ha un segnale per-pressione
+   pulito e immediato (niente broadcast a 2Hz, niente merge), molto
+   migliore di quanto il CAN avrebbe mai offerto. **Progetto di cattura
+   pronto: `sw-capture/`** (ESP32-C3 mini, eventi di livello debounced +
+   stream CSV, cablaggio e protocollo di test nel suo README).
 3. In alternativa, sniffare l'**output UART della scatoletta** (38400 8N1,
    framing `0x2E`+func+len+data+checksum, repo zugetor): i tasti volante
    escono lì come function ID dedicati già decodificati.
