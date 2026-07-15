@@ -9,11 +9,15 @@
 
 #include <lvgl.h>
 
-// The BOOT button (or the steering-wheel MODE button, see mode_button below)
-// cycles between plain, always-built full-screen containers with an instant
-// lv_obj_add/clear_flag(LV_OBJ_FLAG_HIDDEN) toggle (no scroll animation --
-// touch/swipe was dropped for being laggy on real hardware). Screens, in
-// cycle order: cockpit -> energy flow -> efficiency -> cockpit.
+// The BOOT button cycles between plain, always-built full-screen containers
+// with an instant lv_obj_add/clear_flag(LV_OBJ_FLAG_HIDDEN) toggle (no
+// scroll animation -- touch/swipe was dropped for being laggy on real
+// hardware). Screens, in cycle order: cockpit -> energy flow -> efficiency
+// -> cockpit. (The steering-wheel MODE button briefly drove this too, via
+// CAN 0x4AC -- retracted, that signal is a free-running oscillator and the
+// button isn't on the CAN bus at all; see docs/signal_findings.md Addendum
+// 5. Its real wiring is most likely the analog steering-switch ladder on
+// the radio connector, which would need an ADC input, not CAN.)
 namespace AppUi {
 
 namespace {
@@ -23,26 +27,6 @@ constexpr int16_t kScreenH = 172;
 enum Screen { ScreenCockpit = 0, ScreenEnergy, ScreenEfficiency, ScreenCount };
 lv_obj_t *g_screens[ScreenCount] = {nullptr, nullptr, nullptr};
 int g_active = ScreenCockpit;
-
-// mode_button (0x4AC) stays active for a whole press/repeat-tap window: the
-// ECU latches it for ~2s after each press, retriggered per tap, so presses
-// closer than ~2.5s apart merge into one window and can only ever produce
-// one screen cycle -- that's a property of the signal itself, not of this
-// code (see docs/signal_findings.md Addendum 5). The decoder counts the
-// idle->active edges at CAN-frame granularity into mode_button_edges; here
-// we just consume the counter delta, so a press registers even if this UI
-// task ever stalls past a whole press window (which sampling the level at
-// UI_SYNC_INTERVAL_MS could then miss).
-uint32_t g_lastModeEdges = 0;
-
-uint32_t modeButtonPresses(const VehicleState &state) {
-    uint32_t delta = state.mode_button_edges - g_lastModeEdges;
-    g_lastModeEdges = state.mode_button_edges;
-    // Real edges are >=2.5s apart, so more than a few per 33ms sync tick can
-    // only mean the counter restarted from 0 under us (demo replay loop) --
-    // resync without cycling the screen.
-    return delta <= 3 ? delta : 0;
-}
 
 lv_obj_t *createScreenContainer(lv_obj_t *parent) {
     lv_obj_t *c = lv_obj_create(parent);
@@ -81,14 +65,8 @@ void build() {
 }
 
 void update(const VehicleState &state) {
-    // Both must run unconditionally (not short-circuited) -- modeButtonPresses
-    // has to consume the edge counter every call to stay in sync with it.
-    uint32_t steps = modeButtonPresses(state);
     if (ScreenNav::pressed()) {
-        steps++;
-    }
-    if (steps > 0) {
-        g_active = (g_active + steps) % ScreenCount;
+        g_active = (g_active + 1) % ScreenCount;
         showOnly(g_active);
     }
 

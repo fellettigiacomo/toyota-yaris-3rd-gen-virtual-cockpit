@@ -158,23 +158,11 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
             }
             break;
 
-        case 0x4AC: // STEERING_SW (MODE button)
-            if (dlc >= 7) {
-                // byte[6] idle = 0x03; while the MODE button is pressed/held
-                // (including a quick repeated-tap burst) it becomes 0xd3 or
-                // 0xb3 -- bits 4+7 (0x90) are the part common to both, so
-                // mask on those rather than an exact-value match. The d3/b3
-                // alternation is phase-locked to the rolling counter in
-                // byte[4] (verified: zero exceptions across the whole
-                // capture) and carries no per-tap information, so the 0x90
-                // latch really is all the press info this message has.
-                bool active = (d[6] & 0x90) == 0x90;
-                if (active && !state.mode_button) {
-                    state.mode_button_edges++;
-                }
-                state.mode_button = active;
-            }
-            break;
+        // 0x4AC byte[6] is intentionally NOT decoded: it looked like the
+        // steering-wheel MODE button in the dedicated capture, but it's a
+        // free-running 4.5s-on/4.5s-off oscillator (identical in the drive
+        // logs with the button untouched) that cycled the screens by itself
+        // every 9s. Retracted -- see docs/signal_findings.md Addendum 5.
 
         default:
             break;
@@ -198,10 +186,6 @@ volatile float g_framesPerSec = 0;
 volatile uint32_t g_busErrorCount = 0;
 volatile uint32_t g_busOffCount = 0;
 volatile uint32_t g_rxOverflowCount = 0;
-
-// millis() of the last 0x4AC frame decoded, used by the staleness check in
-// canRxTask. Only ever touched from canRxTask, no locking needed.
-uint32_t g_lastModeFrameMs = 0;
 
 void twaiInit() {
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(
@@ -264,24 +248,6 @@ void canRxTask(void *) {
             decodeIntoState(g_state, msg.identifier, msg.data, msg.data_length_code);
             taskEXIT_CRITICAL(&g_stateMux);
             framesInWindow++;
-            if (msg.identifier == 0x4AC) {
-                g_lastModeFrameMs = millis();
-            }
-        }
-
-        // mode_button only changes when a 0x4AC frame is actually decoded, so
-        // if the frames that would have reported idle again are all lost (RX
-        // overflow burst, bus error window), the latch stays stuck active and
-        // silently swallows the rising edge of the NEXT real press. 0x4AC
-        // broadcasts every 500ms even when idle, so an active latch with no
-        // 0x4AC seen for >3 periods is provably stale -- clear it. This is
-        // deliberately the opposite polarity of a "hold it active longer"
-        // grace period, which would widen the ECU's own ~2s press-merging
-        // window and make close presses worse, not better.
-        if (g_state.mode_button && millis() - g_lastModeFrameMs > MODE_BUTTON_STALE_MS) {
-            taskENTER_CRITICAL(&g_stateMux);
-            g_state.mode_button = false;
-            taskEXIT_CRITICAL(&g_stateMux);
         }
 
         pollAlerts();
