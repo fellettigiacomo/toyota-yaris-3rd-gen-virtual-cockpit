@@ -1,130 +1,128 @@
-# sw-capture — caratterizzazione ADC dei tasti al volante (ESP32-C3 mini)
+# sw-capture-fw — steering-wheel switch ADC characterization (ESP32-C3 mini)
 
-Terzo firmware del repo, complementare a `obd-capture` (CAN) e
-`virtual-cockpit` (cluster). Esiste perché il tasto **MODE non transita sul
-bus CAN** (vedi `docs/signal_findings.md`, Addendum 5, ritrattazione): i
-comandi audio al volante sono un **partitore resistivo analogico** — ogni
-tasto chiude una resistenza diversa tra la coppia di pin steering-switch
-(SW) del connettore 28-pin dell'autoradio (90980-12555), e chi li legge (di
-serie: la scatoletta CAN Simplesoft) misura un livello di tensione.
+Third firmware in this repo, complementary to `obd-capture-fw` (CAN) and the
+main `firmware` cluster. It exists because the **MODE button does not
+transit the CAN bus** (see [`../docs/signal_findings.md`](../docs/signal_findings.md)):
+the steering-wheel audio controls are an **analog resistive ladder** — each
+button closes a different resistance across the steering-switch (SW) pin
+pair of the 28-pin radio connector (`90980-12555`), and whoever reads them
+(stock: the Simplesoft CAN box) just measures a voltage level.
 
-Questo firmware campiona quel livello con l'ADC di un **ESP32-C3 mini**
-(board separata: il cluster ESP32-S3 resta intonso mentre si sonda l'auto)
-e stampa su USB:
+This firmware samples that level with the ADC of a separate **ESP32-C3
+mini** board (the cluster's ESP32-S3 stays untouched while probing the car)
+and prints over USB:
 
-- righe `EVT` (sempre attive): ogni cambio di livello stabile, con
-  timestamp, livello precedente/nuovo e durata — premendo i tasti uno alla
-  volta, la tabella del ladder esce direttamente dal log;
-- righe `LVL`: heartbeat del livello stabile corrente ogni 5s;
-- stream CSV opzionale (`STREAM ON` / `STREAM OFF`, stessi comandi di
-  obd-capture): `t_ms,min_mV,avg_mV,max_mV` ogni 20ms, per grafici offline
-  (`tools/sw_adc_logger.py` lo cattura su file).
+- `EVT` lines (always on): every stable-level change, with timestamp,
+  previous/new level and duration — press buttons one at a time and the
+  ladder's value table comes straight out of the log.
+- `LVL` lines: a heartbeat of the current stable level every 5s.
+- an optional CSV stream (`STREAM ON` / `STREAM OFF`, same commands as
+  `obd-capture-fw`): `t_ms,min_mV,avg_mV,max_mV` every 20ms, captured to a
+  file with [`../tools/sw_adc_logger.py`](../tools/sw_adc_logger.py).
 
-I valori stampati sono **millivolt lato pin** (calibrati): la tensione
-sulla linea SW è `mV × 2` con il partitore 2:1 qui sotto.
+Printed values are **millivolts at the pin** (calibrated); the actual
+voltage on the SW line is `mV × 2` with the 2:1 divider described below.
 
-## Cablaggio
+## Wiring
 
-### Prima di tutto: verifica col multimetro (2 minuti)
+### First: check with a multimeter (2 minutes)
 
-Resistenza tra i due pin SW del connettore 28-pin (comandi al volante:
-tipicamente una coppia dedicata SW/SW-GND — vedi pinout 90980-12555 su
-pinoutguide.com), **a connettore staccato o quadro spento**: deve leggersi
-un valore alto/aperto a riposo e un valore basso, distinto e stabile, per
-ogni tasto tenuto premuto. Questo conferma quale coppia di pin è il ladder
-prima di collegarci qualsiasi cosa.
+Resistance between the two SW pins of the 28-pin connector (steering-wheel
+controls — typically a dedicated SW / SW-GND pair, see `90980-12555` on
+pinoutguide.com), **with the connector unplugged or ignition off**: should
+read high/open at rest and a low, distinct, stable value for each button
+held down. This confirms which pin pair is the ladder before wiring
+anything to it.
 
-### Modo A — sniffing in parallelo alla scatoletta (misura "in esercizio")
+### Mode A — sniffing in parallel with the CAN box (measures "in service")
 
-La scatoletta resta collegata e fornisce lei la polarizzazione della linea.
-Ci si aggancia in parallelo ad **alta impedenza**, senza iniettare nulla:
-
-```
-linea SW (al pin del connettore) ──[R1 100kΩ]──┬──> GPIO3 (ADC)
-                                               │
-                                          [R2 100kΩ]
-                                               │
-SW-GND (stesso connettore) ────────────────────┴──> GND ESP32-C3
-```
-
-- Partitore 2:1: anche se la scatoletta polarizza a 5V, al pin arrivano
-  max ~2.5V — dentro il range calibrato dell'ADC C3 a 11dB. Se polarizza
-  a 3.3V si legge comunque benissimo (passi del ladder = centinaia di mV).
-- Carico aggiunto: 200kΩ verso massa — trascurabile rispetto a ladder
-  (~0.1-3kΩ) e pull-up della scatoletta; dopo il collegamento verificare
-  comunque che i tasti funzionino ancora sull'autoradio.
-- **GND comune obbligatorio**, preso dal pin SW-GND del connettore (è il
-  ritorno del ladder), non dalla carrozzeria a caso.
-- **Mai** collegare 3.3V/5V dell'ESP32 alla linea SW mentre la scatoletta
-  è connessa.
-- Alimentare il C3 da USB (il laptop che logga) o da un 5V→USB pulito.
-
-In questo modo si misura anche la **tensione di polarizzazione reale**
-della scatoletta (il livello idle), che serve per dimensionare la lettura
-definitiva nel cluster.
-
-### Modo B — banco / scatoletta scollegata
-
-Senza scatoletta nessuno polarizza la linea: la bias la fornisce l'ESP32.
+The CAN box stays connected and provides the line's bias. Tap in parallel
+at **high impedance**, injecting nothing:
 
 ```
-3V3 ESP32-C3 ──[Rpull 1kΩ]──┬── linea SW
-                            └──[R1 100kΩ]──┬──> GPIO3 (ADC)
-                                       [R2 100kΩ]
-                                            │
-SW-GND ─────────────────────────────────────┴──> GND ESP32-C3
+SW line (at connector pin) ──[R1 100kΩ]──┬──> GPIO3 (ADC)
+                                          │
+                                     [R2 100kΩ]
+                                          │
+SW-GND (same connector) ─────────────────┴──> ESP32-C3 GND
 ```
 
-Idle ≈ 3.3V sulla linea (≈1650mV al pin); ogni tasto premuto forma un
-partitore `Rpull / R_tasto` e produce il proprio plateau. Con 1kΩ di
-pull-up i valori tipici Toyota (~0.1-3.3kΩ) si distribuiscono su quasi
-tutta la scala.
+- 2:1 divider: even if the box biases the line at 5V, the pin only sees
+  ~2.5V — inside the C3 ADC's calibrated 11dB range. A 3.3V bias reads fine
+  too (ladder steps are hundreds of mV).
+- Added load: 200kΩ to ground — negligible next to the ladder (~0.1-3kΩ)
+  and the box's pull-up; verify the buttons still work on the head unit
+  after wiring in.
+- **Common ground is mandatory**, taken from the connector's SW-GND pin
+  (the ladder's return), not from a random chassis point.
+- **Never** connect the ESP32's 3.3V/5V rail to the SW line while the box
+  is connected.
+- Power the C3 from USB (the logging laptop) or a clean 5V source.
 
-Nota pin: GPIO3 = ADC1_CH3, scelto evitando i pin di strapping del C3
-(GPIO2/8/9) e ADC2 (GPIO5, inaffidabile su C3). Configurabile in
+This also measures the box's real bias voltage (the idle level), needed to
+size the final reading in the cluster firmware.
+
+### Mode B — bench test / box disconnected
+
+With no box connected nothing biases the line, so the ESP32 provides it:
+
+```
+3V3 ESP32-C3 ──[Rpull 1kΩ]──┬── SW line
+                             └──[R1 100kΩ]──┬──> GPIO3 (ADC)
+                                        [R2 100kΩ]
+                                             │
+SW-GND ──────────────────────────────────────┴──> ESP32-C3 GND
+```
+
+Idle ≈ 3.3V on the line (≈1650mV at the pin); each button forms an
+`Rpull / R_button` divider with its own plateau. With a 1kΩ pull-up, the
+typical Toyota values (~0.1-3.3kΩ) spread across most of the range.
+
+Pin note: GPIO3 = ADC1_CH3, chosen to avoid the C3's strapping pins
+(GPIO2/8/9) and ADC2 (GPIO5, unreliable on the C3). Configurable in
 `include/app_config.h`.
 
-## Uso
+## Use
 
 ```bash
-cd sw-capture
-pio run -t upload          # board: ESP32-C3 mini/SuperMini, porta USB nativa
-pio device monitor         # righe EVT/LVL subito visibili
+cd re/sw-capture-fw
+pio run -t upload          # board: ESP32-C3 mini/SuperMini, native USB port
+pio device monitor         # EVT/LVL lines visible immediately
 
-# per un log CSV su file (da tools/):
+# to log a CSV file (from ../tools/):
 python3 ../tools/sw_adc_logger.py /dev/ttyACM0 ../data/logs/sw_ladder_test.csv
 ```
 
-Protocollo di test suggerito (identico nello spirito alla cattura CAN, ma
-stavolta il segnale è per-pressione, niente merge):
+Suggested test protocol (same spirit as the CAN capture, but this signal is
+per-press, no merge window):
 
-1. 30s senza toccare nulla (livello idle + rumore);
-2. ogni tasto del pod, uno alla volta: 3 pressioni brevi + 1 tenuta 2s,
-   annunciando a voce l'ordine (o annotandolo);
-3. ripetere l'intero giro una seconda volta (ripetibilità dei plateau).
+1. 30s untouched (idle level + noise).
+2. Every button on the pod, one at a time: 3 short presses + 1 held for 2s,
+   noting the order.
+3. Repeat the whole round once more (plateau repeatability).
 
-Risultato atteso nel log, per ogni pressione:
+Expected log output per press:
 
 ```
-EVT 41213 2497 -> 812 (prev held 5210 ms)   <- pressione MODE
-EVT 41455 812 -> 2496 (prev held 242 ms)    <- rilascio (242ms di tenuta)
+EVT 41213 2497 -> 812 (prev held 5210 ms)   <- MODE pressed
+EVT 41455 812 -> 2496 (prev held 242 ms)    <- released (held 242ms)
 ```
 
-Tabella da compilare con i risultati (poi va in
-`docs/signal_findings.md`):
+Table to fill in with the results (goes into
+[`../docs/signal_findings.md`](../docs/signal_findings.md)):
 
-| Tasto | mV pin (idle bias reale) | V linea | note |
+| Button | mV at pin (real idle bias) | V on line | notes |
 |---|---|---|---|
-| (riposo) | | | |
+| (idle) | | | |
 | MODE | | | |
 | VOL+ / VOL- / SEEK / ... | | | |
 
-## Dopo la caratterizzazione
+## After characterization
 
-Con la tabella dei plateau in mano, l'integrazione nel cluster è una
-soglia ADC + debounce (~20 righe nel firmware `virtual-cockpit`, evento
-per-pressione immediato — nessun broadcast a 2Hz, nessun limite di
-pressioni ravvicinate). Da decidere allora se leggere il ladder
-direttamente dall'ESP32-S3 del cluster (stesso schema di partitore) o
-tenere il C3 come ponte. Il vincolo elettrico resta identico: alta
-impedenza, mai polarizzare la linea se la scatoletta è collegata.
+With the plateau table in hand, integrating this into the cluster is an
+ADC threshold + debounce (~20 lines in the `firmware` codebase, immediate
+per-press events — no 2Hz broadcast, no merge window for close-together
+presses). At that point, decide whether to read the ladder directly from
+the cluster's own ESP32-S3 (same divider) or keep the C3 as a bridge. The
+electrical constraint stays the same either way: high impedance, never
+bias the line while the CAN box is connected.

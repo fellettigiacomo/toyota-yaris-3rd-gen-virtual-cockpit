@@ -18,8 +18,8 @@ Only `display_driver.cpp` is this project's own code, gluing the vendored
 panel driver to LVGL and to `cockpit_ui`/`can_decoder`. Touch
 (`touch/esp_lcd_touch.*`, the touch-related parts of `axs15231b/*`, and the
 I2C touch device handle in `i2c_bsp.c`) is not wired up or called anywhere in
-this project (same design choice as `obd-capture`, which uses the physical
-BOOT button instead) -- kept compiled-in, unused, in case a future revision
+this project (same design choice as `re/obd-capture-fw`, which uses the
+physical BOOT button instead) -- kept compiled-in, unused, in case a future revision
 adds touch. `user_config.h` is only needed to satisfy `i2c_bsp.c` and
 `lcd_bl_bsp/lcd_bl_pwm_bsp.c`'s own `#include`; this project's actual pin/
 task config lives in `include/board_pins.h` and `include/app_config.h`, not

@@ -11,7 +11,7 @@ switch (`screen_nav.cpp`) is simulated via the spacebar.
 
 ```sh
 brew install sdl2 cmake
-cd virtual-cockpit/sim
+cd firmware/sim
 cmake -B build
 cmake --build build -j
 ./build/sim
