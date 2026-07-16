@@ -9,12 +9,13 @@ A from-scratch digital instrument cluster for a 2014 Toyota Yaris Hybrid
 **reverse-engineered CAN bus** — no dealer tools, no published DBC, no OEM
 documentation.
 
-The is divided in three main folders:
+The repository is divided into three main folders:
 
-1. **Reverse-engineering** (`re/`) — a
-   CAN bus sniffer, SW sniffer, all the documentation and the
-   Python tooling and findings used to decode signal by signal.
-2. **CAN Database (DBC)** (`dbc/`) — the CAN Database with all the main commands and their translation
+1. **Reverse-engineering** (`re/`) — a CAN bus sniffer, a steering-wheel
+   switch sniffer, and all the documentation, Python tooling and findings
+   used to decode the bus signal by signal.
+2. **CAN Database (DBC)** (`dbc/`) — the CAN Database with all the decoded
+   signals and their translation formulas.
 3. **The dashboard** (`firmware/`) — an LVGL-based instrument cluster
    firmware that decodes the resulting DBC live and drives a physical
    display strip mounted in the car.
@@ -23,8 +24,8 @@ The is divided in three main folders:
 > (`TWAI_MODE_LISTEN_ONLY` — no transmit, no ACK, per the ESP-IDF driver
 > contract). It cannot send commands to the car. That said, this taps a real
 > vehicle's diagnostic bus: read the staged bring-up procedure in
-> [`obd-capture/README.md`](obd-capture/README.md) before connecting anything
-> to a running car.
+> [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md) before
+> connecting anything to a running car.
 
 ## Screens
 
@@ -44,25 +45,26 @@ button** (touch was tried and dropped — laggy on real hardware):
   rotated in software to a 640×172 landscape strip.
 - **CAN transceiver**: SN65HVD230, wired to OBD-II pins 6 (CAN-H) / 14
   (CAN-L). Full wiring table and GPIO rationale in
-  [`obd-capture/README.md`](obd-capture/README.md).
+  [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md).
 
 ## Repository layout
 
 ```
 .
-├── virtual-cockpit/     # Dashboard firmware (LVGL) + desktop simulator
-│   ├── include/         #   board pins, VehicleState struct, LVGL config
+├── dbc/                     # Reverse-engineered DBC (toyota_yaris_xp130_reversed.dbc)
+├── firmware/                # Dashboard firmware (LVGL) + desktop simulator
+│   ├── include/             #   board pins, VehicleState struct, LVGL config
 │   ├── src/
-│   │   ├── ui/          #   screens: cockpit_ui, energy_flow_ui, efficiency_ui
-│   │   └── can_decoder.cpp  #   DBC-driven CAN -> VehicleState decode
-│   └── sim/             #   SDL2 desktop simulator, no board required
-├── obd-capture/         # Earlier firmware: passive CAN sniffer + SD logger
-├── sw-capture/          # ESP32-C3 ADC logger for the steering-wheel switch
-│                        #   resistive ladder (MODE button is analog, not CAN)
-├── dbc/                 # Reverse-engineered DBC (toyota_yaris_xp130_reversed.dbc)
-├── docs/                # Signal reverse-engineering notes and findings
-├── tools/                # Python scripts used to reverse-engineer the bus
-└── data/logs/            # Sample real-drive CAN captures (candump format)
+│   │   ├── ui/               #   screens: cockpit_ui, energy_flow_ui, efficiency_ui
+│   │   └── can_decoder.cpp   #   DBC-driven CAN -> VehicleState decode
+│   └── sim/                 #   SDL2 desktop simulator, no board required
+└── re/                      # Reverse-engineering workspace
+    ├── obd-capture-fw/      #   ESP32-S3 passive CAN sniffer + SD logger
+    ├── sw-capture-fw/       #   ESP32-C3 ADC logger for the steering-wheel
+    │                        #   switch ladder (MODE button is analog, not CAN)
+    ├── docs/                #   Signal reverse-engineering notes and findings
+    ├── tools/               #   Python scripts used to reverse-engineer the bus
+    └── data/logs/           #   Sample real-drive CAN captures (candump format)
 ```
 
 ## Building the dashboard firmware
@@ -70,7 +72,7 @@ button** (touch was tried and dropped — laggy on real hardware):
 Requires [PlatformIO](https://platformio.org/) (CLI or VS Code extension).
 
 ```sh
-cd virtual-cockpit
+cd firmware
 pio run                 # build
 pio run -t upload       # flash
 pio device monitor      # serial console @ 115200
@@ -90,19 +92,19 @@ SDL2 window (macOS, via Homebrew):
 
 ```sh
 brew install sdl2 cmake
-cd virtual-cockpit/sim
+cd firmware/sim
 cmake -B build
 cmake --build build -j
 ./build/sim
 ```
 
 Press SPACE to cycle screens, same as the board's BOOT button. Details and
-known rough edges in [`virtual-cockpit/sim/README.md`](virtual-cockpit/sim/README.md).
+known rough edges in [`firmware/sim/README.md`](firmware/sim/README.md).
 
-## Building the CAN sniffer (`obd-capture`)
+## Building the CAN sniffer (`re/obd-capture-fw`)
 
 ```sh
-cd obd-capture
+cd re/obd-capture-fw
 pio run
 pio run -t upload
 pio device monitor
@@ -110,20 +112,24 @@ pio device monitor
 
 Logs every frame to SD in `candump`-compatible text, and can stream the same
 data live over USB (`STREAM ON` at the serial console) for capture straight
-to a PC via `tools/usb_stream_logger.py`. Full bring-up order, wiring, and
-safety steps in [`obd-capture/README.md`](obd-capture/README.md).
+to a PC via `re/tools/usb_stream_logger.py`. Full bring-up order, wiring, and
+safety steps in [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md).
 
 ## Reverse-engineering workflow
 
-1. Capture raw frames with `obd-capture` → SD card, `candump` format.
-2. Analyze with the scripts in `tools/` (`id_stats.py`, `byte_stats.py`,
-   `find_soc_like.py`, `decode_dbc.py`, `plot_soc_timeline.py`, …) or import
-   into SavvyCAN / `python-can` / `cantools`.
+1. Capture raw frames with `re/obd-capture-fw` → SD card, `candump` format.
+2. Analyze with the scripts in [`re/tools/`](re/tools/) (`id_stats.py`,
+   `byte_stats.py`, `decode_dbc.py`, `cross_validate_candidates.py`, …) or
+   import into SavvyCAN / `python-can` / `cantools`.
 3. Confirmed signals go into [`dbc/toyota_yaris_xp130_reversed.dbc`](dbc/toyota_yaris_xp130_reversed.dbc),
-   with methodology and evidence in [`docs/signal_findings.md`](docs/signal_findings.md)
-   and a quick-reference table in [`docs/decoded_signals_summary.md`](docs/decoded_signals_summary.md).
-4. `virtual-cockpit/src/can_decoder.cpp` decodes the same signals live on
+   with methodology and evidence in [`re/docs/signal_findings.md`](re/docs/signal_findings.md)
+   and a quick-reference table in [`re/docs/decoded_signals_summary.md`](re/docs/decoded_signals_summary.md).
+4. `firmware/src/can_decoder.cpp` decodes the same signals live on
    the dashboard.
+
+The steering-wheel MODE button turned out not to be on the CAN bus at all;
+[`re/sw-capture-fw/`](re/sw-capture-fw/) reads its analog resistive ladder
+directly instead.
 
 Speed, RPM, gear, pedals, EV-drive, HV battery SOC, and the CHG/ECO/PWR
 gauge are all confirmed on two independent real-drive logs. HV battery
@@ -134,14 +140,14 @@ current/voltage and remaining range are confirmed **absent** from this bus.
 Hobby, single-vehicle reverse-engineering project — signal mappings may not
 carry over to other trims/markets/model years. Parts of this repo have not
 yet been compiled or run on real hardware (see the caveats in
-`obd-capture/README.md` and `virtual-cockpit/sim/README.md`); expect to
+`re/obd-capture-fw/README.md` and `firmware/sim/README.md`); expect to
 iterate on first boot.
 
 ## Contributing
 
 Issues and PRs are welcome, especially signal validation on other Yaris
 Hybrid units — please note your model year/market if you're confirming or
-contradicting a signal in `docs/signal_findings.md`.
+contradicting a signal in `re/docs/signal_findings.md`.
 
 ## License
 

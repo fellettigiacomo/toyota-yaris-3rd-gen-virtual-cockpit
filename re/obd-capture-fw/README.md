@@ -1,4 +1,4 @@
-# obd-capture
+# obd-capture-fw
 
 Firmware for the ESP32-S3 (Waveshare ESP32-S3-Touch-LCD-3.49) that passively
 sniffs the Toyota Yaris Hybrid (3rd gen / XP130, 2014) OBD-II CAN bus, shows a
@@ -6,10 +6,11 @@ live "candump on screen" table on the built-in display, and logs every raw
 frame to a microSD card in a format directly importable into SavvyCAN /
 python-can / cantools for offline reverse-engineering.
 
-This is step one of a larger virtual-cockpit project: Toyota does not publish
-a DBC for this vehicle, so nothing (EV mode, energy flow, speed, etc.) can be
-decoded yet -- this tool's only job is to capture everything so the CAN IDs
-can be reverse-engineered afterwards on a PC.
+This is step one of the larger virtual-cockpit dashboard project (`../../firmware/`):
+Toyota does not publish a DBC for this vehicle, so nothing (EV mode, energy
+flow, speed, etc.) can be decoded until the CAN IDs are reverse-engineered
+from a capture -- this tool's only job is to capture everything so that can
+happen afterwards on a PC.
 
 ## Hardware
 
@@ -65,7 +66,7 @@ logging; touch/LVGL is reserved for the later dashboard project.
 Requires [PlatformIO](https://platformio.org/) (CLI or VS Code extension).
 
 ```
-cd obd-capture
+cd re/obd-capture-fw
 pio run              # build
 pio run -t upload    # flash
 pio device monitor   # serial console (115200 baud)
@@ -122,18 +123,19 @@ port carries pure candump lines; occasional other firmware messages (e.g. a
 bus-off warning) can still interleave, so anything reading the stream should
 just ignore lines that don't match the candump shape.
 
-To capture straight to a file on a PC, use `tools/usb_stream_logger.py`
+To capture straight to a file on a PC, use
+[`../tools/usb_stream_logger.py`](../tools/usb_stream_logger.py)
 (`pip install pyserial`):
 
 ```
-python3 tools/usb_stream_logger.py /dev/ttyACM0
-python3 tools/usb_stream_logger.py /dev/ttyACM0 data/logs/bench_test.log --settime
+python3 ../tools/usb_stream_logger.py /dev/ttyACM0
+python3 ../tools/usb_stream_logger.py /dev/ttyACM0 ../data/logs/bench_test.log --settime
 ```
 
 It sends `STREAM ON`, writes every valid candump line to the output file
 (filtering out any non-candump firmware messages), and sends `STREAM OFF` +
 closes cleanly on Ctrl+C. The resulting file is byte-for-byte the same
-format as an SD `.log`, so it drops straight into `tools/parse_log.py`,
+format as an SD `.log`, so it drops straight into `../tools/parse_log.py`,
 SavvyCAN, `python-can`, or `cantools`.
 
 ## Bring-up order (do this in order, do not skip ahead)
