@@ -9,12 +9,13 @@ A from-scratch digital instrument cluster for a 2014 Toyota Yaris Hybrid
 **reverse-engineered CAN bus** — no dealer tools, no published DBC, no OEM
 documentation.
 
-The project has two halves:
+The is divided in three main folders:
 
-1. **Reverse-engineering** (`obd-capture/`, `tools/`, `dbc/`, `docs/`) — a
-   passive CAN sniffer that logs the factory bus to an SD card, plus the
-   Python tooling and findings used to decode it signal by signal.
-2. **The dashboard** (`virtual-cockpit/`) — an LVGL-based instrument cluster
+1. **Reverse-engineering** (`re/`) — a
+   CAN bus sniffer, SW sniffer, all the documentation and the
+   Python tooling and findings used to decode signal by signal.
+2. **CAN Database (DBC)** (`dbc/`) — the CAN Database with all the main commands and their translation
+3. **The dashboard** (`firmware/`) — an LVGL-based instrument cluster
    firmware that decodes the resulting DBC live and drives a physical
    display strip mounted in the car.
 
