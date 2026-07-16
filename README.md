@@ -16,6 +16,7 @@ The repository is divided into three main folders:
    used to decode the bus signal by signal.
 2. **CAN Database (DBC)** (`dbc/`) — the CAN Database with all the decoded
    signals and their translation formulas.
+3. **3D Models** (`3d/`) — Fusion360 Project File and 3MF print files to 3d print the enclosure
 3. **The dashboard** (`firmware/`) — an LVGL-based instrument cluster
    firmware that decodes the resulting DBC live and drives a physical
    display strip mounted in the car.
