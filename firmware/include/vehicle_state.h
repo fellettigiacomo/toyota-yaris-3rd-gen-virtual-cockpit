@@ -25,13 +25,5 @@ struct VehicleState {
     float battery_soc_pct = 0.0f;     // 0x4A7 BATTERY_SOC, already *0.5, 0-100
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
-    // NOTE: there is deliberately no steering-wheel MODE button field here.
-    // 0x4AC byte[6] (mask 0x90) was decoded as the MODE button for a while
-    // but is actually a free-running 4.5s-on/4.5s-off oscillator, present
-    // identically in every log with the button untouched -- it cycled the
-    // screens by itself every 9s on the road. The button does not appear
-    // anywhere on this CAN bus (exhaustive cross-validated search, see
-    // docs/signal_findings.md Addendum 5); it is almost certainly on the
-    // analog steering-switch ladder wires of the radio connector instead.
     float soc_trend_pct_per_s = 0.0f; // derived: EMA'd rate of change of battery_soc_pct, not a raw signal
 };

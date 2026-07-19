@@ -4,6 +4,7 @@
 #include "can_decoder.h"
 #include "ui/app_ui.h"
 #include "screen_nav.h"
+#include "touch_nav.h"
 #include "axs15231b/esp_lcd_axs15231b.h"
 
 #include <Arduino.h>
@@ -219,6 +220,7 @@ void lvglTask(void *) {
     initPanel();
     initLvgl();
     ScreenNav::begin();
+    TouchNav::begin(); // after initPanel(): touch die shares the panel's reset line
     AppUi::build();
 
     uint32_t lastSyncMs = 0;

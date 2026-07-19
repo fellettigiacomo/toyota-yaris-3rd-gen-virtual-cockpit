@@ -147,4 +147,3 @@ CM_ BO_ 800 "STRONG HYPOTHESIS on semantics, scale unconfirmed. ID 0x320, ~20Hz.
 CM_ "=== SIGNALS NOT ON THIS BUS (see re/docs/signal_findings.md for full explanation) ===";
 CM_ "Remaining range / distance-to-empty (km): the only km counter is the 0x611 total odometer. Most likely computed inside the instrument cluster and never broadcast.";
 CM_ "HV battery current/power (signed): Prius Gen2/Gen3-style 0x03B/0x3CB/0x3CD/0x529 IDs are all absent on this platform. Available only via solicited UDS (Mode 21) to the battery ECU.";
-CM_ "Steering-wheel MODE/VOL/SEEK buttons: an analog resistive ladder wired to the head-unit connector's SW pins, read by the Simplesoft CAN box as an analog key input -- never transits CAN. See re/sw-capture-fw/ for reading it via ADC instead.";

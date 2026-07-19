@@ -38,13 +38,19 @@ constexpr int LCD_PANEL_NATIVE_HEIGHT = 640; // physical panel height (portrait)
 constexpr int LCD_ROTATION = 1;              // rotate to landscape 640x172 for the UI
 
 // --- Shared sensor I2C bus (PCF85063 RTC + QMI8658 IMU) ---
-// Note: this is a *different* I2C bus from the capacitive touch controller
-// (touch is SDA=17/SCL=18, addr 0x3B) — this project does not use touch at all,
-// it uses the physical BOOT button (GPIO0) as the stop-capture input instead,
-// to avoid depending on the AXS15231B touch protocol.
+// Not used by this project (no RTC/IMU reads) -- kept documented in case a
+// future revision needs it. This is a *different* I2C bus from the
+// capacitive touch controller below.
 constexpr int PIN_SENSOR_I2C_SDA = 47;
 constexpr int PIN_SENSOR_I2C_SCL = 48;
 constexpr uint8_t I2C_ADDR_RTC_PCF85063 = 0x51;
+
+// --- Capacitive touch (AXS15231B, same die as the display panel) ---
+// Read directly over I2C via touch_nav.cpp (plain Arduino Wire, not the
+// vendored esp_lcd_touch component -- see that file's header comment for
+// why). Screens cycle on any tap, same action as the BOOT button.
+constexpr int PIN_TOUCH_SDA = 17;
+constexpr int PIN_TOUCH_SCL = 18;
 
 // --- microSD card, native SDMMC 1-bit mode (NOT SPI) ---
 constexpr int PIN_SD_CMD = 39;

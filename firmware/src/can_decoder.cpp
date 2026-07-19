@@ -158,12 +158,6 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
             }
             break;
 
-        // 0x4AC byte[6] is intentionally NOT decoded: it looked like the
-        // steering-wheel MODE button in the dedicated capture, but it's a
-        // free-running 4.5s-on/4.5s-off oscillator (identical in the drive
-        // logs with the button untouched) that cycled the screens by itself
-        // every 9s. Retracted -- see docs/signal_findings.md Addendum 5.
-
         default:
             break;
     }
@@ -216,8 +210,8 @@ void pollAlerts() {
     if (alerts & (TWAI_ALERT_RX_QUEUE_FULL | TWAI_ALERT_RX_FIFO_OVERRUN)) {
         // Frames were silently dropped by the driver/controller. These alerts
         // were always enabled in twaiInit() but never counted, which made
-        // "did we lose the 0x4AC window under real driving traffic?" an
-        // unanswerable question -- now it shows up here and in getStats().
+        // frame loss under real driving traffic an unanswerable question --
+        // now it shows up here and in getStats().
         g_rxOverflowCount++;
         static uint32_t lastWarnMs = 0;
         uint32_t nowMs = millis();

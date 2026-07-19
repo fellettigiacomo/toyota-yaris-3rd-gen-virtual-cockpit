@@ -200,17 +200,8 @@ Documented so these aren't re-investigated:
   correlation sign flips between the two logs, or fixed-period counters
   (`0x63B` increments every ~25.5s regardless of driving state) — heartbeat/
   counter artifacts, not physical signals.
-- **`0x4AC` byte6** — investigated as the steering-wheel MODE button after a
-  dedicated tap-pattern capture appeared to match. Ruled out on cross-check
-  against the two drive logs: it's a free-running 4.5s-on/4.5s-off square
-  wave (9.0s period) present identically in every log, including both where
-  the button was never touched — it was cycling the cluster's screens on
-  its own every 9s. A 31-second single-button capture of a 9s square wave
-  looks enough like "a few taps with gaps between them" to fool a
-  single-log pattern match; cross-validating against a quiet reference log
-  (the same standard used for every other confirmed signal here) rejects it
-  immediately. See "Confirmed absent" below for where this button actually
-  lives.
+- **`0x4AC` byte6** — free-running 4.5s-on/4.5s-off square wave (9.0s
+  period), present identically in every log. Not an event/status signal.
 
 ## Confirmed absent from this bus
 
@@ -221,15 +212,6 @@ Not obtainable by passive listening on this connector:
 - **HV battery current / voltage / temperature** — no broadcast found;
   the Prius-style diagnostic IDs (`0x03B`/`0x3CB`/`0x529`) are absent on
   this platform. Would require solicited UDS requests to the battery ECU.
-- **Steering-wheel MODE button** (and the other audio switches: VOL, SEEK,
-  …) — an exhaustive cross-validated re-scan (every bit/byte deviation,
-  event-counter patterns, event-triggered or capture-only frames) found no
-  signal that pulses during a dedicated button capture and stays quiet in
-  both drive logs. Consistent with Toyota's architecture: these switches
-  are an analog resistive ladder wired directly to the head-unit
-  connector's SW pins, read by the Simplesoft box as an analog key input —
-  they never transit CAN. [`sw-capture-fw/`](../sw-capture-fw/) reads
-  that ladder directly via ADC instead.
 
 ## Architecture notes
 
