@@ -58,13 +58,12 @@ Validated on two independent real-drive logs (~430s and ~440s).
 - `0x4A8` byte2 top-3-bits — looked like a battery bar level: cyclic counter (wraps every 60–100s)
 - `0x4A2` `CHASSIS_BRAKE2` — looked like battery power: actually a second brake/ABS-VSC signal
 - `0x612` byte5, `0x619` byte6, `0x63B` byte6 — unstable or heartbeat-like, not physical signals
-- `0x4AC` byte6 — free-running 4.5s-on/4.5s-off oscillator (9s period); not the steering-wheel MODE button, not any real vehicle signal
+- `0x4AC` byte6 — free-running 4.5s-on/4.5s-off oscillator (9s period), not an event/status signal
 
 ## Confirmed absent from this bus (not obtainable by passive listening)
 
 - **Remaining driving range (km)** — only the total odometer exists; likely computed inside the instrument cluster only
 - **HV battery current / voltage / temperature** — no broadcast found; Prius-style diagnostic IDs (0x03B/0x3CB/0x529) are absent on this platform; would require solicited UDS requests to the battery ECU
-- **Steering-wheel MODE button** (and the other steering audio switches) — an analog resistive ladder wired to the head-unit connector's SW pins, read by the Simplesoft CAN box as an analog key input; it never transits CAN. See [`../sw-capture-fw/`](../sw-capture-fw/) for reading it via ADC instead
 
 ## Architecture note
 

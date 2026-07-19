@@ -11,13 +11,13 @@ documentation.
 
 The repository is divided into three main folders:
 
-1. **Reverse-engineering** (`re/`) — a CAN bus sniffer, a steering-wheel
-   switch sniffer, and all the documentation, Python tooling and findings
-   used to decode the bus signal by signal.
+1. **Reverse-engineering** (`re/`) — a CAN bus sniffer and all the
+   documentation, Python tooling and findings used to decode the bus
+   signal by signal.
 2. **CAN Database (DBC)** (`dbc/`) — the CAN Database with all the decoded
    signals and their translation formulas.
 3. **3D Models** (`3d/`) — Fusion360 Project File and 3MF print files to 3d print the enclosure
-3. **The dashboard** (`firmware/`) — an LVGL-based instrument cluster
+4. **The dashboard** (`firmware/`) — an LVGL-based instrument cluster
    firmware that decodes the resulting DBC live and drives a physical
    display strip mounted in the car.
 
@@ -30,8 +30,11 @@ The repository is divided into three main folders:
 
 ## Screens
 
-The cluster cycles through three screens with the board's physical **BOOT
-button** (touch was tried and dropped — laggy on real hardware):
+The cluster cycles through three screens either with the board's physical
+**BOOT button**, or by **tapping anywhere on the panel** (presence-only
+touch, no coordinates/gestures — an earlier swipe-based `lv_tileview`
+navigation was dropped for being laggy on real hardware, but a discrete tap
+doesn't have that problem):
 
 | Screen | Shows |
 |---|---|
@@ -61,8 +64,6 @@ button** (touch was tried and dropped — laggy on real hardware):
 │   └── sim/                 #   SDL2 desktop simulator, no board required
 └── re/                      # Reverse-engineering workspace
     ├── obd-capture-fw/      #   ESP32-S3 passive CAN sniffer + SD logger
-    ├── sw-capture-fw/       #   ESP32-C3 ADC logger for the steering-wheel
-    │                        #   switch ladder (MODE button is analog, not CAN)
     ├── docs/                #   Signal reverse-engineering notes and findings
     ├── tools/               #   Python scripts used to reverse-engineer the bus
     └── data/logs/           #   Sample real-drive CAN captures (candump format)
@@ -127,10 +128,6 @@ safety steps in [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md).
    and a quick-reference table in [`re/docs/decoded_signals_summary.md`](re/docs/decoded_signals_summary.md).
 4. `firmware/src/can_decoder.cpp` decodes the same signals live on
    the dashboard.
-
-The steering-wheel MODE button turned out not to be on the CAN bus at all;
-[`re/sw-capture-fw/`](re/sw-capture-fw/) reads its analog resistive ladder
-directly instead.
 
 Speed, RPM, gear, pedals, EV-drive, HV battery SOC, and the CHG/ECO/PWR
 gauge are all confirmed on two independent real-drive logs. HV battery

@@ -4,20 +4,19 @@
 #include "efficiency_ui.h"
 #include "colors.h"
 #include "screen_nav.h"
+#include "touch_nav.h"
 #include "hybrid_stats.h"
 #include "accel_timer.h"
 
 #include <lvgl.h>
 
-// The BOOT button cycles between plain, always-built full-screen containers
-// with an instant lv_obj_add/clear_flag(LV_OBJ_FLAG_HIDDEN) toggle (no
-// scroll animation -- touch/swipe was dropped for being laggy on real
-// hardware). Screens, in cycle order: cockpit -> energy flow -> efficiency
-// -> cockpit. (The steering-wheel MODE button briefly drove this too, via
-// CAN 0x4AC -- retracted, that signal is a free-running oscillator and the
-// button isn't on the CAN bus at all; see docs/signal_findings.md Addendum
-// 5. Its real wiring is most likely the analog steering-switch ladder on
-// the radio connector, which would need an ADC input, not CAN.)
+// The BOOT button and a tap anywhere on the panel (TouchNav -- presence-only,
+// no coordinates/gestures) both cycle between plain, always-built full-screen
+// containers with an instant lv_obj_add/clear_flag(LV_OBJ_FLAG_HIDDEN) toggle
+// (no scroll animation -- an earlier lv_tileview swipe was dropped for being
+// laggy on real hardware; a discrete tap-anywhere doesn't have that problem,
+// it's a single full-refresh flush same as a BOOT press already causes).
+// Screens, in cycle order: cockpit -> energy flow -> efficiency -> cockpit.
 namespace AppUi {
 
 namespace {
@@ -65,7 +64,13 @@ void build() {
 }
 
 void update(const VehicleState &state) {
-    if (ScreenNav::pressed()) {
+    // Both must run unconditionally (not short-circuited) -- each is its own
+    // debouncer sampling live hardware state, and skipping a poll on one
+    // input just because the other already fired would let its raw-state
+    // timing drift.
+    bool bootPressed = ScreenNav::pressed();
+    bool tapped = TouchNav::pressed();
+    if (bootPressed || tapped) {
         g_active = (g_active + 1) % ScreenCount;
         showOnly(g_active);
     }

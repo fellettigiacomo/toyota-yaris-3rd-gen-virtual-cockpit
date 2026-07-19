@@ -5,7 +5,9 @@ the same real-drive-log replay the `pio run -e demo` firmware build uses
 (`can_decoder.cpp` + `demo_log_data.cpp`, unmodified) -- no ESP32 board, no
 flashing. It does **not** exercise `display_driver.cpp` or anything
 ESP-IDF/hardware-specific; that stays firmware-only. The BOOT-button screen
-switch (`screen_nav.cpp`) is simulated via the spacebar.
+switch (`screen_nav.cpp`) is simulated via the spacebar, and the panel's
+tap-anywhere touch switch (`touch_nav.cpp`) via a left click anywhere in
+the window.
 
 ## Build
 
@@ -29,8 +31,9 @@ cmake -B build -DCMAKE_PREFIX_PATH=$(brew --prefix)
 
 ## Use
 
-- Press SPACE to switch between the cockpit and energy-flow screens, same
-  as pressing the board's BOOT button (GPIO0) on real hardware.
+- Press SPACE, or click anywhere in the window, to cycle screens -- the
+  spacebar stands in for the board's BOOT button (GPIO0), the click for a
+  tap on the touch panel, both drive the same cycle on real hardware.
 - The drive log loops automatically (~5.7 minutes/lap) and includes real
   EV/regen/charge/cruise/kick-down transitions, so the energy-flow arrows
   should visibly change direction and color as it plays.

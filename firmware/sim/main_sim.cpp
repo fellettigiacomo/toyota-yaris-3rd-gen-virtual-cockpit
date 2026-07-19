@@ -7,6 +7,7 @@
 #include "can_decoder.h"
 #include "app_config.h"
 #include "screen_nav.h"
+#include "touch_nav.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -15,6 +16,11 @@
 // Arduino.h shim's simulated GPIO for screen_nav.cpp's BOOT-button read;
 // set from the spacebar below.
 extern bool g_simButtonHeld;
+
+// Wire.h shim's simulated touch-controller response for touch_nav.cpp; set
+// from the left mouse button below -- a click anywhere in the window stands
+// in for a tap anywhere on the panel (TouchNav never looks at coordinates).
+extern bool g_simTouchHeld;
 
 namespace {
 constexpr int kLogicalW = 640; // matches the real panel's logical (post-rotation) resolution
@@ -50,11 +56,12 @@ int main(int, char **) {
     SdlDispPort::init(renderer, kLogicalW, kLogicalH);
 
     ScreenNav::begin();
+    TouchNav::begin();
     CanDecoder::begin();
     AppUi::build();
 
-    std::printf("Yaris virtual cockpit simulator -- press SPACE to switch between the cockpit and "
-                "energy-flow screens, close the window to quit.\n");
+    std::printf("Yaris virtual cockpit simulator -- press SPACE or click anywhere in the window to "
+                "cycle screens, close the window to quit.\n");
 
     uint32_t lastTickMs = SDL_GetTicks();
     uint32_t lastSyncMs = 0;
@@ -69,6 +76,10 @@ int main(int, char **) {
                 g_simButtonHeld = true;
             } else if (e.type == SDL_KEYUP && e.key.keysym.sym == SDLK_SPACE) {
                 g_simButtonHeld = false;
+            } else if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+                g_simTouchHeld = true;
+            } else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+                g_simTouchHeld = false;
             }
         }
 
