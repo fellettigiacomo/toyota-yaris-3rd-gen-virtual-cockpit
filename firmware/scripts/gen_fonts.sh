@@ -10,10 +10,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Step 1: only the Regular weight of DIN Next LT Pro was available (see the
-# plan doc's Fonts section). Synthesize a Bold weight via FontForge outline
-# emboldening before handing off to lv_font_conv, rather than shipping
-# Regular-weight glyphs for a design that calls for bold throughout.
+# Step 1: only the Regular weight of DIN Next LT Pro was available. Synthesize
+# a Bold weight via FontForge outline emboldening before handing off to
+# lv_font_conv, rather than shipping Regular-weight glyphs for a design that
+# calls for bold throughout.
 /usr/bin/python3.12 scripts/synth_bold.py
 
 BOLD=fonts_src/DIN_Next_LT_Pro_Bold_Synthetic.otf

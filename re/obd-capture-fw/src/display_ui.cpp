@@ -134,7 +134,7 @@ void drawIdTable() {
     g_gfx->setTextSize(1);
     g_gfx->setTextColor(COLOR_DIM);
     g_gfx->setCursor(2, STATS_BAR_H + 1);
-    g_gfx->printf("ID visti: %d   pagina %d/%d", static_cast<int>(total),
+    g_gfx->printf("IDs seen: %d   page %d/%d", static_cast<int>(total),
                    static_cast<int>(g_currentPage + 1), static_cast<int>(pageCount));
 
     size_t startIdx = g_currentPage * ENTRIES_PER_PAGE;

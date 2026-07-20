@@ -4,8 +4,8 @@
 //   lvglTask  (display_driver.cpp) - LVGL rendering, core 0
 //
 // Build with `pio run -e demo` (DEMO_FAKE_DATA) to sweep the UI through
-// fake values with no TWAI/vehicle connection at all -- see the plan doc's
-// bring-up order. Normal builds (`pio run`) use live CAN.
+// fake values with no TWAI/vehicle connection at all. Normal builds
+// (`pio run`) use live CAN.
 
 #include <Arduino.h>
 #include "app_config.h"

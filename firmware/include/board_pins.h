@@ -64,5 +64,5 @@ constexpr int PIN_SD_D0  = 40;
 constexpr int PIN_TWAI_TX = 1; // ESP32 GPIO1 -> SN65HVD230 "TX" (D input)
 constexpr int PIN_TWAI_RX = 2; // ESP32 GPIO2 <- SN65HVD230 "RX" (R output)
 
-// --- Physical BOOT button, used here as the capture stop/session control input ---
+// --- Physical BOOT button, used here to cycle screens (see screen_nav.h) ---
 constexpr int PIN_BOOT_BUTTON = 0; // active LOW

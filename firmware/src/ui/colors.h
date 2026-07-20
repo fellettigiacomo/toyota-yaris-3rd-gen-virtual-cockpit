@@ -17,7 +17,6 @@ const lv_color_t kBarTrack    = LV_COLOR_MAKE(0x1a, 0x1b, 0x1d); // approximates
 const lv_color_t kTickDim     = LV_COLOR_MAKE(0x4d, 0x4f, 0x52); // approximates rgba(255,255,255,.3)
 const lv_color_t kMutedText   = LV_COLOR_MAKE(0x8f, 0x9c, 0xa3); // approximates rgba(255,255,255,.5)
 
-// Added for the energy-flow tile.
 const lv_color_t kEngineRed = LV_COLOR_MAKE(0xe0, 0x3a, 0x2f); // ICE-driven segments/icon
 const lv_color_t kFlowOff   = LV_COLOR_MAKE(0x2a, 0x2c, 0x30); // inactive flow-arrow outline
 

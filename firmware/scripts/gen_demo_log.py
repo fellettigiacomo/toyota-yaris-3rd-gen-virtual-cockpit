@@ -23,10 +23,10 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "tools"))
+sys.path.insert(0, str(REPO_ROOT / "re" / "tools"))
 from parse_log import parse  # noqa: E402
 
-DEFAULT_LOG = REPO_ROOT / "data" / "logs" / "session_0047.log"
+DEFAULT_LOG = REPO_ROOT / "re" / "data" / "logs" / "session_0047.log"
 OUTPUT = Path(__file__).resolve().parents[1] / "src" / "demo_log_data.cpp"
 
 # Must match the IDs can_decoder.cpp's decodeIntoState() switches on.

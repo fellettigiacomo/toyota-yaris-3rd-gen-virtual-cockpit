@@ -94,8 +94,7 @@ struct FlowState {
 };
 
 // The qualitative "brain": maps VehicleState onto the 4 segment directions.
-// Unchanged from the previous design pass; see docs/signal_findings.md and the
-// plan for the 10 physical cases each branch covers.
+// See docs/signal_findings.md for the underlying signal semantics.
 FlowState deriveFlow(const VehicleState &state) {
     if (g_stoppedLatched) {
         if (state.speed_kph > kStopExitKph) g_stoppedLatched = false;
@@ -232,9 +231,7 @@ void fillPoly(IconCanvas &ic, const Pt *p, int n, lv_color_t c) {
 }
 
 // The classic check-engine (MIL) silhouette, from clean blocks + a rounded
-// right "bell housing". Shared by the ENGINE icon and the MOTOR icon (the
-// latter is the same block minus the fins, with a lightning bolt punched
-// through it (per the requested "same as thermal, no fins, with a bolt").
+// right "bell housing". Shared by the ENGINE icon and the MOTOR icon below.
 void drawEngineBlock(IconCanvas &ic, lv_color_t c) {
     fillRect(ic, 4, 20, 37, 38, c);  // lower body
     fillRect(ic, 9, 12, 31, 20, c);  // valve cover
