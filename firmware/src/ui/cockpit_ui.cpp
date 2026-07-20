@@ -19,12 +19,10 @@ constexpr int16_t kScreenH = 172;
 // it are treated as one vertically-centered block, but the "center" is
 // anchored between the CHG/PWR bar's bottom edge (y=16) and the screen's
 // bottom edge (y=172), not the screen's raw midpoint -- speed dy=-11,
-// RPM/EV dy=+58, a ~17px gap between them (slightly tightened from an
-// earlier ~22-23px per owner feedback), with the margin above speed still
-// close to the margin below the RPM/EV row (~16-17px each). Gear/units
-// keep their own original target_y=90 anchor (dy=+4) independent of this
-// block, per the owner's explicit "leave gear/units where they are"
-// feedback.
+// RPM/EV dy=+58, a ~17px gap between them, with the margin above speed
+// still close to the margin below the RPM/EV row (~16-17px each). Gear and
+// units keep their own fixed target_y=90 anchor (dy=+4), intentionally
+// independent of this block.
 
 // CHG/PWR bar: x=70..570 (500px), y=0, h=16, 3px black divider at the center.
 constexpr int16_t kBarY = 0;
@@ -39,16 +37,14 @@ constexpr int16_t kDividerX = kBarX0 + kChgW;                       // 318
 // Left column.
 constexpr int16_t kLeftX = 18;
 
-// Left slot: HV battery gauge (moved here from the right per owner
-// feedback). Equal top/bottom margin (16px, matching the CHG/PWR bar's own
-// height as a clean visual reference). The tick gauge is flush to the
-// column's own outer/left edge; the icon/nub/numeric readout sit on the
-// inner side, toward screen center.
+// Left slot: HV battery gauge. Equal top/bottom margin (16px, matching the
+// CHG/PWR bar's own height as a clean visual reference). The tick gauge is
+// flush to the column's own outer/left edge; the icon/nub/numeric readout
+// sit on the inner side, toward screen center.
 constexpr int16_t kBattTickW = 14;
 constexpr int16_t kBattTickX = kLeftX; // 18, flush to the column's outer/left edge
-// icon/value moved close to the bar: the gap from the bar's right edge to
-// the text's left edge now equals the screen's own left margin (kLeftX),
-// per owner feedback -- was a much wider ~34px gap before.
+// Gap from the bar's right edge to the text's left edge equals the screen's
+// own left margin (kLeftX), for a consistent visual rhythm.
 constexpr int16_t kBattInnerX = kBattTickX + kBattTickW + kLeftX; // 50; nub/value sit 2px further left (toward the ticks)
 constexpr int16_t kBattMargin = 16;
 constexpr int16_t kBattTickY = kBattMargin;                        // 16
@@ -105,9 +101,7 @@ void createBatteryGauge(lv_obj_t *parent) {
     // the bar's own bottom edge (kSideValueY/kSideIconY). The tick gauge is
     // flush to the column's outer/left edge (kBattTickX=kLeftX); icon/nub/
     // value sit on the inner side (kBattInnerX), toward screen center, with
-    // the nub pointing back toward the ticks (mirrors the original
-    // right-column layout, where the nub pointed toward the ticks on that
-    // side's outer/right edge).
+    // the nub pointing back toward the ticks.
     lv_obj_t *icon = lv_obj_create(parent);
     lv_obj_remove_style_all(icon);
     lv_obj_set_size(icon, 16, 12);
@@ -182,9 +176,9 @@ void createCenterGroup(lv_obj_t *parent) {
     lv_label_set_text(g_speedLabel, "0");
     lv_obj_align(g_speedLabel, LV_ALIGN_CENTER, 0, -11);
 
-    // Gear keeps its original position (target y=90 => dy=4) independent of
-    // the speed/RPM re-centering above -- only the font got bigger, per the
-    // owner's explicit "leave it in the same position" request.
+    // Gear keeps its fixed position (target y=90 => dy=4), independent of
+    // the speed/RPM re-centering above -- only the font is larger than the
+    // original.
     g_gearLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_gearLabel, &dinnext_40_gear, 0);
     lv_obj_set_style_text_color(g_gearLabel, Colors::kAccentCyan, 0);
@@ -196,10 +190,9 @@ void createCenterGroup(lv_obj_t *parent) {
     // AccelTimer has a result to show. Two stacked labels, same centering
     // trick the RPM/EV row already uses one anchor over. Both lines use the
     // same 40px size as the gear letter itself (dinnext_40_gear's
-    // line_height is 28px) -- the original 20px/15px pair was unreadable at
-    // a glance, per owner feedback. Centered on the gear letter's own
-    // anchor (dy=4): seconds on top (dy=-14), threshold caption below
-    // (dy=22), 36px apart so the two 28px-tall lines don't touch.
+    // line_height is 28px) for readability at a glance. Centered on the gear
+    // letter's own anchor (dy=4): seconds on top (dy=-14), threshold caption
+    // below (dy=22), 36px apart so the two 28px-tall lines don't touch.
     g_accelTimeLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_accelTimeLabel, &dinnext_40_accel_time, 0);
     lv_obj_set_style_text_color(g_accelTimeLabel, Colors::kAccentCyan, 0);
@@ -214,7 +207,6 @@ void createCenterGroup(lv_obj_t *parent) {
     lv_obj_align(g_accelThresholdLabel, LV_ALIGN_CENTER, -158, 22);
     lv_obj_add_flag(g_accelThresholdLabel, LV_OBJ_FLAG_HIDDEN);
 
-    // Units label: unchanged, per the owner's "leave km/h as is" request.
     g_unitsLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_unitsLabel, &dinnext_30_units, 0);
     lv_obj_set_style_text_color(g_unitsLabel, Colors::kAccentCyan, 0);
@@ -266,13 +258,13 @@ void build(lv_obj_t *parent) {
 void update(const VehicleState &state) {
     // CHG/PWR bar: hsi_power is -100..+155, negative=CHG, positive=PWR.
     // CHG is shown 1:1 (floor confirmed at exactly -100). PWR is halved for
-    // display: per the owner's on-car observation, the ECO/PWR boundary
-    // (raw~100, previously shown as 100% PWR) is actually the midpoint of
-    // the real gauge's PWR sweep, not its top -- so raw~100 now reads ~50%
-    // and true full PWR would read 100% at raw~200. PROVISIONAL: the
-    // confirmed CHG floor at raw=156 caps this single byte's positive range
-    // at 155, so 100% PWR isn't actually reachable with the current signal
-    // until a hard-PWR capture confirms the true raw ceiling.
+    // display: on-car observation showed the ECO/PWR boundary (raw~100) is
+    // actually the midpoint of the real gauge's PWR sweep, not its top -- so
+    // raw~100 reads ~50% and true full PWR would read 100% at raw~200.
+    // PROVISIONAL: the confirmed CHG floor at raw=156 caps this single
+    // byte's positive range at 155, so 100% PWR isn't actually reachable
+    // with the current signal until a hard-PWR capture confirms the true
+    // raw ceiling.
     float chgPct = state.hsi_power < 0 ? static_cast<float>(-state.hsi_power) : 0.0f;
     float pwrPct = state.hsi_power > 0 ? static_cast<float>(state.hsi_power) * 0.5f : 0.0f;
     BarGauge::setFillPct(&g_chg, chgPct);

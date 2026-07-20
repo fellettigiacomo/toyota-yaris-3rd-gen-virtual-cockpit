@@ -2,13 +2,13 @@
 """Generate a synthetic Bold weight from the user-provided DIN Next LT Pro
 Regular OTF, since only the Regular weight file was available.
 
-Only the Regular weight was supplied for this project (see the plan doc's
-Fonts section) -- the cluster design calls for bold weight throughout, so
-this script emboldens outlines via FontForge's changeWeight() (the same
-technique font editors use for synthetic bold) rather than faking it at the
-LVGL bitmap level. If the real DIN Next LT Pro Bold weight file becomes
-available later, prefer that over this synthetic version -- just point
-gen_fonts.sh at it instead and drop this step.
+Only the Regular weight was supplied for this project -- the cluster design
+calls for bold weight throughout, so this script emboldens outlines via
+FontForge's changeWeight() (the same technique font editors use for
+synthetic bold) rather than faking it at the LVGL bitmap level. If the real
+DIN Next LT Pro Bold weight file becomes available later, prefer that over
+this synthetic version -- just point gen_fonts.sh at it instead and drop
+this step.
 
 Run with the system FontForge-linked interpreter (its python module is only
 built for a specific cpython ABI, not whichever `python3` happens to be
@@ -30,7 +30,7 @@ OUTPUT = "fonts_src/DIN_Next_LT_Pro_Bold_Synthetic.otf"
 # ~18 units per side (~4-5% per side on typical glyph widths), which reads as
 # a clear Regular->Bold jump without going as heavy as a "Black" weight. This
 # is a judgment call, not a measured match to a real DIN Next LT Pro Bold --
-# revisit by eye once rendered on real hardware (see plan doc).
+# revisit by eye once rendered on real hardware.
 STROKE_WIDTH = 36
 
 # Only the glyphs this UI actually uses -- emboldening FontForge's full ~66k
