@@ -19,7 +19,11 @@
 // used internally for the RTC/IMU I2C bus -- also electrically incompatible
 // with the CAN transceiver's digital TX/RX signaling anyway).
 
-// --- AXS15231B display, QSPI (SPI2_HOST via Arduino_ESP32QSPI) ---
+// --- AXS15231B display, QSPI ---
+// Driven via ESP-IDF's esp_lcd component directly (SPI3_HOST, see
+// src/display_ui.cpp), not Arduino_GFX's hardware panel driver -- see that
+// file's header comment for why. LCD_ROTATION below is unused here, this
+// project always rotates the frame in software instead.
 constexpr int PIN_LCD_QSPI_CS   = 9;
 constexpr int PIN_LCD_QSPI_SCK  = 10;
 constexpr int PIN_LCD_QSPI_D0   = 11;
@@ -31,7 +35,7 @@ constexpr int PIN_LCD_BACKLIGHT = 8;
 
 constexpr int LCD_PANEL_NATIVE_WIDTH  = 172; // physical panel width (portrait)
 constexpr int LCD_PANEL_NATIVE_HEIGHT = 640; // physical panel height (portrait)
-constexpr int LCD_ROTATION = 1;              // rotate to landscape 640x172 for the UI
+constexpr int LCD_ROTATION = 1;              // unused, see comment above
 
 // --- Shared sensor I2C bus (PCF85063 RTC + QMI8658 IMU) ---
 // Note: this is a *different* I2C bus from the capacitive touch controller

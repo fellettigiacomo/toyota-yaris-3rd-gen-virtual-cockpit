@@ -74,17 +74,27 @@ pio device monitor   # serial console (115200 baud)
 
 The project uses the [pioarduino](https://github.com/pioarduino/platform-espressif32)
 community platform instead of the official PlatformIO `espressif32` platform,
-because it ships arduino-esp32 3.x, which [GFX Library for
-Arduino](https://github.com/moononournation/Arduino_GFX)'s ESP32 QSPI bus
-driver requires (`esp32-hal-periman.h`, part of the peripheral manager
-introduced in arduino-esp32 3.x). The official registry platform was still
-pinned to an older arduino-esp32 2.0.x core at the time this was written.
+because it ships arduino-esp32 3.x (IDF5-based), needed for the QSPI
+`quad_mode` support in `esp_lcd_panel_io_spi_config_t` that the display
+driver uses (see `src/WAVESHARE_VENDORED.md`). The official registry
+platform was still pinned to an older arduino-esp32 2.0.x core at the time
+this was written.
+
+The display is driven via ESP-IDF's `esp_lcd` component and Waveshare's own
+panel driver (ported verbatim into `src/axs15231b/`, `src/touch/` -- see
+`src/WAVESHARE_VENDORED.md`), the same fix `../../firmware/` uses for the
+same panel -- not `GFX Library for Arduino`'s own AXS15231B panel driver,
+which produces flicker/split-screen/black-line corruption on this panel over
+QSPI (see `src/display_ui.cpp`'s header comment). `GFX Library for Arduino`
+is still a dependency, but only for its headless `Arduino_Canvas`
+(RAM-only framebuffer + bitmap-font text rendering).
 
 This firmware has **not yet been compiled/tested on real hardware** -- it was
 written against Waveshare's official example code and the documented APIs of
-`driver/twai.h` (ESP-IDF), `GFX Library for Arduino`, and `SensorLib`
-(`lewisxhe/SensorsLib`, the same RTC library Waveshare's own demos use), but
-please build it yourself and watch the serial monitor closely on first boot.
+`driver/twai.h`/`esp_lcd` (ESP-IDF), `GFX Library for Arduino`, and
+`SensorLib` (`lewisxhe/SensorsLib`, the same RTC library Waveshare's own
+demos use), but please build it yourself and watch the serial monitor
+closely on first boot.
 
 ## Setting the clock
 
@@ -199,6 +209,8 @@ to feed straight into SavvyCAN/python-can/cantools without pre-processing.
   disconnecting power.
 - Bus load % is an approximation (fixed ~47 bits of framing overhead per
   frame, ignoring CAN bit-stuffing).
-- This firmware has not been compiled yet (see "Building" above) -- expect to
-  need to iterate on the exact `Arduino_AXS15231B` constructor parameters
-  (rotation/offset) to get the display oriented correctly on first boot.
+- This firmware has not been compiled yet (see "Building" above). The display
+  driver was ported from `../../firmware/`'s already-hardware-verified
+  `esp_lcd`-based approach (see `src/display_ui.cpp`'s header comment), but
+  that specific port has not itself been tested on this project's hardware --
+  watch the panel closely on first boot.
