@@ -20,7 +20,7 @@ public:
     void setClock(uint32_t) {}
     void beginTransmission(uint8_t) {}
     size_t write(const uint8_t *, size_t len) { return len; }
-    uint8_t endTransmission() { return 0; }
+    uint8_t endTransmission(bool = true) { return 0; }
 
     int requestFrom(int, int len) {
         m_readIdx = 0;
