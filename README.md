@@ -4,7 +4,7 @@
 ![UI](https://img.shields.io/badge/UI-LVGL%208.3-00e5ff)
 ![Status](https://img.shields.io/badge/status-hardware%20bring--up-e03a2f)
 
-![Virtual Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/hero.png?raw=true)
+![Virtual Cockpit](https://raw.githubusercontent.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/main/firmware/sim/screenshot/screenshots/hero.png?v=2)
 
 A from-scratch digital instrument cluster for a 2014 Toyota Yaris Hybrid
 (3rd gen / XP130, THS-II NoDSU), driven entirely by the car's own
