@@ -4,6 +4,8 @@
 ![UI](https://img.shields.io/badge/UI-LVGL%208.3-00e5ff)
 ![Status](https://img.shields.io/badge/status-hardware%20bring--up-e03a2f)
 
+![Virtual Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/hero.png?raw=true)
+
 A from-scratch digital instrument cluster for a 2014 Toyota Yaris Hybrid
 (3rd gen / XP130, THS-II NoDSU), driven entirely by the car's own
 **reverse-engineered CAN bus** — no dealer tools, no published DBC, no OEM
@@ -34,13 +36,28 @@ The cluster cycles through three screens either with the board's physical
 **BOOT button**, or by **tapping anywhere on the panel** (presence-only
 touch, no coordinates/gestures — an earlier swipe-based `lv_tileview`
 navigation was dropped for being laggy on real hardware, but a discrete tap
-doesn't have that problem):
+doesn't have that problem).
 
-| Screen | Shows |
-|---|---|
-| **Cockpit** | Speed, gear (or 0–50 / 0–100 accel timer), RPM/EV state, CHG/PWR power-flow bar, HV battery gauge |
-| **Energy Flow** | Animated ENGINE / MOTOR / BATTERY / WHEELS diagram, Prius-style flow arrows |
-| **Efficiency** | Session stats: EV vs. engine share, distance, regen %, avg/max speed |
+The screens below are rendered straight from the real LVGL UI with mock
+vehicle data (see [`firmware/sim/screenshot/`](firmware/sim/screenshot/)):
+
+### 🏁 Cockpit
+
+Speed, gear (or 0–50 / 0–100 accel timer), RPM/EV state, CHG/PWR power-flow bar, HV battery gauge.
+
+![Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
+
+### ⚡ Energy Flow
+
+Animated ENGINE / MOTOR / BATTERY / WHEELS diagram, Prius-style flow arrows.
+
+![Energy Flow](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/02_energy_flow.png?raw=true)
+
+### 📊 Efficiency
+
+Session stats: EV vs. engine share, distance, regen %, avg/max speed.
+
+![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
 
 ## Hardware
 
