@@ -1,0 +1,68 @@
+name: Build firmware
+
+# Build the real (non-demo) ESP32-S3 firmware on every commit and publish the
+# resulting .bin files as a downloadable artifact.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    env:
+      PIO_ENV: waveshare-esp32s3-lcd349 # the default (real-CAN) env, not the demo one
+      BUILD_DIR: firmware/.pio/build/waveshare-esp32s3-lcd349
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Cache PlatformIO's downloaded platform/toolchain/frameworks and pip so
+      # subsequent builds don't re-fetch the (large) ESP32-S3 toolchain.
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: pio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+          restore-keys: pio-${{ runner.os }}-
+
+      - name: Install PlatformIO
+        run: pip install --upgrade platformio esptool
+
+      - name: Build firmware (${{ env.PIO_ENV }})
+        run: pio run -e "$PIO_ENV"
+
+      # Standard esp32-arduino flash layout: a single image you can flash to
+      # offset 0x0 with esptool/Web Flasher, plus the individual parts.
+      - name: Merge into a single flashable image
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}
+        run: |
+          BOOT_APP0="$(find ~/.platformio/packages -name boot_app0.bin | head -n1)"
+          python -m esptool --chip esp32s3 merge_bin \
+            -o "$BUILD_DIR/merged-flash.bin" \
+            --flash_mode qio --flash_freq 80m --flash_size 16MB \
+            0x0     "$BUILD_DIR/bootloader.bin" \
+            0x8000  "$BUILD_DIR/partitions.bin" \
+            0xe000  "$BOOT_APP0" \
+            0x10000 "$BUILD_DIR/firmware.bin"
+
+      - name: Upload firmware artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            firmware/.pio/build/waveshare-esp32s3-lcd349/firmware.bin
+            firmware/.pio/build/waveshare-esp32s3-lcd349/bootloader.bin
+            firmware/.pio/build/waveshare-esp32s3-lcd349/partitions.bin
+            firmware/.pio/build/waveshare-esp32s3-lcd349/merged-flash.bin
