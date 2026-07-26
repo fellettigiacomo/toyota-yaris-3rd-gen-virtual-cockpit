@@ -36,7 +36,8 @@ jobs:
           restore-keys: pio-${{ runner.os }}-
 
       - name: Install PlatformIO
-        run: pip install --upgrade platformio esptool
+        # esptool pinned <5 so merge_bin's flag names below stay stable.
+        run: pip install --upgrade platformio "esptool<5"
 
       - name: Build firmware (${{ env.PIO_ENV }})
         run: pio run -e "$PIO_ENV"
