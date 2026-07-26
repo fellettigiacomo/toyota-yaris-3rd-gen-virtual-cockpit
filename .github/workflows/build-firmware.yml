@@ -10,6 +10,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to publish the .bin to a Release
     defaults:
       run:
         working-directory: firmware
@@ -67,3 +69,28 @@ jobs:
             firmware/.pio/build/waveshare-esp32s3-lcd349/bootloader.bin
             firmware/.pio/build/waveshare-esp32s3-lcd349/partitions.bin
             firmware/.pio/build/waveshare-esp32s3-lcd349/merged-flash.bin
+
+      # On main, publish the freshly built .bin to a rolling "latest" Release so
+      # it's downloadable straight from the repo's Releases page (not just as a
+      # workflow artifact). The tag is moved to each new main commit.
+      - name: Publish .bin to the "latest" Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$BUILD_DIR"
+          assets=(firmware.bin bootloader.bin partitions.bin)
+          [ -f merged-flash.bin ] && assets+=(merged-flash.bin)
+          notes="Automated build of commit \`${GITHUB_SHA}\`.
+
+          - Flash **merged-flash.bin** at offset \`0x0\` (esptool or the ESP Web Flasher), or
+          - flash the parts individually: bootloader \`0x0\`, partitions \`0x8000\`, firmware \`0x10000\`.
+
+          Built from the non-demo PlatformIO env \`waveshare-esp32s3-lcd349\`."
+          gh release delete firmware-latest --yes --cleanup-tag --repo "$GITHUB_REPOSITORY" || true
+          gh release create firmware-latest "${assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Latest firmware (non-demo)" \
+            --notes "$notes"
