@@ -2,8 +2,11 @@
 
 #include <Arduino.h>
 
-// A run starts the moment speed leaves standstill in Drive, and ends (or
-// aborts) at 100 km/h, at a gear change out of D, or back at standstill.
+// A run starts the moment speed leaves standstill in Drive -- and *only*
+// from standstill: the timer has to be armed by an actual stop first, so
+// picking up speed again mid-drive (or after a completed run) can't start a
+// new one. It ends (or aborts) at 100 km/h, at a gear change out of D, or
+// back at standstill.
 // Only the most recently crossed threshold's result is shown -- 50 while a
 // run is still climbing toward 100, then 100 once that's crossed too -- and
 // it's held on screen for kHoldMs after the crossing, then cockpit_ui falls
@@ -24,6 +27,7 @@ constexpr uint32_t kHoldMs = 7000;  // how long a result stays on screen
 constexpr uint32_t kMaxReasonableMs50 = 15000;
 constexpr uint32_t kMaxReasonableMs100 = 30000;
 
+bool g_armed = false; // saw standstill since the last run -- a new run may start
 bool g_running = false;
 uint32_t g_startMs = 0;
 bool g_got50 = false;
@@ -49,14 +53,19 @@ void update(const VehicleState &state) {
         // Standstill (or crawling) -- (re)arm. A run that never reached 50
         // before coming back to a stop is simply dropped, nothing to show.
         g_running = false;
+        g_armed = true;
         g_got50 = false;
         g_got100 = false;
         return;
     }
 
     if (!g_running) {
-        if (forwardGear) {
+        // Moving but not timing: only a stop can start the next run, so
+        // cruising past 50/100 km/h (or powering on already under way)
+        // stays untimed instead of latching a bogus fraction of a second.
+        if (g_armed && forwardGear) {
             g_running = true;
+            g_armed = false;
             g_startMs = nowMs;
             g_got50 = false;
             g_got100 = false;
@@ -65,7 +74,9 @@ void update(const VehicleState &state) {
     }
 
     if (!forwardGear) {
-        g_running = false; // shifted out of D mid-run -- abort, keep whatever result was already shown
+        // Shifted out of D mid-run -- abort, keep whatever result was already
+        // shown. Still disarmed: the next run has to start from a stop.
+        g_running = false;
         return;
     }
 
@@ -77,7 +88,7 @@ void update(const VehicleState &state) {
     }
     if (!g_got100 && state.speed_kph >= 100.0f) {
         g_got100 = true;
-        g_running = false; // nothing further to time
+        g_running = false; // nothing further to time (and disarmed until the next stop)
         if (nowMs - g_startMs <= kMaxReasonableMs100) {
             latch(100, nowMs); // overwrites whatever 0-50 result (if any) is currently shown
         }
