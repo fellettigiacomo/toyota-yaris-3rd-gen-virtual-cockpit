@@ -20,8 +20,9 @@ struct VehicleState {
     Gear gear = Gear::P;              // 0x127 GEAR
     bool ice_running = false;         // 0x245 ICE_RUNNING
     bool ev_drive = false;            // 0x498 EV_DRIVE
-    int16_t hsi_power = 0;             // 0x247 HSI_VALUE, -100..+155 (neg=CHG, pos=PWR);
-                                        // upper ceiling >100 unverified pending a hard-PWR capture
+    int16_t hsi_power = 0;             // 0x247 HSI_VALUE, -100..+255 (neg=CHG, pos=PWR);
+                                        // sign comes from HSI_ZONE, not from the raw byte, because
+                                        // the two sides' raw ranges overlap -- see can_decoder.cpp
     float battery_soc_pct = 0.0f;     // 0x4A7 BATTERY_SOC, already *0.5, 0-100
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED

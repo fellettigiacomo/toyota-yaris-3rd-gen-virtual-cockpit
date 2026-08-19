@@ -31,7 +31,7 @@ Validated on two independent real-drive logs (~430s and ~440s).
 | Brake pressed (bit) | `0x230` | `BRAKE_PRESSED` | single bit |
 | EV drive (bit) | `0x498` | `EV_DRIVE` | byte5 bit7, on only while moving with ICE off |
 | HV battery SOC | `0x4A7` | `BATTERY_SOC` | `byte2 * 0.5` = % (observed 54–71.5%, matches THS-II operating band) |
-| CHG/ECO/PWR indicator | `0x247` | `HSI_VALUE` / `HSI_ZONE` | signed % of gauge scale (-100..+100); firmware decodes byte[1] unsigned with the CHG floor anchored at raw≥156 to avoid an `int8_t` sign-wrap under hard PWR. Display halves the raw value on the PWR side (PWR% = raw/2, CHG unchanged) — the ECO/PWR boundary is only the midpoint of the real gauge's PWR sweep, not its top. See `signal_findings.md` for the full caveat |
+| CHG/ECO/PWR indicator | `0x247` | `HSI_VALUE` / `HSI_ZONE` | % of gauge scale; **the sign comes from `HSI_ZONE`, not from byte[1]** — zone 12 = PWR side, byte[1] unsigned (sweeps past 155 at full throttle), zone 15 = CHG side, byte[1] two's complement clamped at -100 (raw 156), zones 4/6 = zero. The two sides' raw ranges overlap, so inferring the sign from byte[1] alone flips full PWR into full CHG. Display halves the raw value on the PWR side (PWR% = raw/2, CHG unchanged) — the ECO/PWR boundary is only the midpoint of the real gauge's PWR sweep, not its top. See `signal_findings.md` |
 | Turn signals | `0x614` | `TURN_SIGNALS` | 2-bit enum (+ hazard bit) |
 | Odometer (total) | `0x611` | `ODOMETER` | 20-bit, km/miles unit flag — NOT remaining range |
 | Ambient/outside temperature | `0x442` | `AMBIENT_TEMP` | `byte0 - 40` = °C, scale confirmed against real readings; not shown on the cluster (outside air temp, not engine/coolant temp) |

@@ -95,25 +95,42 @@ across both logs). Two redundant "ICE stopped" bits were also found:
 
 **CHG/ECO/PWR indicator (Hybrid System Indicator)** — the gauge needle
 position is broadcast directly on `0x247` (42.5 Hz, companion message to
-`GAS_PEDAL`), no synthesis needed. `HSI_VALUE` (byte1, signed) is the needle
+`GAS_PEDAL`), no synthesis needed. `HSI_VALUE` (byte1) is the needle
 position in percent of scale: 0 at standstill, +30..+47 at steady cruise
 (the test that rules out this being just a copy of accelerator demand —
 cruise needs sustained power even with a near-zero acceleration signal),
-up to +86/+94 under hard acceleration, negative while coasting/braking with
-a hard clamp at exactly -100 (full CHG). `HSI_ZONE` (byte0) mirrors the sign
-(12=drive/positive, 15=charge/negative, 4=zero-in-gear, 6=P/R).
-`HSI_GEAR_FLAG` (byte2) is 50 in forward gears, 255 in P/R.
+up to +86/+94 under moderately hard acceleration, negative while
+coasting/braking with a hard clamp at exactly -100 (full CHG). `HSI_ZONE`
+(byte0) carries the sign (12=drive/positive, 15=charge/negative,
+4=zero-in-gear, 6=P/R). `HSI_GEAR_FLAG` (byte2) is 50 in forward gears,
+255 in P/R.
 
-The firmware decodes `HSI_VALUE`'s byte as unsigned rather than the
-DBC-nominal signed `int8_t`, because the confirmed CHG floor is raw≥156,
-above the 128 point where a signed read would sign-wrap; without this, a
-hard-PWR raw of 128–155 (never seen in these two calm-driving logs) would
-misread as false CHG. On the display, the PWR side is shown halved
-(`PWR% = raw/2`) because the ECO/PWR boundary (raw≈100) is only the
-midpoint of the real gauge's PWR sweep, not its top — a provisional scaling
-pending a capture that includes hard acceleration into PWR, since a single
-signed byte can't carry a raw value much past 155 without colliding with
-the CHG floor.
+**The sign lives in `HSI_ZONE`, not in `HSI_VALUE`'s byte.** The two sides
+of the gauge use different encodings of byte1 and their raw ranges overlap,
+so the byte on its own is ambiguous:
+
+| Zone | Meaning | byte1 encoding | Raw seen in logs |
+|---|---|---|---|
+| 12 | ECO/PWR (positive) | unsigned magnitude, sweeps past 155 | 0–94 |
+| 15 | CHG (negative) | two's complement, clamped at -100 | 156–255 (= -100..-1) |
+| 4 | zero in gear | always 0 | 0 |
+| 6 | P/R, gauge inactive | always 0 | 0 |
+
+The zone/value correlation is exact across both sessions (n=32779, zero
+exceptions), which is what makes it usable as the sign source. An earlier
+firmware revision instead inferred the sign from byte1 alone (raw≥156 ⇒
+negative, anchored on the confirmed CHG floor). That works for everything
+in these two calm-driving logs but breaks on the car under full throttle:
+the PWR sweep runs past 155, so a hard-PWR raw was read as a large negative
+and the bar swung to CHG. On-car testing confirmed the flip; the decoder
+now branches on `HSI_ZONE`.
+
+On the display, the PWR side is shown halved (`PWR% = raw/2`) because the
+ECO/PWR boundary (raw≈100) is only the midpoint of the real gauge's PWR
+sweep, not its top — so full PWR ≈ raw 200 reads 100%. That the raw value
+does climb past 155 under full throttle (rather than clamping at +100 like
+the CHG side does at -100) is exactly what the false-CHG flip demonstrated,
+and it is consistent with this halved scaling.
 
 ## Strong hypotheses (semantics solid, exact scale unconfirmed)
 

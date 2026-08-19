@@ -26,7 +26,12 @@ constexpr float kSocEmaAlpha = 0.3f;
 constexpr uint32_t kSocDecayStartMs = 4000;
 constexpr float kSocDecayPerSec = 0.5f;
 
-constexpr uint8_t kHsiChgFloorRaw = 156;
+// 0x247 HSI_ZONE (byte[0]) values -- the sign source for HSI_VALUE, see the
+// 0x247 case below.
+constexpr uint8_t kHsiZoneZeroInGear = 4;  // in gear, needle at rest
+constexpr uint8_t kHsiZoneInactive = 6;    // P/R, gauge inactive
+constexpr uint8_t kHsiZoneDrive = 12;      // ECO/PWR side (positive)
+constexpr uint8_t kHsiZoneCharge = 15;     // CHG side (negative)
 
 void resetSocTrendState() {
     g_socTrendEma = 0.0f;
@@ -123,17 +128,40 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
 
         case 0x247: // HYBRID_SYSTEM_INDICATOR (CHG/PWR bar)
             if (dlc >= 2) {
-                // Byte is DBC-signed (@0-, [-100|100]) but the confirmed CHG
-                // floor is exactly -100 = raw unsigned >=156; the naive
-                // int8_t sign flip at 128 would wrap a hard-PWR raw of
-                // 128-155 into deeply-negative false-CHG. Raw 101-155
-                // (0x65-0x9b) has never appeared in the two real logs
-                // (neither includes hard accelerator-into-PWR driving), so
-                // anchor the negative branch at the confirmed floor instead.
+                // HSI_VALUE (byte[1]) alone is ambiguous: the CHG side is
+                // two's complement (hard-clamped at -100 = raw 156) while
+                // the PWR side is an unsigned magnitude that sweeps well
+                // past 155 at full throttle, so the two ranges overlap in
+                // raw space. HSI_ZONE (byte[0]) is what disambiguates them,
+                // and it does so perfectly: across both capture sessions
+                // (n=32779) zone 12 carried raw 0-94 without exception and
+                // zone 15 carried raw 156-255 without exception, with zones
+                // 4 and 6 always raw 0. Deriving the sign from raw alone
+                // (the old raw>=156 => negative rule) is what flipped a
+                // full-PWR reading into full CHG on the car.
+                uint8_t zone = d[0];
                 uint8_t raw = d[1];
-                state.hsi_power = (raw >= kHsiChgFloorRaw)
-                    ? static_cast<int16_t>(static_cast<int>(raw) - 256) // CHG: -100..-1
-                    : static_cast<int16_t>(raw);                        // PWR/ECO: 0..155
+                int16_t asSigned = static_cast<int16_t>(
+                    raw >= 128 ? static_cast<int>(raw) - 256 : static_cast<int>(raw));
+                switch (zone) {
+                    case kHsiZoneDrive: // PWR/ECO: unsigned magnitude, 0..255
+                        state.hsi_power = static_cast<int16_t>(raw);
+                        break;
+                    case kHsiZoneCharge: // CHG: two's complement, -100..-1
+                        // raw<128 here has never been observed; keep the
+                        // sign the zone asserts rather than reporting a
+                        // positive value from the charge side.
+                        state.hsi_power = raw >= 128 ? asSigned
+                                                     : static_cast<int16_t>(-static_cast<int>(raw));
+                        break;
+                    case kHsiZoneZeroInGear:
+                    case kHsiZoneInactive:
+                        state.hsi_power = 0; // needle parked; raw is always 0 here anyway
+                        break;
+                    default: // unknown zone -- fall back to the DBC-nominal signed read
+                        state.hsi_power = asSigned;
+                        break;
+                }
             }
             break;
 
