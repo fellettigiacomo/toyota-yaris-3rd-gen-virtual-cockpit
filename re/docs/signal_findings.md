@@ -54,6 +54,42 @@ part of the gear value.
 against real 0→60→0 kph and idle/rev profiles. `WHEEL_SPEEDS` (0x0AA) from
 opendbc is not present on this bus.
 
+`SPEED`'s 0.01 kph scale is cross-validated against the odometer, which is
+the one distance reference on board that regulation requires to be
+*accurate* (unlike the speedometer — see below). Taking the exact instants
+`0x611`'s `ODOMETER` ticks over a whole kilometre, the interval between the
+first and last tick in session_0044 is exactly 2 km; integrating the decoded
+`0x0B4` speed over that same interval gives 2.0001 km, i.e. **+0.01%**. The
+method's own uncertainty is ±0.82%, set by `0x611`'s 1 Hz rate (each tick's
+instant is only known to ±1 s). session_0047 never crosses two whole-km
+boundaries, so no exact interval can be isolated there.
+
+**Indicated vs. true speed** — the car's own speedometer reads *higher* than
+`SPEED`: roughly +10 km/h at an indicated 140 against a true 130 on the
+vehicle this was developed on (a single needle reading, so call it +5..+15).
+This is deliberate and regulatory, not a decode error. UNECE R39 requires
+that the indicated speed never be *lower* than the true speed and caps the
+excess at 10% + 4 km/h, so manufacturers bias the cluster upward to stay
+compliant across tyre wear, optional tyre sizes and temperature. At a true
+130 km/h the legal window is 130–147.
+
+The biased value is computed inside the instrument cluster and is **not**
+broadcast: no field on this bus carries it. Four independent speed-carrying
+fields all agree with `0x0B4` to within 0.5% across the full 0–63 km/h range
+the logs cover — `0x2A4` byte[0:2] (Δ mean 0.00 km/h), `0x610` byte[2]
+(1.0001×kph, R²=0.9996) and `0x498` byte[3] (0.9951×kph, R²=0.9957) — and
+the odometer check above anchors the scale absolutely. A GPS comparison on
+the road matches the decoded value as well.
+
+No correction is applied in firmware, on purpose: `SPEED` is the true speed,
+which is what the odometer, GPS and the other bus fields all agree on.
+Matching the cluster instead would mean modelling its bias (`indicated =
+k × true + c`), and on this car the cluster is an **analog needle** — a
+driver reads it to ±3 km/h at best, and any photo-based calibration is
+dominated by a systematic parallax error that repeating measurements cannot
+average away. Chasing a ~5% correction whose own uncertainty is a few km/h
+would add error rather than remove it.
+
 **Accelerator / ICE running** — `GAS_PEDAL` ranges 0–35% observed, tracking
 the accelerate/coast pattern of city driving. `ICE_RUNNING` agrees with
 `RPM > 50` 98–99% of the time across both logs and is cleaner (no threshold
