@@ -47,6 +47,17 @@ Speed, gear (or 0–50 / 0–100 accel timer), RPM/EV state, CHG/PWR power-flow 
 
 ![Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
 
+> **The speed here reads lower than the car's own speedometer — that is
+> expected.** This screen shows the true speed broadcast on `0x0B4`; the
+> factory cluster is deliberately biased upward, as UNECE R39 requires that
+> an indicated speed never fall below the true one (excess capped at
+> 10% + 4 km/h). On the development car the cluster reads about +10 km/h at
+> 130 true. The biased number is computed inside the cluster and is not on
+> the bus. The decoded scale is confirmed against the odometer — the one
+> on-board distance reference regulation requires to be accurate — to within
+> **0.01%**, and against GPS on the road. No correction is applied on
+> purpose; see [`re/docs/signal_findings.md`](re/docs/signal_findings.md).
+
 ### ⚡ Energy Flow
 
 Animated ENGINE / MOTOR / BATTERY / WHEELS diagram, Prius-style flow arrows.
