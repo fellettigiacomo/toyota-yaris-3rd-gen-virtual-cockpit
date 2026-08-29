@@ -19,9 +19,22 @@ find_package(SDL2 REQUIRED)
 # same widget/color config the firmware ships with -- e.g. LV_COLOR_16_SWAP=1
 # matters for correctness here, see lv_port_disp_sdl.cpp's flush_cb for why
 # the byte-swap setting specifically needs undoing for SDL.
-set(LV_CONF_PATH ${PROJECT_ROOT}/include/lv_conf.h)
-set(LV_CONF_INCLUDE_SIMPLE ON)
-set(LV_LVGL_H_INCLUDE_SIMPLE ON)
+#
+# These must be CACHE variables, not plain ones: LVGL's own
+# env_support/cmake/custom.cmake declares each of them with option(), and
+# option() under policy CMP0077 OLD (which LVGL 8.3's
+# `cmake_minimum_required(VERSION 3.12.4)` selects) *unsets* a same-named
+# plain variable before writing its cache entry. Set plainly, LV_CONF_PATH
+# would therefore be wiped to OFF inside FetchContent's add_subdirectory,
+# LVGL's own sources would fail to find include/lv_conf.h and silently fall
+# back to LV_CONF_SKIP defaults -- while this project's own sources here,
+# which reach lv_conf.h through their own include path, would still compile
+# against the real one. The two halves then disagree on LV_FONT_FMT_TXT_LARGE
+# and LV_COLOR_16_SWAP, so every glyph reports adv_w=0 and no text renders at
+# all. A cache entry pre-empts option(), which never overwrites one.
+set(LV_CONF_PATH ${PROJECT_ROOT}/include/lv_conf.h CACHE STRING "" FORCE)
+set(LV_CONF_INCLUDE_SIMPLE ON CACHE BOOL "" FORCE)
+set(LV_LVGL_H_INCLUDE_SIMPLE ON CACHE BOOL "" FORCE)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -40,7 +53,6 @@ add_executable(sim
     ${PROJECT_ROOT}/src/touch_nav.cpp
     ${PROJECT_ROOT}/src/hybrid_stats.cpp
     ${PROJECT_ROOT}/src/accel_timer.cpp
-    ${PROJECT_ROOT}/src/ui/bar_gauge.cpp
     ${PROJECT_ROOT}/src/ui/cockpit_ui.cpp
     ${PROJECT_ROOT}/src/ui/energy_flow_ui.cpp
     ${PROJECT_ROOT}/src/ui/efficiency_ui.cpp

@@ -33,7 +33,7 @@ gen dinnext_30_units     30 "KM/H"                # "KM/H" unit label
 gen dinnext_26_battery   26 "0123456789"          # HV battery SOC numeric
 gen dinnext_28_ev        28 "EV"                  # "EV" label
 gen dinnext_26_rpm       26 "RPM0123456789:°C "   # RPM label+value row (centered group); also left-slot temp/clock
-gen dinnext_14_chgpwr    14 "CHGPWR0123456789% " # "CHG"/"PWR" bar labels, now with a live percentage
+gen dinnext_14_chgpwr    14 "CHGPWR0123456789% " # "CHG"/"PWR" caption above the power gauge
 gen dinnext_13_pct       13 "%"                   # "%" suffix
 gen dinnext_24_label     24 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./% " # energy-flow labels + efficiency-screen numbers/units
 gen dinnext_28_stat      28 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./% " # efficiency-screen headline + tile values

@@ -4,7 +4,7 @@
 
 // A thick, directional "energy flow" arrow between two fixed points (or
 // three, for a 90-degree bent path), rendered as a canvas (same
-// rasterization technique as BarGauge -- no bitmap assets, LV_USE_LINE/
+// rasterization technique the energy-flow icons use -- no bitmap assets, LV_USE_LINE/
 // LV_USE_ARC stay off). When active, a bright band travels along the shaft
 // toward the head to read as motion, similar to the Prius/Toyota
 // energy-monitor style; when Off the segment renders as a dim, static

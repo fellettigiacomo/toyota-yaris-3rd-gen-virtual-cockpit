@@ -155,7 +155,7 @@
 #define LV_USE_BAR 1   /* battery HV gauge */
 #define LV_USE_BTN 0
 #define LV_USE_BTNMATRIX 0
-#define LV_USE_CANVAS 1 /* CHG/PWR trapezoid bar */
+#define LV_USE_CANVAS 1 /* energy-flow icons and arrows */
 #define LV_USE_CHECKBOX 0
 #define LV_USE_DROPDOWN 0
 #define LV_USE_IMG 1    /* battery/temperature glyphs, if rendered as bitmaps */
