@@ -45,7 +45,8 @@ vehicle data (see [`firmware/sim/screenshot/`](firmware/sim/screenshot/)):
 
 Speed, gear (or 0–50 / 0–100 accel timer), RPM/EV state, and two matching
 vertical gauges flanking it: HV battery charge on the left, instantaneous
-CHG/PWR power flow on the right (white under power, green under charge).
+CHG/PWR power flow on the right (white under power, red past three quarters
+of the bar, green under charge).
 
 ![Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
 
