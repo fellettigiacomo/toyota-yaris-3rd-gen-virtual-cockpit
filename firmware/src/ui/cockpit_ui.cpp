@@ -62,6 +62,13 @@ constexpr int16_t kPwrTextRight = kPwrTickX - kSideMargin;      // 590
 // 14px, and transparent, so the surplus width on their left costs nothing.
 constexpr int16_t kPwrTextBoxW = 64;
 
+// Past this much fill the PWR gauge goes red instead of white -- the "you are
+// flat out" cue. kPwrRedlineHyst is how far the bar has to fall back below the
+// threshold before it returns to white: without it, a pedal held right at the
+// boundary would strobe the gauge between the two colors every sync tick.
+constexpr int kPwrRedlinePct = 75;
+constexpr int kPwrRedlineHyst = 3;
+
 lv_obj_t *g_battBar = nullptr;
 lv_obj_t *g_battValueLabel = nullptr;
 lv_obj_t *g_battPctLabel = nullptr;
@@ -70,7 +77,20 @@ lv_obj_t *g_pwrBar = nullptr;
 lv_obj_t *g_pwrValueLabel = nullptr;
 lv_obj_t *g_pwrPctLabel = nullptr;
 lv_obj_t *g_pwrCaptionLabel = nullptr;
-bool g_pwrIsChg = false; // last-applied fill color side, so update() only restyles on a flip
+// What the power gauge is currently painted as. Tracked so update() only
+// restyles on an actual zone change -- a style change invalidates the object,
+// and a zone holds for many frames at a time.
+enum class PowerZone { Chg, Pwr, PwrRedline };
+PowerZone g_pwrZone = PowerZone::Pwr;
+
+lv_color_t zoneColor(PowerZone z) {
+    switch (z) {
+        case PowerZone::Chg: return Colors::kChgGreen;
+        case PowerZone::Pwr: return Colors::kPwrWhite;
+        case PowerZone::PwrRedline: return Colors::kPwrRed;
+    }
+    return Colors::kPwrWhite;
+}
 
 lv_obj_t *g_speedLabel = nullptr;
 lv_obj_t *g_gearLabel = nullptr;
@@ -209,7 +229,7 @@ void createPowerGauge(lv_obj_t *parent) {
     lv_obj_align_to(g_pwrPctLabel, g_pwrValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
 
     g_pwrBar = createTickGauge(parent, kPwrTickX, Colors::kPwrWhite);
-    g_pwrIsChg = false;
+    g_pwrZone = PowerZone::Pwr;
 }
 
 void createCenterGroup(lv_obj_t *parent) {
@@ -301,7 +321,7 @@ void update(const VehicleState &state) {
     // CHG/PWR gauge: hsi_power is -100..+255, negative=CHG, positive=PWR.
     // One vertical bar carries both, since the car is never charging and
     // powering at the same instant -- the sign picks the color (white=PWR,
-    // green=CHG) and the magnitude the fill.
+    // green=CHG, red past kPwrRedlinePct) and the magnitude the fill.
     //
     // CHG is shown 1:1 (floor confirmed at exactly -100). PWR is halved for
     // display: on-car observation showed the ECO/PWR boundary (raw~100) is
@@ -317,15 +337,31 @@ void update(const VehicleState &state) {
     if (pwrPct < 0) pwrPct = 0;
     if (pwrPct > 100) pwrPct = 100;
 
-    // Restyle only on a CHG<->PWR flip, not every frame -- a style change
-    // invalidates the object, and the sign holds for many frames at a time.
-    if (isChg != g_pwrIsChg) {
-        g_pwrIsChg = isChg;
-        lv_color_t color = isChg ? Colors::kChgGreen : Colors::kPwrWhite;
+    // Pick the zone off the fill the gauge is actually showing, so the red
+    // threshold means "three quarters up the bar" no matter how the raw
+    // signal is scaled onto it. Between the redline and its hysteresis band
+    // the previous zone stands (unless that was CHG, which the sign has just
+    // ruled out).
+    PowerZone zone;
+    if (isChg) {
+        zone = PowerZone::Chg;
+    } else if (pwrPct >= kPwrRedlinePct) {
+        zone = PowerZone::PwrRedline;
+    } else if (pwrPct <= kPwrRedlinePct - kPwrRedlineHyst || g_pwrZone == PowerZone::Chg) {
+        zone = PowerZone::Pwr;
+    } else {
+        zone = g_pwrZone;
+    }
+
+    if (zone != g_pwrZone) {
+        g_pwrZone = zone;
+        lv_color_t color = zoneColor(zone);
         lv_obj_set_style_bg_color(g_pwrBar, color, LV_PART_INDICATOR);
         lv_obj_set_style_shadow_color(g_pwrBar, color, LV_PART_INDICATOR);
         lv_obj_set_style_text_color(g_pwrCaptionLabel, color, 0);
-        lv_label_set_text(g_pwrCaptionLabel, isChg ? "CHG" : "PWR");
+        // The caption stays "PWR" on the redline -- the color carries it, and
+        // the 14px subset has no other word to spell anyway.
+        lv_label_set_text(g_pwrCaptionLabel, zone == PowerZone::Chg ? "CHG" : "PWR");
     }
     lv_bar_set_value(g_pwrBar, pwrPct, LV_ANIM_OFF);
     char pwrBuf[8];
