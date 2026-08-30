@@ -33,6 +33,36 @@ constexpr uint8_t kHsiZoneInactive = 6;    // P/R, gauge inactive
 constexpr uint8_t kHsiZoneDrive = 12;      // ECO/PWR side (positive)
 constexpr uint8_t kHsiZoneCharge = 15;     // CHG side (negative)
 
+// Highest raw ever seen on the PWR side across both capture sessions. The
+// band above it (raw 95-155) appears in exactly zero of the 34109 captured
+// 0x247 frames, because neither session contains hard accelerator-into-PWR
+// driving -- so which zone the car reports up there is genuinely unknown,
+// and guessing its sign wrong is what flips full PWR to full CHG.
+constexpr uint8_t kHsiRawMaxCaptured = 94;
+
+// Logs the first frame of each zone that lands outside the envelope the
+// captures established (zone 12: raw 0-94, zone 15: raw 156-255, zones 4/6:
+// raw 0), so one hard-acceleration drive is enough to learn the real
+// hard-PWR zone and encode it explicitly instead of leaning on the default
+// branch above. One line per zone -- 0x247 arrives far too often to log
+// unconditionally.
+uint32_t g_hsiZonesReported = 0;
+
+void reportUncapturedHsi(uint8_t zone, uint8_t raw) {
+    bool withinCapturedEnvelope =
+        (zone == kHsiZoneDrive && raw <= kHsiRawMaxCaptured) ||
+        (zone == kHsiZoneCharge && raw >= 156) ||
+        ((zone == kHsiZoneZeroInGear || zone == kHsiZoneInactive) && raw == 0);
+    if (withinCapturedEnvelope || zone >= 32) return;
+    uint32_t bit = 1u << zone;
+    if (g_hsiZonesReported & bit) return;
+    g_hsiZonesReported |= bit;
+    Serial.printf("[can_decoder] HSI zone %u carries raw %u -- outside anything in the "
+                  "capture logs; decoded as %d\n",
+                  static_cast<unsigned>(zone), static_cast<unsigned>(raw),
+                  zone == kHsiZoneCharge ? -static_cast<int>(raw) : static_cast<int>(raw));
+}
+
 void resetSocTrendState() {
     g_socTrendEma = 0.0f;
     g_lastRawSoc = -1.0f;
@@ -141,25 +171,34 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
                 // full-PWR reading into full CHG on the car.
                 uint8_t zone = d[0];
                 uint8_t raw = d[1];
-                int16_t asSigned = static_cast<int16_t>(
-                    raw >= 128 ? static_cast<int>(raw) - 256 : static_cast<int>(raw));
+                reportUncapturedHsi(zone, raw);
                 switch (zone) {
-                    case kHsiZoneDrive: // PWR/ECO: unsigned magnitude, 0..255
-                        state.hsi_power = static_cast<int16_t>(raw);
-                        break;
-                    case kHsiZoneCharge: // CHG: two's complement, -100..-1
-                        // raw<128 here has never been observed; keep the
-                        // sign the zone asserts rather than reporting a
-                        // positive value from the charge side.
-                        state.hsi_power = raw >= 128 ? asSigned
-                                                     : static_cast<int16_t>(-static_cast<int>(raw));
+                    case kHsiZoneCharge: // CHG, the one confirmed-negative zone
+                        // Two's complement, hard-clamped at -100 = raw 156.
+                        // raw<128 here has never been observed; keep the sign
+                        // the zone asserts rather than reporting a positive
+                        // value from the charge side.
+                        state.hsi_power = raw >= 128
+                            ? static_cast<int16_t>(static_cast<int>(raw) - 256)
+                            : static_cast<int16_t>(-static_cast<int>(raw));
                         break;
                     case kHsiZoneZeroInGear:
                     case kHsiZoneInactive:
                         state.hsi_power = 0; // needle parked; raw is always 0 here anyway
                         break;
-                    default: // unknown zone -- fall back to the DBC-nominal signed read
-                        state.hsi_power = asSigned;
+                    case kHsiZoneDrive: // ECO/PWR: unsigned magnitude, 0..255
+                    default:
+                        // Every zone but the charge one reads as an unsigned
+                        // magnitude, including zones never captured. The old
+                        // signed fallback here is what still flipped a hard
+                        // PWR reading to CHG: it turned any raw>=128 into a
+                        // large negative, so the gauge jumped to full CHG the
+                        // moment the bar passed 64% (raw 128 * the display's
+                        // 0.5 scale). Only zone 15 is ever negative on this
+                        // bus, so treating an unrecognized zone as positive is
+                        // both the safer default and the one consistent with
+                        // every frame in the captures.
+                        state.hsi_power = static_cast<int16_t>(raw);
                         break;
                 }
             }
