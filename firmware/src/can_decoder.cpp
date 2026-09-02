@@ -33,34 +33,56 @@ constexpr uint8_t kHsiZoneInactive = 6;    // P/R, gauge inactive
 constexpr uint8_t kHsiZoneDrive = 12;      // ECO/PWR side (positive)
 constexpr uint8_t kHsiZoneCharge = 15;     // CHG side (negative)
 
-// Highest raw ever seen on the PWR side across both capture sessions. The
-// band above it (raw 95-155) appears in exactly zero of the 34109 captured
-// 0x247 frames, because neither session contains hard accelerator-into-PWR
-// driving -- so which zone the car reports up there is genuinely unknown,
-// and guessing its sign wrong is what flips full PWR to full CHG.
-constexpr uint8_t kHsiRawMaxCaptured = 94;
+// --- HSI byte[0] survey (temporary instrumentation) ---------------------
+// Both capture sessions only ever showed byte[0] taking four values
+// (4/6/12/15, n=34109, zero exceptions), which is the model the zone-based
+// sign decode below was built on and which dbc/ and re/docs/ still state as
+// fact. The car disagrees: a single hard-acceleration drive produced zones
+// 8, 9 and 14 as well. So the four-value enum is not the whole encoding,
+// and one sample per zone is nowhere near enough to rebuild it.
+//
+// This surveys the real joint distribution instead -- per byte[0] value,
+// how many frames and what raw range -- and dumps the table only when it
+// has learned something new, so a 42.5 Hz message costs a handful of lines
+// per drive and then goes quiet. Remove this once byte[0] is understood and
+// the zones are encoded explicitly.
+struct HsiZoneStat {
+    uint16_t count;
+    uint8_t rawMin;
+    uint8_t rawMax;
+};
+HsiZoneStat g_hsiSurvey[256] = {};
+bool g_hsiSurveyDirty = false;
+uint32_t g_hsiSurveyLastDumpMs = 0;
+constexpr uint32_t kHsiSurveyPeriodMs = 10000;
 
-// Logs the first frame of each zone that lands outside the envelope the
-// captures established (zone 12: raw 0-94, zone 15: raw 156-255, zones 4/6:
-// raw 0), so one hard-acceleration drive is enough to learn the real
-// hard-PWR zone and encode it explicitly instead of leaning on the default
-// branch above. One line per zone -- 0x247 arrives far too often to log
-// unconditionally.
-uint32_t g_hsiZonesReported = 0;
+void surveyHsi(uint8_t zone, uint8_t raw) {
+    HsiZoneStat &st = g_hsiSurvey[zone];
+    if (st.count == 0) {
+        st.rawMin = raw;
+        st.rawMax = raw;
+        g_hsiSurveyDirty = true;
+    } else if (raw < st.rawMin) {
+        st.rawMin = raw;
+        g_hsiSurveyDirty = true;
+    } else if (raw > st.rawMax) {
+        st.rawMax = raw;
+        g_hsiSurveyDirty = true;
+    }
+    if (st.count < 0xFFFF) st.count++;
 
-void reportUncapturedHsi(uint8_t zone, uint8_t raw) {
-    bool withinCapturedEnvelope =
-        (zone == kHsiZoneDrive && raw <= kHsiRawMaxCaptured) ||
-        (zone == kHsiZoneCharge && raw >= 156) ||
-        ((zone == kHsiZoneZeroInGear || zone == kHsiZoneInactive) && raw == 0);
-    if (withinCapturedEnvelope || zone >= 32) return;
-    uint32_t bit = 1u << zone;
-    if (g_hsiZonesReported & bit) return;
-    g_hsiZonesReported |= bit;
-    Serial.printf("[can_decoder] HSI zone %u carries raw %u -- outside anything in the "
-                  "capture logs; decoded as %d\n",
-                  static_cast<unsigned>(zone), static_cast<unsigned>(raw),
-                  zone == kHsiZoneCharge ? -static_cast<int>(raw) : static_cast<int>(raw));
+    uint32_t now = millis();
+    if (!g_hsiSurveyDirty || now - g_hsiSurveyLastDumpMs < kHsiSurveyPeriodMs) return;
+    g_hsiSurveyLastDumpMs = now;
+    g_hsiSurveyDirty = false;
+    Serial.println("[can_decoder] HSI byte[0] survey -- zone: frames raw[min..max]");
+    for (int z = 0; z < 256; z++) {
+        if (g_hsiSurvey[z].count == 0) continue;
+        Serial.printf("[can_decoder]   zone %3d: %5u frames, raw %3u..%3u\n", z,
+                      static_cast<unsigned>(g_hsiSurvey[z].count),
+                      static_cast<unsigned>(g_hsiSurvey[z].rawMin),
+                      static_cast<unsigned>(g_hsiSurvey[z].rawMax));
+    }
 }
 
 void resetSocTrendState() {
@@ -171,7 +193,7 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
                 // full-PWR reading into full CHG on the car.
                 uint8_t zone = d[0];
                 uint8_t raw = d[1];
-                reportUncapturedHsi(zone, raw);
+                surveyHsi(zone, raw);
                 switch (zone) {
                     case kHsiZoneCharge: // CHG, the one confirmed-negative zone
                         // Two's complement, hard-clamped at -100 = raw 156.
