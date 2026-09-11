@@ -30,22 +30,20 @@ constexpr int16_t kPctGap = 5;      // between a number and its "%" suffix
 constexpr int16_t kNumberTracking = -3; // same tightening the cockpit's speed number uses
 
 // Rows. dinnext_120_speed's real line_height is 85 and montserrat_14's is
-// 16, so the caption+number band runs 10..111 and the stat rows 126..165.
-// The two bands never overlap, which matters at the extremes: when the seam
-// is near an edge the percentage pair slides inwards and ends up directly
-// above a corner stat, so the 15px between the bands is what keeps that from
-// reading as a collision.
-constexpr int16_t kCaptionY = 10;
-constexpr int16_t kNumberY = 26;
-constexpr int16_t kStatCaptionY = 126;
-constexpr int16_t kStatValueY = 144;
+// 16, so the number band runs 19..104 and the stat rows 124..163 -- the
+// numbers centred in the space above the stats now that nothing sits over
+// them. The two bands never overlap, which matters at the extremes: when the
+// seam is near an edge the percentage pair slides inwards and ends up
+// directly above a corner stat, so the 20px between the bands is what keeps
+// that from reading as a collision.
+constexpr int16_t kNumberY = 19;
+constexpr int16_t kStatCaptionY = 124;
+constexpr int16_t kStatValueY = 142;
 
 lv_obj_t *g_evFill = nullptr;
 lv_obj_t *g_seam = nullptr;
-lv_obj_t *g_evCaption = nullptr;
 lv_obj_t *g_evNumber = nullptr;
 lv_obj_t *g_evPct = nullptr;
-lv_obj_t *g_engineCaption = nullptr;
 lv_obj_t *g_engineNumber = nullptr;
 lv_obj_t *g_enginePct = nullptr;
 lv_obj_t *g_distanceValue = nullptr;
@@ -93,19 +91,13 @@ int16_t blockWidth(const char *number) {
                                 textW("%", &dinnext_28_stat));
 }
 
-// captionHugsRight: the caption sits on whichever side of its own block faces
-// the seam, so both captions stay next to the divide instead of drifting out
-// to the far edges of two wide numbers.
-void placeBlock(lv_obj_t *number, lv_obj_t *pct, lv_obj_t *caption, const char *captionTxt,
-                const char *numberTxt, int16_t left, int16_t width, bool captionHugsRight) {
+// No EV/ENGINE captions: the green fill starts at the left edge and the
+// numbers carry the same two colours, which already says which share is
+// which -- a word over each would only repeat what the colour states.
+void placeBlock(lv_obj_t *number, lv_obj_t *pct, const char *numberTxt, int16_t left) {
     lv_label_set_text(number, numberTxt);
     lv_obj_set_pos(number, left, kNumberY);
     lv_obj_align_to(pct, number, LV_ALIGN_OUT_RIGHT_BOTTOM, kPctGap, -14);
-    int16_t captionX = captionHugsRight
-                           ? static_cast<int16_t>(left + width -
-                                                  textW(captionTxt, &lv_font_montserrat_14))
-                           : left;
-    lv_obj_set_pos(caption, captionX, kCaptionY);
 }
 
 } // namespace
@@ -133,14 +125,10 @@ void build(lv_obj_t *parent) {
     lv_obj_set_style_shadow_spread(g_seam, 1, 0);
     lv_obj_set_style_shadow_opa(g_seam, LV_OPA_50, 0);
 
-    g_evCaption = makeLabel(root, "EV", &lv_font_montserrat_14, Colors::kMutedText, 0, kCaptionY,
-                            AnchorLeft);
     g_evNumber = makeLabel(root, "0", &dinnext_120_speed, Colors::kEvGreen, 0, kNumberY, AnchorLeft);
     lv_obj_set_style_text_letter_space(g_evNumber, kNumberTracking, 0);
     g_evPct = makeLabel(root, "%", &dinnext_28_stat, Colors::kMutedText, 0, kNumberY, AnchorLeft);
 
-    g_engineCaption = makeLabel(root, "ENGINE", &lv_font_montserrat_14, Colors::kMutedText, 0,
-                                kCaptionY, AnchorLeft);
     g_engineNumber = makeLabel(root, "0", &dinnext_120_speed, Colors::kText, 0, kNumberY, AnchorLeft);
     lv_obj_set_style_text_letter_space(g_engineNumber, kNumberTracking, 0);
     g_enginePct = makeLabel(root, "%", &dinnext_28_stat, Colors::kMutedText, 0, kNumberY, AnchorLeft);
@@ -202,9 +190,8 @@ void update(const VehicleState &) {
     evLeft = static_cast<int16_t>(evLeft + shift);
     engineLeft = static_cast<int16_t>(engineLeft + shift);
 
-    placeBlock(g_evNumber, g_evPct, g_evCaption, "EV", evTxt, evLeft, evW, true);
-    placeBlock(g_engineNumber, g_enginePct, g_engineCaption, "ENGINE", engineTxt, engineLeft,
-               engineW, false);
+    placeBlock(g_evNumber, g_evPct, evTxt, evLeft);
+    placeBlock(g_engineNumber, g_enginePct, engineTxt, engineLeft);
 
     char buf[16];
     snprintf(buf, sizeof(buf), "%.1f KM", static_cast<double>(s.distanceKm));
