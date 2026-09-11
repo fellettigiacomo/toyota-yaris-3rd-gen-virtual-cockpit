@@ -2,11 +2,13 @@
 #include "cockpit_ui.h"
 #include "energy_flow_ui.h"
 #include "efficiency_ui.h"
+#include "gmeter_ui.h"
 #include "colors.h"
 #include "screen_nav.h"
 #include "touch_nav.h"
 #include "hybrid_stats.h"
 #include "accel_timer.h"
+#include "g_meter.h"
 
 #include <lvgl.h>
 
@@ -16,15 +18,16 @@
 // (no scroll animation -- an earlier lv_tileview swipe was dropped for being
 // laggy on real hardware; a discrete tap-anywhere doesn't have that problem,
 // it's a single full-refresh flush same as a BOOT press already causes).
-// Screens, in cycle order: cockpit -> energy flow -> efficiency -> cockpit.
+// Screens, in cycle order: cockpit -> energy flow -> efficiency -> G-meter ->
+// cockpit.
 namespace AppUi {
 
 namespace {
 constexpr int16_t kScreenW = 640;
 constexpr int16_t kScreenH = 172;
 
-enum Screen { ScreenCockpit = 0, ScreenEnergy, ScreenEfficiency, ScreenCount };
-lv_obj_t *g_screens[ScreenCount] = {nullptr, nullptr, nullptr};
+enum Screen { ScreenCockpit = 0, ScreenEnergy, ScreenEfficiency, ScreenGMeter, ScreenCount };
+lv_obj_t *g_screens[ScreenCount] = {nullptr, nullptr, nullptr, nullptr};
 int g_active = ScreenCockpit;
 
 lv_obj_t *createScreenContainer(lv_obj_t *parent) {
@@ -58,6 +61,7 @@ void build() {
     CockpitUi::build(g_screens[ScreenCockpit]);
     EnergyFlowUi::build(g_screens[ScreenEnergy]);
     EfficiencyUi::build(g_screens[ScreenEfficiency]);
+    GMeterUi::build(g_screens[ScreenGMeter]);
 
     g_active = ScreenCockpit;
     showOnly(g_active);
@@ -80,6 +84,11 @@ void update(const VehicleState &state) {
     // efficiency screen is shown must still be caught.
     HybridStats::update(state);
     AccelTimer::update(state);
+    // Same rule, and for this one it is load-bearing twice over: the G-meter
+    // only learns the board's mounting from stationary and straight-line
+    // driving (see g_meter.cpp), which mostly happens while the driver is
+    // looking at some other screen.
+    GMeter::update(state);
 
     CockpitUi::update(state);
 
@@ -90,6 +99,8 @@ void update(const VehicleState &state) {
         EnergyFlowUi::update(state);
     } else if (g_active == ScreenEfficiency) {
         EfficiencyUi::update(state);
+    } else if (g_active == ScreenGMeter) {
+        GMeterUi::update(state);
     }
 }
 
