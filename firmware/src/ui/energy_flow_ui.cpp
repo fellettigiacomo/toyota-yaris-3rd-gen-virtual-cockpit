@@ -1,81 +1,64 @@
 #include "energy_flow_ui.h"
 #include "colors.h"
-#include "flow_arrow.h"
 #include "fonts/fonts.h"
 
 #include <Arduino.h>
-#include <algorithm>
 #include <cmath>
-#include <cstdio>
-#include <cstdlib>
 
+// Four nodes, four links, same topology the Prius-style diagram has always
+// had -- but drawn with the widgets the rest of this cluster is drawn with
+// instead of with a pixel plotter.
+//
+// What changed, and why each one mattered:
+//
+//   Nodes. They used to be 44x44 lv_canvas buffers with an engine block, a
+//   battery and a spoked wheel plotted pixel by pixel. No anti-aliasing, in a
+//   UI whose every other mark is a 4bpp DIN glyph or a clean rectangle -- and
+//   each canvas was opaque, filled with the background colour, so it punched
+//   a hole nothing could pass behind. They are now typographic: the node's
+//   name in a hairline-bordered pill, which anti-aliases because LVGL draws
+//   it, and which says what the node is without anyone having to recognise a
+//   32px drawing of an engine.
+//
+//   Links. They used to be flow_arrow.cpp canvases, re-rasterised pixel by
+//   pixel on every animation tick -- so expensive that the chevrons had to be
+//   stepped at 2Hz to stay smooth on the board, which is exactly what made
+//   them look like a 2005 MFD. A link is now a dim shaft with a bright
+//   segment riding along it: the same shaft/highlight split flow_arrow drew,
+//   except moving it is one lv_obj_set_pos, so it runs at the full UI rate
+//   and costs less than the old 2Hz redraw did.
+//
+// The colour rules and deriveFlow() below are carried over unchanged -- the
+// question of which way energy is moving was already answered correctly, and
+// this is a change of drawing, not of meaning.
 namespace EnergyFlowUi {
 
 namespace {
 
-constexpr float kPi = 3.14159265358979f;
+constexpr int16_t kScreenW = 640;
+constexpr int16_t kScreenH = 172;
 
-// --- Node layout, 640x172 screen ---
-// Top row: ENGINE (left) - MOTOR (center) - BATTERY (right), all icon-centered
-// at y=54. Bottom: WHEELS, icon-centered at (320,130). Labels sit BESIDE their
-// icons (ENGINE label left, BATTERY label right + live SOC% below it, WHEELS
-// label upper-left) rather than above/below, which frees vertical space and
-// keeps the top/bottom margins comfortable (~12px top, ~20px bottom). MOTOR is
-// the one exception -- centered node, so its label rides above it.
-constexpr int16_t kEngineCx = 155, kEngineCy = 54;
-constexpr int16_t kMotorCx = 320, kMotorCy = 54;
-constexpr int16_t kBatteryCx = 485, kBatteryCy = 54;
-constexpr int16_t kWheelsCx = 320, kWheelsCy = 130;
+// --- node geometry --------------------------------------------------------
+// The top row keeps its ENGINE - MOTOR - BATTERY order and WHEELS stays
+// centred below, so anyone used to the old screen reads this one the same
+// way. Nodes are spread wider than before because a pill is wider than a
+// 44px icon, and the gaps between them are the links.
+constexpr int16_t kRowY = 48;
+constexpr int16_t kWheelY = 134;
+constexpr int16_t kEngineCx = 108;
+constexpr int16_t kMotorCx = 320;
+constexpr int16_t kBatteryCx = 532;
+constexpr int16_t kPillH = 34;
+constexpr int16_t kPillPadX = 30; // total horizontal padding around a node's text
+constexpr int16_t kPillHalfH = kPillH / 2;
 
-// All four icons are drawn into a square canvas of this size (see the icon
-// helpers below), so a single half-extent governs every node's edge.
-constexpr int16_t kIconSize = 44;
-constexpr int16_t kIconHalf = kIconSize / 2; // 22
+// --- link geometry --------------------------------------------------------
+constexpr int16_t kActiveT = 10;   // matches the weight the old arrows had
+constexpr int16_t kIdleT = 4;      // an idle link keeps the topology, not the emphasis
+constexpr int16_t kHighlightLen = 30;
+constexpr float kFlowSpeedPxPerS = 90.0f;
 
-// Small gap between an arrow endpoint and the icon it touches, so the opaque
-// icon canvas never clips the arrow's rendered shaft.
-constexpr int16_t kEndpointGap = 3;
-constexpr int16_t kNodeReach = kIconHalf + kEndpointGap; // 25, center -> arrow endpoint
-
-constexpr int16_t kArrowThickness = 10;
-
-// Arrow endpoints, derived from the node geometry above.
-constexpr int16_t kEngineRightX = kEngineCx + kNodeReach;
-constexpr int16_t kEngineBottomY = kEngineCy + kNodeReach;
-constexpr int16_t kMotorLeftX = kMotorCx - kNodeReach;
-constexpr int16_t kMotorRightX = kMotorCx + kNodeReach;
-constexpr int16_t kMotorBottomY = kMotorCy + kNodeReach;
-constexpr int16_t kBatteryLeftX = kBatteryCx - kNodeReach;
-constexpr int16_t kWheelsTopY = kWheelsCy - kNodeReach;
-constexpr int16_t kWheelsLeftX = kWheelsCx - kNodeReach;
-// The bent ENGINE->WHEELS arrow enters the wheel's left edge at its vertical
-// centre. The WHEELS label sits to the RIGHT of the wheel, so nothing on the
-// left needs dodging.
-constexpr int16_t kEngineWheelsEnterY = kWheelsCy;
-
-// Node labels use the 24px DIN font (dinnext_24_label, full uppercase
-// alphabet); white, to match the requested design.
-constexpr int16_t kLabelLineH = 18; // dinnext_24_label line height
-
-FlowArrow::Handle g_engineMotorArrow;
-FlowArrow::Handle g_motorBatteryArrow;
-FlowArrow::Handle g_motorWheelsArrow;
-FlowArrow::Handle g_engineWheelsArrow;
-
-lv_obj_t *g_battValueLabel = nullptr;
-lv_obj_t *g_battPctLabel = nullptr;
-int g_lastBattPct = -1;
-
-uint32_t g_lastUpdateMs = 0;
-
-// Each FlowArrow::tick() re-rasterizes its canvas pixel-by-pixel; running all
-// four at the full ~30Hz update rate was laggy on real hardware, so the
-// flowing animation is redrawn much slower. Direction/colour changes
-// (setState) stay responsive every call regardless.
-constexpr float kAnimTickIntervalS = 0.5f; // ~2Hz
-float g_animAccumS = 0.0f;
-
-// --- Hysteresis for "is the vehicle stopped" (avoids flicker at standstill) ---
+// --- flow derivation (unchanged) -----------------------------------------
 constexpr float kStopEnterKph = 2.0f;
 constexpr float kStopExitKph = 4.0f;
 bool g_stoppedLatched = true;
@@ -86,15 +69,17 @@ constexpr float kPwrHsiConfident = 25.0f;
 constexpr int8_t kAccelDemandDecelThreshold = -8;
 constexpr float kSocTrendEps = 0.05f;
 
+enum class Dir : uint8_t { Off, Forward, Reverse };
+
 struct FlowState {
-    FlowArrow::Dir engineMotor = FlowArrow::Dir::Off;
-    FlowArrow::Dir motorBattery = FlowArrow::Dir::Off;
-    FlowArrow::Dir motorWheels = FlowArrow::Dir::Off;
-    FlowArrow::Dir engineWheels = FlowArrow::Dir::Off;
+    Dir engineMotor = Dir::Off;
+    Dir motorBattery = Dir::Off;
+    Dir motorWheels = Dir::Off;
+    Dir engineWheels = Dir::Off;
 };
 
-// The qualitative "brain": maps VehicleState onto the 4 segment directions.
-// See docs/signal_findings.md for the underlying signal semantics.
+// The qualitative "brain": maps VehicleState onto the 4 link directions.
+// See re/docs/signal_findings.md for the underlying signal semantics.
 FlowState deriveFlow(const VehicleState &state) {
     if (g_stoppedLatched) {
         if (state.speed_kph > kStopExitKph) g_stoppedLatched = false;
@@ -104,36 +89,37 @@ FlowState deriveFlow(const VehicleState &state) {
     bool isStopped = g_stoppedLatched;
 
     bool decelerating = state.brake_pressed || state.accel_demand < kAccelDemandDecelThreshold ||
-                         state.hsi_power <= -kDecelHsiThreshold;
+                        state.hsi_power <= -kDecelHsiThreshold;
     bool socRising = state.soc_trend_pct_per_s > kSocTrendEps;
     bool socFalling = state.soc_trend_pct_per_s < -kSocTrendEps;
-    bool powering = state.ice_running &&
-                    (state.hsi_power >= kPwrHsiConfident || (state.hsi_power >= kPwrHsiThreshold && socFalling));
+    bool powering =
+        state.ice_running &&
+        (state.hsi_power >= kPwrHsiConfident || (state.hsi_power >= kPwrHsiThreshold && socFalling));
 
     FlowState f;
 
     if (state.gear == Gear::B && decelerating && !isStopped) {
-        f.engineWheels = FlowArrow::Dir::Reverse; // WHEELS -> ENGINE (engine braking)
+        f.engineWheels = Dir::Reverse; // WHEELS -> ENGINE (engine braking)
     } else if (state.ice_running && !state.ev_drive && state.gear != Gear::R && !isStopped &&
                !decelerating) {
-        f.engineWheels = FlowArrow::Dir::Forward; // ENGINE -> WHEELS
+        f.engineWheels = Dir::Forward; // ENGINE -> WHEELS
     }
 
     if (state.ice_running && socRising && !decelerating) {
-        f.engineMotor = FlowArrow::Dir::Forward; // ENGINE -> MOTOR (charge)
+        f.engineMotor = Dir::Forward; // ENGINE -> MOTOR (charge)
     }
 
     if (decelerating && !isStopped) {
-        f.motorBattery = FlowArrow::Dir::Forward; // MOTOR -> BATTERY (regen)
-        f.motorWheels = FlowArrow::Dir::Reverse;  // WHEELS -> MOTOR (regen)
+        f.motorBattery = Dir::Forward; // MOTOR -> BATTERY (regen)
+        f.motorWheels = Dir::Reverse;  // WHEELS -> MOTOR (regen)
     } else {
-        if (f.engineMotor == FlowArrow::Dir::Forward) {
-            f.motorBattery = FlowArrow::Dir::Forward; // MOTOR -> BATTERY (engine charge)
+        if (f.engineMotor == Dir::Forward) {
+            f.motorBattery = Dir::Forward; // MOTOR -> BATTERY (engine charge)
         } else if (state.ev_drive || state.gear == Gear::R || powering) {
-            f.motorBattery = FlowArrow::Dir::Reverse; // BATTERY -> MOTOR (assist)
+            f.motorBattery = Dir::Reverse; // BATTERY -> MOTOR (assist)
         }
         if (state.ev_drive || state.gear == Gear::R || powering) {
-            f.motorWheels = FlowArrow::Dir::Forward; // MOTOR -> WHEELS
+            f.motorWheels = Dir::Forward; // MOTOR -> WHEELS
         }
     }
 
@@ -141,207 +127,217 @@ FlowState deriveFlow(const VehicleState &state) {
 }
 
 // ---------------------------------------------------------------------------
-// Icons: each is drawn once, at build time, into its own opaque lv_canvas
-// (filled with the screen background so it's invisible except where a shape is
-// painted -- same trick the flow arrows use). Drawn once, so the per-pixel
-// rasterization cost here is irrelevant (unlike the animated arrows).
+// A link is one or two axis-aligned legs walked in path order. Two legs is
+// only ever the engine's mechanical route to the wheels, which goes down the
+// left of the screen and then across. Splitting the highlight per leg is what
+// lets it round that corner without jumping: the travelling segment is
+// clipped against each leg's span, so it shortens into the corner on one leg
+// and grows out of it on the other.
 // ---------------------------------------------------------------------------
-struct IconCanvas {
-    lv_obj_t *canvas;
-    int w, h;
+struct Leg {
+    bool vertical;
+    int16_t x;   // centre line for a vertical leg, start x for a horizontal one
+    int16_t y;   // start y for a vertical leg, centre line for a horizontal one
+    int16_t len; // always positive, measured in path order
+    lv_obj_t *shaft = nullptr;
+    lv_obj_t *highlight = nullptr;
 };
 
-IconCanvas makeIconCanvas(lv_obj_t *parent, int16_t cx, int16_t cy) {
-    IconCanvas ic;
-    ic.w = kIconSize;
-    ic.h = kIconSize;
-    lv_color_t *buf = static_cast<lv_color_t *>(malloc(static_cast<size_t>(kIconSize) * kIconSize * sizeof(lv_color_t)));
-    ic.canvas = lv_canvas_create(parent);
-    lv_canvas_set_buffer(ic.canvas, buf, kIconSize, kIconSize, LV_IMG_CF_TRUE_COLOR);
-    lv_obj_set_pos(ic.canvas, cx - kIconHalf, cy - kIconHalf);
-    lv_canvas_fill_bg(ic.canvas, Colors::kBg, LV_OPA_COVER);
-    return ic;
-}
+struct Link {
+    Leg legs[2];
+    int legCount = 0;
+    int16_t totalLen = 0;
+    float phasePx = 0.0f; // distance the highlight's leading edge has travelled
+    Dir shownDir = Dir::Off;
+    lv_color_t shownColor = Colors::kFlowOff;
+    bool styled = false;
+};
 
-inline void px(IconCanvas &ic, int x, int y, lv_color_t c) {
-    if (x >= 0 && x < ic.w && y >= 0 && y < ic.h) lv_canvas_set_px_color(ic.canvas, x, y, c);
-}
+Link g_engineMotor, g_motorBattery, g_motorWheels, g_engineWheels;
 
-void fillRect(IconCanvas &ic, int x0, int y0, int x1, int y1, lv_color_t c) {
-    for (int y = y0; y <= y1; y++)
-        for (int x = x0; x <= x1; x++) px(ic, x, y, c);
-}
+// A node is lit when at least one of its own links is carrying something.
+// Without this the ENGINE pill sat there in full red with two dead grey
+// stubs hanging off it, which says the opposite of what the links say.
+struct Node {
+    lv_obj_t *pill = nullptr;
+    lv_obj_t *label = nullptr;
+    lv_color_t color = Colors::kText;
+    bool lit = true;
+    bool styled = false;
+};
+Node g_engineNode, g_motorNode, g_batteryNode, g_wheelsNode;
 
-// Border-only rectangle, `t` px thick.
-void strokeRect(IconCanvas &ic, int x0, int y0, int x1, int y1, int t, lv_color_t c) {
-    fillRect(ic, x0, y0, x1, y0 + t - 1, c);
-    fillRect(ic, x0, y1 - t + 1, x1, y1, c);
-    fillRect(ic, x0, y0, x0 + t - 1, y1, c);
-    fillRect(ic, x1 - t + 1, y0, x1, y1, c);
-}
+uint32_t g_lastUpdateMs = 0;
 
-void fillCircle(IconCanvas &ic, int cx, int cy, int r, lv_color_t c) {
-    for (int dy = -r; dy <= r; dy++)
-        for (int dx = -r; dx <= r; dx++)
-            if (dx * dx + dy * dy <= r * r) px(ic, cx + dx, cy + dy, c);
-}
-
-// Filled annulus (ring) between rIn and rOut.
-void ring(IconCanvas &ic, int cx, int cy, int rOut, int rIn, lv_color_t c) {
-    for (int dy = -rOut; dy <= rOut; dy++)
-        for (int dx = -rOut; dx <= rOut; dx++) {
-            int d2 = dx * dx + dy * dy;
-            if (d2 <= rOut * rOut && d2 >= rIn * rIn) px(ic, cx + dx, cy + dy, c);
-        }
-}
-
-// Thick line by stamping small discs along the segment.
-void thickLine(IconCanvas &ic, float x0, float y0, float x1, float y1, int r, lv_color_t c) {
-    float dx = x1 - x0, dy = y1 - y0;
-    int steps = static_cast<int>(std::max(std::fabs(dx), std::fabs(dy))) + 1;
-    for (int i = 0; i <= steps; i++) {
-        float t = static_cast<float>(i) / steps;
-        fillCircle(ic, static_cast<int>(x0 + dx * t + 0.5f), static_cast<int>(y0 + dy * t + 0.5f), r, c);
-    }
-}
-
-// Filled polygon (even-odd scanline). Used for the lightning bolt.
-struct Pt { float x, y; };
-void fillPoly(IconCanvas &ic, const Pt *p, int n, lv_color_t c) {
-    float miny = p[0].y, maxy = p[0].y;
-    for (int i = 1; i < n; i++) {
-        miny = std::min(miny, p[i].y);
-        maxy = std::max(maxy, p[i].y);
-    }
-    for (int y = static_cast<int>(std::floor(miny)); y <= static_cast<int>(std::ceil(maxy)); y++) {
-        float xs[16];
-        int m = 0;
-        for (int i = 0; i < n && m < 16; i++) {
-            const Pt &a = p[i];
-            const Pt &b = p[(i + 1) % n];
-            if ((a.y <= y && b.y > y) || (b.y <= y && a.y > y)) {
-                xs[m++] = a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x);
-            }
-        }
-        std::sort(xs, xs + m);
-        for (int i = 0; i + 1 < m; i += 2)
-            for (int x = static_cast<int>(std::ceil(xs[i])); x <= static_cast<int>(std::floor(xs[i + 1])); x++)
-                px(ic, x, y, c);
-    }
-}
-
-// The classic check-engine (MIL) silhouette, from clean blocks + a rounded
-// right "bell housing". Shared by the ENGINE icon and the MOTOR icon below.
-void drawEngineBlock(IconCanvas &ic, lv_color_t c) {
-    fillRect(ic, 4, 20, 37, 38, c);  // lower body
-    fillRect(ic, 9, 12, 31, 20, c);  // valve cover
-    fillRect(ic, 12, 7, 17, 12, c);  // cylinder stub 1
-    fillRect(ic, 22, 7, 27, 12, c);  // cylinder stub 2
-    fillCircle(ic, 39, 30, 5, c);    // belt pulley (right)
-}
-
-void createEngineIcon(lv_obj_t *parent) {
-    IconCanvas ic = makeIconCanvas(parent, kEngineCx, kEngineCy);
-    drawEngineBlock(ic, Colors::kEngineRed);
-    // Cooling fins: thin background cut lines across the lower body.
-    fillRect(ic, 7, 26, 29, 26, Colors::kBg);
-    fillRect(ic, 7, 30, 29, 30, Colors::kBg);
-    fillRect(ic, 7, 34, 29, 34, Colors::kBg);
-}
-
-// Electric motor = the same engine block, no fins, with a lightning bolt
-// punched through the body -- reads as "engine, but electric".
-void createMotorIcon(lv_obj_t *parent) {
-    IconCanvas ic = makeIconCanvas(parent, kMotorCx, kMotorCy);
-    drawEngineBlock(ic, Colors::kAccentCyan);
-    const Pt bolt[] = {{23, 16}, {14, 30}, {20, 30}, {16, 38}, {27, 26}, {21, 26}, {25, 16}};
-    fillPoly(ic, bolt, 7, Colors::kBg);
-}
-
-// HV battery: outlined body + two terminals + internal cell dividers.
-void createBatteryIcon(lv_obj_t *parent) {
-    IconCanvas ic = makeIconCanvas(parent, kBatteryCx, kBatteryCy);
-    lv_color_t c = Colors::kBatteryBlue;
-    strokeRect(ic, 5, 14, 38, 38, 2, c);
-    fillRect(ic, 12, 9, 17, 14, c);  // terminal 1
-    fillRect(ic, 26, 9, 31, 14, c);  // terminal 2
-    fillRect(ic, 16, 16, 17, 36, c); // cell divider 1
-    fillRect(ic, 26, 16, 27, 36, c); // cell divider 2
-}
-
-// Driven wheel: thick tyre ring + hub + spokes.
-void createWheelsIcon(lv_obj_t *parent) {
-    IconCanvas ic = makeIconCanvas(parent, kWheelsCx, kWheelsCy);
-    lv_color_t c = Colors::kText;
-    const int cx = kIconHalf, cy = kIconHalf;
-    ring(ic, cx, cy, 19, 12, c); // tyre
-    fillCircle(ic, cx, cy, 5, c); // hub
-    for (int k = 0; k < 5; k++) {
-        float a = k * (2.0f * kPi / 5.0f) - kPi / 2.0f;
-        thickLine(ic, cx + 5 * std::cos(a), cy + 5 * std::sin(a),
-                  cx + 12 * std::cos(a), cy + 12 * std::sin(a), 1, c);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Labels
-// ---------------------------------------------------------------------------
-enum Anchor { AnchorLeft, AnchorCenter, AnchorRight };
-
-// Creates a single-line, content-sized label (no wrapping -- an earlier fixed
-// width made "BATTERY" wrap to "BATTER"/"Y") positioned so that `anchorX` is
-// its left edge / centre / right edge per `anchor`.
-lv_obj_t *makeLabel(lv_obj_t *parent, const char *txt, const lv_font_t *font, lv_color_t color,
-                    int16_t anchorX, int16_t y, Anchor anchor) {
+int16_t textW(const char *txt, const lv_font_t *font) {
     lv_point_t sz;
     lv_txt_get_size(&sz, txt, font, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
-    int16_t x = anchorX;
-    if (anchor == AnchorCenter) x = static_cast<int16_t>(anchorX - sz.x / 2);
-    else if (anchor == AnchorRight) x = static_cast<int16_t>(anchorX - sz.x);
+    return static_cast<int16_t>(sz.x);
+}
+
+int16_t pillHalfW(const char *txt) {
+    return static_cast<int16_t>((textW(txt, &dinnext_24_label) + kPillPadX) / 2);
+}
+
+lv_obj_t *makeRect(lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h, lv_color_t color,
+                   int16_t radius) {
+    lv_obj_t *o = lv_obj_create(parent);
+    lv_obj_remove_style_all(o);
+    lv_obj_set_size(o, w, h);
+    lv_obj_set_pos(o, x, y);
+    lv_obj_set_style_bg_color(o, color, 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(o, radius, 0);
+    lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
+    return o;
+}
+
+// Node: its name inside a hairline pill. The fill is a wash of the node's own
+// colour rather than a solid, for the same reason the efficiency screen's
+// halves are washes -- a saturated block this size is too loud on a dash.
+void makePill(lv_obj_t *parent, Node &node, int16_t cx, int16_t cy, const char *txt,
+              lv_color_t color) {
+    node.color = color;
+    int16_t halfW = pillHalfW(txt);
+    lv_obj_t *o = lv_obj_create(parent);
+    lv_obj_remove_style_all(o);
+    lv_obj_set_size(o, static_cast<int16_t>(halfW * 2), kPillH);
+    lv_obj_set_pos(o, static_cast<int16_t>(cx - halfW), static_cast<int16_t>(cy - kPillHalfH));
+    lv_obj_set_style_bg_color(o, color, 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_20, 0);
+    lv_obj_set_style_border_color(o, color, 0);
+    lv_obj_set_style_border_width(o, 1, 0);
+    lv_obj_set_style_radius(o, kPillHalfH, 0);
+    lv_obj_clear_flag(o, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *l = lv_label_create(parent);
-    lv_obj_set_style_text_font(l, font, 0);
+    lv_obj_set_style_text_font(l, &dinnext_24_label, 0);
     lv_obj_set_style_text_color(l, color, 0);
-    lv_obj_set_pos(l, x, y);
     lv_label_set_text(l, txt);
-    return l;
+    lv_obj_set_pos(l, static_cast<int16_t>(cx - textW(txt, &dinnext_24_label) / 2),
+                   static_cast<int16_t>(cy - 9));
+
+    node.pill = o;
+    node.label = l;
 }
 
-void createLabels(lv_obj_t *parent) {
-    const int16_t vmid = kEngineCy - kLabelLineH / 2; // vertical-centre a label on the top row
-
-    // ENGINE: to the LEFT of its icon, right edge hugging the icon.
-    makeLabel(parent, "ENGINE", &dinnext_24_label, Colors::kText,
-              static_cast<int16_t>(kEngineCx - kIconHalf - kEndpointGap), vmid, AnchorRight);
-
-    // MOTOR: centred ABOVE its icon (centred node, no room to a side).
-    makeLabel(parent, "MOTOR", &dinnext_24_label, Colors::kText, kMotorCx,
-              static_cast<int16_t>(kMotorCy - kIconHalf - 2 - kLabelLineH), AnchorCenter);
-
-    // BATTERY: to the RIGHT of its icon, with the live SOC % number on a
-    // second line just below it.
-    const int16_t battLabelX = kBatteryCx + kIconHalf + kEndpointGap;
-    makeLabel(parent, "BATTERY", &dinnext_24_label, Colors::kText, battLabelX,
-              static_cast<int16_t>(kBatteryCy - kIconHalf), AnchorLeft);
-
-    g_battValueLabel = makeLabel(parent, "--", &dinnext_26_battery, Colors::kText, battLabelX,
-                                 static_cast<int16_t>(kBatteryCy + 2), AnchorLeft);
-    g_battPctLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_battPctLabel, &dinnext_13_pct, 0);
-    lv_obj_set_style_text_color(g_battPctLabel, Colors::kMutedText, 0);
-    lv_label_set_text(g_battPctLabel, "%");
-    lv_obj_align_to(g_battPctLabel, g_battValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
-
-    // WHEELS: to the RIGHT of the wheel, vertically centred on it. The wheel's
-    // right side is empty, so this keeps the label clear of the ENGINE->WHEELS
-    // arrow (which comes in from the left).
-    makeLabel(parent, "WHEELS", &dinnext_24_label, Colors::kText,
-              static_cast<int16_t>(kWheelsCx + kIconHalf + kEndpointGap),
-              static_cast<int16_t>(kWheelsCy - kLabelLineH / 2), AnchorLeft);
+void setNodeLit(Node &node, bool lit) {
+    if (node.styled && lit == node.lit) return;
+    node.styled = true;
+    node.lit = lit;
+    lv_color_t c = lit ? node.color : Colors::kFlowOff;
+    lv_obj_set_style_border_color(node.pill, c, 0);
+    lv_obj_set_style_bg_opa(node.pill, lit ? LV_OPA_20 : LV_OPA_TRANSP, 0);
+    lv_obj_set_style_text_color(node.label, c, 0);
 }
 
-constexpr int16_t kScreenW = 640;
-constexpr int16_t kScreenH = 172;
+void addLeg(lv_obj_t *parent, Link &link, bool vertical, int16_t x, int16_t y, int16_t len) {
+    Leg &leg = link.legs[link.legCount];
+    leg.vertical = vertical;
+    leg.x = x;
+    leg.y = y;
+    leg.len = len;
+    leg.shaft = makeRect(parent, 0, 0, 1, 1, Colors::kFlowOff, kIdleT / 2);
+    leg.highlight = makeRect(parent, 0, 0, 1, 1, Colors::kFlowOff, kActiveT / 2);
+    lv_obj_add_flag(leg.highlight, LV_OBJ_FLAG_HIDDEN);
+    link.totalLen = static_cast<int16_t>(link.totalLen + len);
+    link.legCount++;
+}
+
+// Lays a leg's shaft out at the given thickness. A bend is filled by having
+// BOTH legs overrun the corner by half the thickness -- the leg arriving
+// extends its end, the leg leaving extends its start -- so they overlap in a
+// t-by-t square and the outer corner has no notch. Extending only one of them
+// leaves a bite out of the bend, which at 10px is plainly visible.
+void layoutShaft(const Leg &leg, int16_t t, bool extendEnd, bool extendStart) {
+    int16_t head = extendStart ? static_cast<int16_t>(t / 2) : 0;
+    int16_t tail = extendEnd ? static_cast<int16_t>(t / 2) : 0;
+    if (leg.vertical) {
+        lv_obj_set_size(leg.shaft, t, static_cast<int16_t>(leg.len + head + tail));
+        lv_obj_set_pos(leg.shaft, static_cast<int16_t>(leg.x - t / 2),
+                       static_cast<int16_t>(leg.y - head));
+    } else {
+        lv_obj_set_size(leg.shaft, static_cast<int16_t>(leg.len + head + tail), t);
+        lv_obj_set_pos(leg.shaft, static_cast<int16_t>(leg.x - head),
+                       static_cast<int16_t>(leg.y - t / 2));
+    }
+    lv_obj_set_style_radius(leg.shaft, static_cast<int16_t>(t / 2), 0);
+}
+
+// Places the travelling segment. lo/hi are the segment's span in the LINK's
+// path coordinates; this clips them to one leg and hides the object when
+// nothing of the segment falls on it.
+void layoutHighlight(const Leg &leg, int16_t legStart, float lo, float hi, lv_color_t color) {
+    float legLo = std::fmax(lo, static_cast<float>(legStart));
+    float legHi = std::fmin(hi, static_cast<float>(legStart + leg.len));
+    if (legHi - legLo < 1.0f) {
+        lv_obj_add_flag(leg.highlight, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_clear_flag(leg.highlight, LV_OBJ_FLAG_HIDDEN);
+    int16_t off = static_cast<int16_t>(legLo - legStart);
+    int16_t len = static_cast<int16_t>(legHi - legLo);
+    if (leg.vertical) {
+        lv_obj_set_size(leg.highlight, kActiveT, len);
+        lv_obj_set_pos(leg.highlight, static_cast<int16_t>(leg.x - kActiveT / 2),
+                       static_cast<int16_t>(leg.y + off));
+    } else {
+        lv_obj_set_size(leg.highlight, len, kActiveT);
+        lv_obj_set_pos(leg.highlight, static_cast<int16_t>(leg.x + off),
+                       static_cast<int16_t>(leg.y - kActiveT / 2));
+    }
+    lv_obj_set_style_bg_color(leg.highlight, color, 0);
+    lv_obj_set_style_shadow_color(leg.highlight, color, 0);
+    lv_obj_set_style_shadow_width(leg.highlight, 14, 0);
+    lv_obj_set_style_shadow_spread(leg.highlight, 1, 0);
+    lv_obj_set_style_shadow_opa(leg.highlight, LV_OPA_50, 0);
+}
+
+void updateLink(Link &link, Dir dir, lv_color_t color, float dtS) {
+    bool active = (dir != Dir::Off);
+
+    // Shaft geometry and colour only change when the link's state does --
+    // the per-frame work is moving the highlight, nothing else.
+    if (!link.styled || dir != link.shownDir || color.full != link.shownColor.full) {
+        link.styled = true;
+        link.shownDir = dir;
+        link.shownColor = color;
+        int16_t t = active ? kActiveT : kIdleT;
+        lv_color_t shaft = active ? lv_color_mix(color, Colors::kBg, 45) : Colors::kFlowOff;
+        for (int i = 0; i < link.legCount; i++) {
+            bool bendAhead = (link.legCount == 2 && i == 0);
+            bool bendBehind = (link.legCount == 2 && i == 1);
+            layoutShaft(link.legs[i], t, bendAhead, bendBehind);
+            lv_obj_set_style_bg_color(link.legs[i].shaft, shaft, 0);
+        }
+        // Restart the run on any state change, reversals included: carrying
+        // the phase across a flip makes the segment appear to bounce back off
+        // the node it was heading for, where restarting reads as "this is now
+        // going the other way, from the source".
+        link.phasePx = 0.0f;
+        if (!active) {
+            for (int i = 0; i < link.legCount; i++)
+                lv_obj_add_flag(link.legs[i].highlight, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (!active) return;
+
+    // One cycle carries the segment from fully off one end to fully off the
+    // other, so it enters and leaves instead of popping into existence.
+    float cycle = static_cast<float>(link.totalLen) + kHighlightLen;
+    link.phasePx += kFlowSpeedPxPerS * dtS;
+    if (link.phasePx >= cycle) link.phasePx = std::fmod(link.phasePx, cycle);
+
+    float lead = (dir == Dir::Forward) ? link.phasePx : cycle - link.phasePx;
+    float lo = lead - kHighlightLen;
+    float hi = lead;
+
+    int16_t legStart = 0;
+    for (int i = 0; i < link.legCount; i++) {
+        layoutHighlight(link.legs[i], legStart, lo, hi, color);
+        legStart = static_cast<int16_t>(legStart + link.legs[i].len);
+    }
+}
 
 } // namespace
 
@@ -354,60 +350,58 @@ void build(lv_obj_t *parent) {
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Arrows first so the node icons layer on top of their endpoints.
-    FlowArrow::create(&g_engineMotorArrow, root, kEngineRightX, kEngineCy, kMotorLeftX, kMotorCy,
-                      kArrowThickness, Colors::kEngineRed);
-    FlowArrow::create(&g_motorBatteryArrow, root, kMotorRightX, kMotorCy, kBatteryLeftX, kBatteryCy,
-                      kArrowThickness, Colors::kChgGreen);
-    FlowArrow::create(&g_motorWheelsArrow, root, kMotorCx, kMotorBottomY, kWheelsCx, kWheelsTopY,
-                      kArrowThickness, Colors::kAccentCyan);
-    // Bent 90 degrees: down from ENGINE, then across into the wheel's lower-left.
-    FlowArrow::createBent(&g_engineWheelsArrow, root, kEngineCx, kEngineBottomY, kEngineCx,
-                          kEngineWheelsEnterY, kWheelsLeftX, kEngineWheelsEnterY, kArrowThickness,
-                          Colors::kEngineRed);
+    int16_t engHalf = pillHalfW("ENGINE");
+    int16_t motHalf = pillHalfW("MOTOR");
+    int16_t batHalf = pillHalfW("BATTERY");
+    int16_t whlHalf = pillHalfW("WHEELS");
 
-    createEngineIcon(root);
-    createMotorIcon(root);
-    createBatteryIcon(root);
-    createWheelsIcon(root);
-    createLabels(root);
+    // Links first so the pills draw over the ends of their shafts.
+    addLeg(root, g_engineMotor, false, static_cast<int16_t>(kEngineCx + engHalf), kRowY,
+             static_cast<int16_t>((kMotorCx - motHalf) - (kEngineCx + engHalf)));
+    addLeg(root, g_motorBattery, false, static_cast<int16_t>(kMotorCx + motHalf), kRowY,
+             static_cast<int16_t>((kBatteryCx - batHalf) - (kMotorCx + motHalf)));
+    addLeg(root, g_motorWheels, true, kMotorCx, static_cast<int16_t>(kRowY + kPillHalfH),
+             static_cast<int16_t>((kWheelY - kPillHalfH) - (kRowY + kPillHalfH)));
+
+    // ENGINE -> WHEELS is the one bent route: down the left edge, then across
+    // into the wheels' left side.
+    addLeg(root, g_engineWheels, true, kEngineCx, static_cast<int16_t>(kRowY + kPillHalfH),
+             static_cast<int16_t>(kWheelY - (kRowY + kPillHalfH)));
+    addLeg(root, g_engineWheels, false, kEngineCx, kWheelY,
+                 static_cast<int16_t>((kMotorCx - whlHalf) - kEngineCx));
+
+    makePill(root, g_engineNode, kEngineCx, kRowY, "ENGINE", Colors::kEngineRed);
+    makePill(root, g_motorNode, kMotorCx, kRowY, "MOTOR", Colors::kAccentCyan);
+    makePill(root, g_batteryNode, kBatteryCx, kRowY, "BATTERY", Colors::kBatteryBlue);
+    makePill(root, g_wheelsNode, kMotorCx, kWheelY, "WHEELS", Colors::kText);
 }
 
 void update(const VehicleState &state) {
     uint32_t nowMs = millis();
     float dtS = (g_lastUpdateMs == 0) ? 0.0f : (nowMs - g_lastUpdateMs) / 1000.0f;
     g_lastUpdateMs = nowMs;
-    if (dtS > 0.25f) dtS = 0.25f;
-
-    // Live battery %, matching the main view's rendering (same fonts).
-    int battPct = static_cast<int>(state.battery_soc_pct + 0.5f);
-    if (battPct < 0) battPct = 0;
-    if (battPct > 100) battPct = 100;
-    if (battPct != g_lastBattPct) {
-        g_lastBattPct = battPct;
-        char buf[8];
-        snprintf(buf, sizeof(buf), "%d", battPct);
-        lv_label_set_text(g_battValueLabel, buf);
-        lv_obj_align_to(g_battPctLabel, g_battValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
-    }
+    if (dtS > 0.25f) dtS = 0.25f; // a pause must not teleport the highlights
 
     FlowState f = deriveFlow(state);
 
-    FlowArrow::setState(&g_engineMotorArrow, f.engineMotor, Colors::kEngineRed);
-    FlowArrow::setState(&g_engineWheelsArrow, f.engineWheels, Colors::kEngineRed);
-    FlowArrow::setState(&g_motorBatteryArrow, f.motorBattery,
-                        f.motorBattery == FlowArrow::Dir::Forward ? Colors::kChgGreen : Colors::kBatteryBlue);
-    FlowArrow::setState(&g_motorWheelsArrow, f.motorWheels,
-                        f.motorWheels == FlowArrow::Dir::Forward ? Colors::kAccentCyan : Colors::kChgGreen);
+    // Colour rules carried over from the previous screen: red is always the
+    // engine's mechanical energy, green is always energy being recovered, and
+    // the battery link takes the pack's own blue when it is the one giving.
+    updateLink(g_engineMotor, f.engineMotor, Colors::kEngineRed, dtS);
+    updateLink(g_engineWheels, f.engineWheels, Colors::kEngineRed, dtS);
+    updateLink(g_motorBattery, f.motorBattery,
+               f.motorBattery == Dir::Forward ? Colors::kChgGreen : Colors::kBatteryBlue, dtS);
+    updateLink(g_motorWheels, f.motorWheels,
+               f.motorWheels == Dir::Forward ? Colors::kAccentCyan : Colors::kChgGreen, dtS);
 
-    g_animAccumS += dtS;
-    if (g_animAccumS >= kAnimTickIntervalS) {
-        FlowArrow::tick(&g_engineMotorArrow, g_animAccumS);
-        FlowArrow::tick(&g_motorBatteryArrow, g_animAccumS);
-        FlowArrow::tick(&g_motorWheelsArrow, g_animAccumS);
-        FlowArrow::tick(&g_engineWheelsArrow, g_animAccumS);
-        g_animAccumS = 0.0f;
-    }
+    bool engMot = f.engineMotor != Dir::Off;
+    bool engWhl = f.engineWheels != Dir::Off;
+    bool motBat = f.motorBattery != Dir::Off;
+    bool motWhl = f.motorWheels != Dir::Off;
+    setNodeLit(g_engineNode, engMot || engWhl);
+    setNodeLit(g_motorNode, engMot || motBat || motWhl);
+    setNodeLit(g_batteryNode, motBat);
+    setNodeLit(g_wheelsNode, motWhl || engWhl);
 }
 
 } // namespace EnergyFlowUi
