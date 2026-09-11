@@ -46,9 +46,11 @@ FetchContent_MakeAvailable(lvgl)
 
 add_executable(sim
     main_sim.cpp
+    imu_sim.cpp
     lv_port_disp_sdl.cpp
     ${PROJECT_ROOT}/src/can_decoder.cpp
     ${PROJECT_ROOT}/src/demo_log_data.cpp
+    ${PROJECT_ROOT}/src/g_meter.cpp
     ${PROJECT_ROOT}/src/screen_nav.cpp
     ${PROJECT_ROOT}/src/touch_nav.cpp
     ${PROJECT_ROOT}/src/hybrid_stats.cpp
@@ -56,6 +58,7 @@ add_executable(sim
     ${PROJECT_ROOT}/src/ui/cockpit_ui.cpp
     ${PROJECT_ROOT}/src/ui/energy_flow_ui.cpp
     ${PROJECT_ROOT}/src/ui/efficiency_ui.cpp
+    ${PROJECT_ROOT}/src/ui/gmeter_ui.cpp
     ${PROJECT_ROOT}/src/ui/flow_arrow.cpp
     ${PROJECT_ROOT}/src/ui/app_ui.cpp
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_120_speed.c

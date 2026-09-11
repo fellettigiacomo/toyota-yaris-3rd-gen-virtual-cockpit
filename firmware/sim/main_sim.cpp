@@ -8,6 +8,7 @@
 #include "app_config.h"
 #include "screen_nav.h"
 #include "touch_nav.h"
+#include "g_meter.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -57,6 +58,7 @@ int main(int, char **) {
 
     ScreenNav::begin();
     TouchNav::begin();
+    GMeter::begin();
     CanDecoder::begin();
     AppUi::build();
 
