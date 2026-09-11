@@ -32,7 +32,7 @@ The repository is divided into three main folders:
 
 ## Screens
 
-The cluster cycles through three screens either with the board's physical
+The cluster cycles through four screens either with the board's physical
 **BOOT button**, or by **tapping anywhere on the panel** (presence-only
 touch, no coordinates/gestures — an earlier swipe-based `lv_tileview`
 navigation was dropped for being laggy on real hardware, but a discrete tap
@@ -63,15 +63,50 @@ of the bar, green under charge).
 
 ### ⚡ Energy Flow
 
-Animated ENGINE / MOTOR / BATTERY / WHEELS diagram, Prius-style flow arrows.
+ENGINE / MOTOR / BATTERY / WHEELS and the four paths between them. Each link
+is a dim shaft carrying a bright segment that travels the way the energy
+does — red for the engine's mechanical drive, green for anything being
+recovered, blue for the pack when it is the one giving. A link with nothing
+flowing thins out and greys, and a node whose every link is idle dims with
+them, so the picture below is the engine and the pack both feeding the
+wheels.
 
 ![Energy Flow](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/02_energy_flow.png?raw=true)
 
 ### 📊 Efficiency
 
-Session stats: EV vs. engine share, distance, regen %, avg/max speed.
+The session's EV-vs-engine split, drawn as a full-bleed divide of the whole
+screen: the electric share fills from the left edge, the engine share holds
+the rest, and both percentages hang off the seam between them. Distance and
+average speed keep the bottom corners.
 
 ![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
+
+### 📈 G-Meter
+
+Longitudinal and lateral acceleration from the board's own QMI8658 IMU, on a
+g-ball where the dot is the acceleration vector — up under power, down under
+braking, sideways the way the car is turning — plus the session's four
+directional peaks.
+
+The board is mounted in whatever orientation fits the dash, so the chip's
+axes mean nothing on their own. Rather than ask for a setup step, the
+firmware works out both references it needs from data it already has: CAN
+says when the car is stopped, which is when the accelerometer is reading
+nothing but gravity and therefore says which way is up; and CAN's own
+`d(speed)/dt` says when the car is accelerating in a straight line and how
+hard, which is when the horizontal part of that same reading points along
+the car. Braking teaches the axis just as well as accelerating, since the
+sign comes from CAN too. Until it has converged the screen says so rather
+than drawing a dot it cannot place honestly.
+
+![G-Meter](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/04_gmeter.png?raw=true)
+
+> **The IMU path has not been verified on a real board yet.** The QMI8658
+> register map, ODR/full-scale encodings and filter bits are transcribed from
+> the datasheet rather than read back off working hardware. The failure mode
+> is visible rather than silent: if nothing answers on the sensor bus the
+> screen reads `NO SENSOR`.
 
 ## Hardware
 
@@ -81,6 +116,9 @@ Session stats: EV vs. engine share, distance, regen %, avg/max speed.
 - **CAN transceiver**: SN65HVD230, wired to OBD-II pins 6 (CAN-H) / 14
   (CAN-L). Full wiring table and GPIO rationale in
   [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md).
+- **IMU**: the board's onboard QMI8658, on its sensor I2C bus (GPIO47/48,
+  address 0x6B) — accelerometer only, for the G-meter screen. Nothing to
+  wire: it is already on the board.
 
 ## Repository layout
 
@@ -90,8 +128,10 @@ Session stats: EV vs. engine share, distance, regen %, avg/max speed.
 ├── firmware/                # Dashboard firmware (LVGL) + desktop simulator
 │   ├── include/             #   board pins, VehicleState struct, LVGL config
 │   ├── src/
-│   │   ├── ui/               #   screens: cockpit_ui, energy_flow_ui, efficiency_ui
-│   │   └── can_decoder.cpp   #   DBC-driven CAN -> VehicleState decode
+│   │   ├── ui/               #   screens: cockpit_ui, energy_flow_ui, efficiency_ui, gmeter_ui
+│   │   ├── can_decoder.cpp   #   DBC-driven CAN -> VehicleState decode
+│   │   ├── imu.cpp           #   QMI8658 accelerometer (G-meter screen)
+│   │   └── g_meter.cpp       #   IMU + CAN -> forward/lateral g, axes self-calibrating
 │   └── sim/                 #   SDL2 desktop simulator, no board required
 └── re/                      # Reverse-engineering workspace
     ├── obd-capture-fw/      #   ESP32-S3 passive CAN sniffer + SD logger
