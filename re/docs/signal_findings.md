@@ -161,6 +161,17 @@ the PWR sweep runs past 155, so a hard-PWR raw was read as a large negative
 and the bar swung to CHG. On-car testing confirmed the flip; the decoder
 now branches on `HSI_ZONE`.
 
+**The four-zone table above describes the logs, not the encoding.** A later
+on-car drive with hard acceleration reported `HSI_ZONE` values of 8, 9 and
+14 as well — driving neither capture session contains. So 4/6/12/15 is
+exhaustive for these logs and incomplete for the car, and what byte0 encodes
+beyond the sign is still open. The firmware therefore reads *every* zone but
+15 as an unsigned positive magnitude (15 being the only zone ever observed
+carrying a negative value) rather than falling back to the DBC-nominal
+signed read, and carries a temporary byte0 survey — frame count and raw
+min/max per zone, dumped over serial when it learns something new — to be
+removed once the encoding is known and the zones can be listed explicitly.
+
 On the display, the PWR side is shown halved (`PWR% = raw/2`) because the
 ECO/PWR boundary (raw≈100) is only the midpoint of the real gauge's PWR
 sweep, not its top — so full PWR ≈ raw 200 reads 100%. That the raw value

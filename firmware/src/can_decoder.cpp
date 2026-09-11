@@ -56,6 +56,8 @@ bool g_hsiSurveyDirty = false;
 uint32_t g_hsiSurveyLastDumpMs = 0;
 constexpr uint32_t kHsiSurveyPeriodMs = 10000;
 
+// Recording side: runs per frame, inside the decoder's critical section, so
+// it stays pure bookkeeping -- no printing, no blocking calls.
 void surveyHsi(uint8_t zone, uint8_t raw) {
     HsiZoneStat &st = g_hsiSurvey[zone];
     if (st.count == 0) {
@@ -70,7 +72,15 @@ void surveyHsi(uint8_t zone, uint8_t raw) {
         g_hsiSurveyDirty = true;
     }
     if (st.count < 0xFFFF) st.count++;
+}
 
+// Reporting side: must be called from task context with no lock held.
+// Serial is USB CDC here (ARDUINO_USB_CDC_ON_BOOT=1) and its write() blocks
+// on a FreeRTOS semaphore until the host drains the buffer, which is illegal
+// inside taskENTER_CRITICAL() -- interrupts are off, so nothing can drain it.
+// Only the same task that calls surveyHsi() may call this, which is what
+// makes the unlocked read of the table safe.
+void dumpHsiSurveyIfDue() {
     uint32_t now = millis();
     if (!g_hsiSurveyDirty || now - g_hsiSurveyLastDumpMs < kHsiSurveyPeriodMs) return;
     g_hsiSurveyLastDumpMs = now;
@@ -333,6 +343,7 @@ void canRxTask(void *) {
             framesInWindow++;
         }
 
+        dumpHsiSurveyIfDue(); // outside the critical section: it prints
         pollAlerts();
 
         uint64_t nowUs = esp_timer_get_time();
@@ -421,6 +432,7 @@ VehicleState getSnapshot() {
         decodeIntoState(g_demoState, f.id, f.data, f.dlc);
         g_nextIdx++;
     }
+    dumpHsiSurveyIfDue();
 
     return g_demoState;
 }
