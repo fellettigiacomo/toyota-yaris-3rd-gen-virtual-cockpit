@@ -1,2 +1,10 @@
 __pycache__/
 .DS_Store
+
+# CMake build trees: the desktop simulator and the screenshot renderer both
+# configure into a local build/ (and FetchContent drops its LVGL clone there).
+build/
+
+# Intermediate dumps from firmware/sim/screenshot -- render.sh converts and
+# removes them; they only linger if a run is interrupted.
+*.rgb
