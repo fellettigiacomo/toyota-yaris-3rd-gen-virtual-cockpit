@@ -38,12 +38,14 @@ constexpr int LCD_PANEL_NATIVE_HEIGHT = 640; // physical panel height (portrait)
 constexpr int LCD_ROTATION = 1;              // rotate to landscape 640x172 for the UI
 
 // --- Shared sensor I2C bus (PCF85063 RTC + QMI8658 IMU) ---
-// Not used by this project (no RTC/IMU reads) -- kept documented in case a
-// future revision needs it. This is a *different* I2C bus from the
-// capacitive touch controller below.
+// The IMU half is live: src/imu.cpp drives the QMI8658's accelerometer over
+// Wire1 for the G-meter screen. The RTC is still unread. This is a
+// *different* I2C bus from the capacitive touch controller below, which
+// touch_nav.cpp owns via Wire.
 constexpr int PIN_SENSOR_I2C_SDA = 47;
 constexpr int PIN_SENSOR_I2C_SCL = 48;
 constexpr uint8_t I2C_ADDR_RTC_PCF85063 = 0x51;
+constexpr uint8_t I2C_ADDR_IMU_QMI8658 = 0x6B;
 
 // --- Capacitive touch (AXS15231B, same die as the display panel) ---
 // Read directly over I2C via touch_nav.cpp (plain Arduino Wire, not the

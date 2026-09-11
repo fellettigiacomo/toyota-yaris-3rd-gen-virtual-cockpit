@@ -27,7 +27,9 @@ namespace Imu {
 
 namespace {
 
-constexpr uint8_t kAddr = 0x6B; // EXAMPLE_IMU_ADDR in the vendored user_config.h
+// Address lives in board_pins.h with the rest of the board's map, so there is
+// one place to look rather than two that can drift.
+constexpr uint8_t kAddr = I2C_ADDR_IMU_QMI8658;
 
 // --- QMI8658A register map (datasheet section 8) ---
 constexpr uint8_t kRegWhoAmI = 0x00;
