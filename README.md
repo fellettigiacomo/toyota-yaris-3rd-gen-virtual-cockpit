@@ -4,7 +4,7 @@
 ![UI](https://img.shields.io/badge/UI-LVGL%208.3-00e5ff)
 ![Status](https://img.shields.io/badge/status-hardware%20bring--up-e03a2f)
 
-![Virtual Cockpit](https://raw.githubusercontent.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/main/firmware/sim/screenshot/screenshots/hero.png?v=2)
+![Virtual Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
 
 A from-scratch digital instrument cluster for a 2014 Toyota Yaris Hybrid
 (3rd gen / XP130, THS-II NoDSU), driven entirely by the car's own
@@ -68,17 +68,6 @@ Longitudinal and lateral acceleration from the board's own QMI8658 IMU, on a
 g-ball where the dot is the acceleration vector — up under power, down under
 braking, sideways the way the car is turning — plus the session's four
 directional peaks.
-
-The board is mounted in whatever orientation fits the dash, so the chip's
-axes mean nothing on their own. Rather than ask for a setup step, the
-firmware works out both references it needs from data it already has: CAN
-says when the car is stopped, which is when the accelerometer is reading
-nothing but gravity and therefore says which way is up; and CAN's own
-`d(speed)/dt` says when the car is accelerating in a straight line and how
-hard, which is when the horizontal part of that same reading points along
-the car. Braking teaches the axis just as well as accelerating, since the
-sign comes from CAN too. Until it has converged the screen says so rather
-than drawing a dot it cannot place honestly.
 
 ![G-Meter](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/04_gmeter.png?raw=true)
 
