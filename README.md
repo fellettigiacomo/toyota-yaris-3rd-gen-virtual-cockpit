@@ -34,42 +34,22 @@ The repository is divided into three main folders:
 
 The cluster cycles through four screens either with the board's physical
 **BOOT button**, or by **tapping anywhere on the panel** (presence-only
-touch, no coordinates/gestures — an earlier swipe-based `lv_tileview`
-navigation was dropped for being laggy on real hardware, but a discrete tap
-doesn't have that problem).
-
-The screens below are rendered straight from the real LVGL UI with mock
-vehicle data (see [`firmware/sim/screenshot/`](firmware/sim/screenshot/)):
+touch).
 
 ### 🏁 Cockpit
 
 Speed, gear (or 0–50 / 0–100 accel timer), RPM/EV state, and two matching
 vertical gauges flanking it: HV battery charge on the left, instantaneous
-CHG/PWR power flow on the right (white under power, red past three quarters
-of the bar, green under charge).
+CHG/PWR power flow on the right.
 
 ![Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
-
-> **The speed here reads lower than the car's own speedometer — that is
-> expected.** This screen shows the true speed broadcast on `0x0B4`; the
-> factory cluster is deliberately biased upward, as UNECE R39 requires that
-> an indicated speed never fall below the true one (excess capped at
-> 10% + 4 km/h). On the development car the cluster reads about +10 km/h at
-> 130 true. The biased number is computed inside the cluster and is not on
-> the bus. The decoded scale is confirmed against the odometer — the one
-> on-board distance reference regulation requires to be accurate — to within
-> **0.01%**, and against GPS on the road. No correction is applied on
-> purpose; see [`re/docs/signal_findings.md`](re/docs/signal_findings.md).
 
 ### ⚡ Energy Flow
 
 ENGINE / MOTOR / BATTERY / WHEELS and the four paths between them. Each link
 is a dim shaft carrying a bright segment that travels the way the energy
 does — red for the engine's mechanical drive, green for anything being
-recovered, blue for the pack when it is the one giving. A link with nothing
-flowing thins out and greys, and a node whose every link is idle dims with
-them, so the picture below is the engine and the pack both feeding the
-wheels.
+recovered, blue for the pack when it is the one giving.
 
 ![Energy Flow](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/02_energy_flow.png?raw=true)
 
@@ -101,12 +81,6 @@ sign comes from CAN too. Until it has converged the screen says so rather
 than drawing a dot it cannot place honestly.
 
 ![G-Meter](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/04_gmeter.png?raw=true)
-
-> **The IMU path has not been verified on a real board yet.** The QMI8658
-> register map, ODR/full-scale encodings and filter bits are transcribed from
-> the datasheet rather than read back off working hardware. The failure mode
-> is visible rather than silent: if nothing answers on the sensor bus the
-> screen reads `NO SENSOR`.
 
 ## Hardware
 
