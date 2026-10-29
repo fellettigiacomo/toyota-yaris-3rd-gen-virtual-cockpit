@@ -46,13 +46,13 @@ CHG/PWR power flow on the right.
 
 ### 📊 Efficiency
 
-The whole drive's PWR demand as one line, on the same scale as the cockpit's
-power gauge: green where the car was electric, white where the engine was
-driving. Regen is drawn at zero and counts as electric. The line always spans
+The whole drive's PWR demand as one full-screen line, on the same scale as
+the cockpit's power gauge, with a gradient fading down beneath it: green where
+the car was electric, white where the engine was driving. Regen is drawn at zero and counts as electric. The line always spans
 the entire session — once it reaches the right edge, neighbouring points are
 merged in pairs and it keeps going at half the time resolution, so memory and
-redraw cost stay fixed however long the trip. Distance and average speed keep
-the bottom corners.
+redraw cost stay fixed however long the trip. Distance and average speed sit in
+the top corners.
 
 ![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
 
