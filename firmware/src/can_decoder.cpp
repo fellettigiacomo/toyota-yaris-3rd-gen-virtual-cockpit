@@ -155,7 +155,7 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
         case 0x0B4: // SPEED
             if (dlc >= 7) {
                 uint16_t raw = (static_cast<uint16_t>(d[5]) << 8) | d[6];
-                state.speed_kph = raw * 0.01f;
+                state.speed_kph = raw * 0.01f * SPEED_CORRECTION;
             }
             break;
 

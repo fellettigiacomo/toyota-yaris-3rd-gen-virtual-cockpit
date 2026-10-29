@@ -6,6 +6,13 @@
 // 2014 Yaris Hybrid diagnostic (OBD-II) high-speed CAN bus, ISO 15765-4.
 constexpr uint32_t CAN_BITRATE_BPS = 500000;
 
+// --- Speed calibration ---
+// The CAN SPEED signal reads high against the car's own (GPS-true) display:
+// the cockpit showed 50 while the car showed 46. Scaled once in the decoder
+// so every consumer (speed readout, session stats, 0-50/0-100 timer,
+// G-meter) works from the same corrected value.
+constexpr float SPEED_CORRECTION = 46.0f / 50.0f;
+
 // --- FreeRTOS task priorities / core pinning ---
 // Two-task split (no SD writer here, unlike obd-capture): CAN decode is the
 // only latency-critical task, LVGL rendering is comparatively cheap and must
