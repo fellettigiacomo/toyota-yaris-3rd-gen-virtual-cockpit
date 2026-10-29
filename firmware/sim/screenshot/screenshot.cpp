@@ -13,9 +13,8 @@
 //
 // Timing note: the UI modules integrate against millis(), so the scenes below
 // play out in real time rather than being fast-forwarded. The efficiency
-// scene is the slow one (~2 minutes): its EV share is distance-weighted, so
-// the only way to reach a given split with a plausible trip behind it is to
-// actually drive the distance.
+// scene is the slow one (~2 minutes): its PWR graph and trip stats only fill
+// as fast as the clock runs, so it actually drives the distance.
 
 #include <lvgl.h>
 
@@ -127,7 +126,7 @@ Sample read() {
 
 namespace {
 
-int g_screen = 0; // 0 cockpit, 1 energy, 2 efficiency, 3 G-meter
+int g_screen = 0; // 0 cockpit, 1 efficiency, 2 energy, 3 G-meter
 VehicleState g_state;
 
 void step(int ms) {
@@ -196,7 +195,7 @@ void sceneEnergyFlow() {
     g_state.accel_demand = 40;
     g_state.hsi_power = 60;
     g_state.soc_trend_pct_per_s = -0.3f;
-    gotoScreen(1);
+    gotoScreen(2);
     // Long enough for the travelling segments to be caught mid-run rather
     // than parked at a link's start.
     runFor(500);
@@ -204,13 +203,13 @@ void sceneEnergyFlow() {
 }
 
 // --- 03 efficiency --------------------------------------------------------
-// The EV share is distance-weighted, so it can only be steered by driving:
-// cover ground on the motor, hand over to the engine, and capture when the
-// split has fallen to something worth showing. The short way round gives a
-// 100m trip, which reads as a bug rather than as a short drive.
+// The PWR graph only fills as fast as real time does, so this scene actually
+// drives ~2 minutes: light-throttle EV cruising with a couple of regen dips,
+// then the engine taking over under heavier load. The stats in the corners
+// come from the same drive, so they read as a plausible short trip.
 void sceneEfficiency() {
     std::printf("03_efficiency (the slow one -- ~2 minutes of simulated driving)\n");
-    gotoScreen(2);
+    gotoScreen(1);
     g_state.ice_running = false;
     g_state.ev_drive = true;
     g_state.speed_kph = 70.0f;
@@ -223,6 +222,13 @@ void sceneEfficiency() {
         bool onMotor = t < 75.0f;
         g_state.ev_drive = onMotor;
         g_state.ice_running = !onMotor;
+        if (onMotor) {
+            bool regen = std::fmod(t, 30.0f) > 24.0f;
+            g_state.hsi_power =
+                regen ? -40 : static_cast<int16_t>(30.0f + 20.0f * std::sin(t * 0.4f));
+        } else {
+            g_state.hsi_power = static_cast<int16_t>(110.0f + 50.0f * std::sin(t * 0.7f));
+        }
         step(16);
         HybridStats::Snapshot s = HybridStats::getSnapshot();
         if (t > 76.0f && s.evSharePct <= 72.0f) {

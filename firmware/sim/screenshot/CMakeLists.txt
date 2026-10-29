@@ -38,6 +38,7 @@ add_executable(screenshot
     ${PROJECT_ROOT}/src/screen_nav.cpp
     ${PROJECT_ROOT}/src/touch_nav.cpp
     ${PROJECT_ROOT}/src/hybrid_stats.cpp
+    ${PROJECT_ROOT}/src/pwr_history.cpp
     ${PROJECT_ROOT}/src/accel_timer.cpp
     ${PROJECT_ROOT}/src/ui/app_ui.cpp
     ${PROJECT_ROOT}/src/ui/cockpit_ui.cpp

@@ -7,6 +7,7 @@
 #include "screen_nav.h"
 #include "touch_nav.h"
 #include "hybrid_stats.h"
+#include "pwr_history.h"
 #include "accel_timer.h"
 #include "g_meter.h"
 
@@ -18,15 +19,15 @@
 // (no scroll animation -- an earlier lv_tileview swipe was dropped for being
 // laggy on real hardware; a discrete tap-anywhere doesn't have that problem,
 // it's a single full-refresh flush same as a BOOT press already causes).
-// Screens, in cycle order: cockpit -> energy flow -> efficiency -> G-meter ->
-// cockpit.
+// Screens, in cycle order: cockpit -> efficiency (PWR graph) -> energy flow ->
+// G-meter -> cockpit.
 namespace AppUi {
 
 namespace {
 constexpr int16_t kScreenW = 640;
 constexpr int16_t kScreenH = 172;
 
-enum Screen { ScreenCockpit = 0, ScreenEnergy, ScreenEfficiency, ScreenGMeter, ScreenCount };
+enum Screen { ScreenCockpit = 0, ScreenEfficiency, ScreenEnergy, ScreenGMeter, ScreenCount };
 lv_obj_t *g_screens[ScreenCount] = {nullptr, nullptr, nullptr, nullptr};
 int g_active = ScreenCockpit;
 
@@ -79,10 +80,13 @@ void update(const VehicleState &state) {
         showOnly(g_active);
     }
 
-    // Session stats and the 0-50/0-100 timer integrate continuously,
-    // regardless of the visible screen -- a run started while the energy or
-    // efficiency screen is shown must still be caught.
+    // Session stats, the PWR history and the 0-50/0-100 timer integrate
+    // continuously, regardless of the visible screen -- a run started while
+    // the energy or efficiency screen is shown must still be caught, and the
+    // efficiency graph has to cover the whole drive, not just the parts it
+    // was looked at.
     HybridStats::update(state);
+    PwrHistory::update(state);
     AccelTimer::update(state);
     // Same rule, and for this one it is load-bearing twice over: the G-meter
     // only learns the board's mounting from stationary and straight-line
