@@ -2,7 +2,9 @@
 #include "colors.h"
 #include "fonts/fonts.h"
 #include "hybrid_stats.h"
+#include "pwr_history.h"
 
+#include <cstdint>
 #include <cstdio>
 
 namespace EfficiencyUi {
@@ -11,43 +13,31 @@ namespace {
 
 constexpr int16_t kScreenW = 640;
 constexpr int16_t kScreenH = 172;
+constexpr int16_t kEdgeMargin = 16;
 
-// The split IS the screen: the EV share fills from the left edge, the engine
-// share holds the rest, and the seam between them is the whole point of the
-// layout -- so the two percentages sit right against it, at the same 120px
-// size the cockpit gives the speed. Full-bleed washes rather than saturated
-// fills: this is a dashboard at night, and half a screen of #3ddc84 would
-// be a torch. The seam itself carries the full-strength colour.
-constexpr uint8_t kEvWashMix = 18;     // % of kEvGreen mixed into the background
-constexpr uint8_t kEngineWashMix = 9;  // % of kText, enough to read as a second region
-constexpr int16_t kSeamW = 2;
+// The graph: the whole session's PWR demand as one line, green where the car
+// was electric (regen included -- it is drawn at zero, but it is the pack's
+// time), white where the engine was driving. PwrHistory keeps the session in
+// kCapacity points however long it runs, so each point gets kPointStepX
+// pixels and a full buffer spans the screen edge to edge.
+constexpr int16_t kPointStepX = kScreenW / PwrHistory::kCapacity;
+constexpr int16_t kGraphTop = 10;
+constexpr int16_t kGraphBase = 110; // y of a zero reading
+constexpr int16_t kLineW = 2;
 
-// Percentages straddle the seam: EV's block ends just before it, ENGINE's
-// starts just after.
-constexpr int16_t kSeamPad = 18;
-constexpr int16_t kEdgeMargin = 16; // the pair slides inwards rather than off-screen
-constexpr int16_t kPctGap = 5;      // between a number and its "%" suffix
-constexpr int16_t kNumberTracking = -3; // same tightening the cockpit's speed number uses
-
-// Rows. dinnext_120_speed's real line_height is 85 and montserrat_14's is
-// 16, so the number band runs 19..104 and the stat rows 124..163 -- the
-// numbers centred in the space above the stats now that nothing sits over
-// them. The two bands never overlap, which matters at the extremes: when the
-// seam is near an edge the percentage pair slides inwards and ends up
-// directly above a corner stat, so the 20px between the bands is what keeps
-// that from reading as a collision.
-constexpr int16_t kNumberY = 19;
+// Stat rows, unchanged from the split layout: montserrat_14 captions over
+// dinnext_28_stat values, in the two bottom corners.
 constexpr int16_t kStatCaptionY = 124;
 constexpr int16_t kStatValueY = 142;
 
-lv_obj_t *g_evFill = nullptr;
-lv_obj_t *g_seam = nullptr;
-lv_obj_t *g_evNumber = nullptr;
-lv_obj_t *g_evPct = nullptr;
-lv_obj_t *g_engineNumber = nullptr;
-lv_obj_t *g_enginePct = nullptr;
+lv_obj_t *g_graph = nullptr;
 lv_obj_t *g_distanceValue = nullptr;
 lv_obj_t *g_avgSpeedValue = nullptr;
+
+// What the graph last showed, so update() only invalidates it when a point
+// has actually moved -- most ticks nothing has.
+uint32_t g_drawnRevision = UINT32_MAX;
+PwrHistory::Bucket g_drawnOpen = {0xff, 0xff};
 
 int16_t textW(const char *txt, const lv_font_t *font, int16_t letterSpace = 0) {
     lv_point_t sz;
@@ -80,24 +70,48 @@ lv_obj_t *makeRect(lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h,
     return r;
 }
 
-// One percentage = a big number with a small "%" hung off its bottom-right,
-// the same pairing the cockpit uses for the battery and power readouts. The
-// block's width is the number plus the gap plus the suffix.
-int16_t blockWidth(const char *number) {
-    // Measured WITH the tracking the number is actually styled with -- the
-    // blocks are placed off these widths, so a mismatch would show up as the
-    // pair drifting away from the seam.
-    return static_cast<int16_t>(textW(number, &dinnext_120_speed, kNumberTracking) + kPctGap +
-                                textW("%", &dinnext_28_stat));
+lv_point_t pointAt(const lv_area_t &origin, int i, const PwrHistory::Bucket &b) {
+    lv_point_t p;
+    p.x = static_cast<lv_coord_t>(origin.x1 + i * kPointStepX + kPointStepX / 2);
+    p.y = static_cast<lv_coord_t>(origin.y1 + kGraphBase -
+                                  static_cast<int32_t>(b.pwrPct) * (kGraphBase - kGraphTop) / 100);
+    return p;
 }
 
-// No EV/ENGINE captions: the green fill starts at the left edge and the
-// numbers carry the same two colours, which already says which share is
-// which -- a word over each would only repeat what the colour states.
-void placeBlock(lv_obj_t *number, lv_obj_t *pct, const char *numberTxt, int16_t left) {
-    lv_label_set_text(number, numberTxt);
-    lv_obj_set_pos(number, left, kNumberY);
-    lv_obj_align_to(pct, number, LV_ALIGN_OUT_RIGHT_BOTTOM, kPctGap, -14);
+bool electric(const PwrHistory::Bucket &b) {
+    return b.evPct >= 50;
+}
+
+// One segment per pair of neighbouring points, coloured by the point it runs
+// into, so the colour changes exactly where the drive mode did. Round caps
+// close the joints between segments of different slope.
+void drawGraph(lv_event_t *e) {
+    lv_obj_t *obj = lv_event_get_target(e);
+    lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(e);
+    lv_area_t origin;
+    lv_obj_get_coords(obj, &origin);
+
+    lv_draw_line_dsc_t dsc;
+    lv_draw_line_dsc_init(&dsc);
+    dsc.width = kLineW;
+    dsc.round_start = 1;
+    dsc.round_end = 1;
+
+    int n = PwrHistory::size();
+    PwrHistory::Bucket openBucket;
+    bool hasOpen = PwrHistory::open(openBucket);
+    int total = n + (hasOpen ? 1 : 0);
+    if (total < 2) return;
+
+    PwrHistory::Bucket prev = PwrHistory::at(0);
+    lv_point_t prevPt = pointAt(origin, 0, prev);
+    for (int i = 1; i < total; i++) {
+        PwrHistory::Bucket cur = (i < n) ? PwrHistory::at(i) : openBucket;
+        lv_point_t curPt = pointAt(origin, i, cur);
+        dsc.color = electric(cur) ? Colors::kEvGreen : Colors::kPwrWhite;
+        lv_draw_line(ctx, &dsc, &prevPt, &curPt);
+        prevPt = curPt;
+    }
 }
 
 } // namespace
@@ -111,27 +125,18 @@ void build(lv_obj_t *parent) {
     lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Engine wash covers everything; the EV fill is drawn over it and only
-    // its width changes, so a redraw touches one object, not two.
-    makeRect(root, 0, 0, kScreenW, kScreenH, lv_color_mix(Colors::kText, Colors::kBg, kEngineWashMix));
-    g_evFill = makeRect(root, 0, 0, 1, kScreenH,
-                        lv_color_mix(Colors::kEvGreen, Colors::kBg, kEvWashMix));
+    // Zero line, just under where a zero reading's stroke sits.
+    makeRect(root, 0, kGraphBase + kLineW, kScreenW, 1, Colors::kBarTrack);
 
-    // The seam, at full strength with the same glow the cockpit's gauges use
-    // -- it is the one edge on this screen that means something.
-    g_seam = makeRect(root, 0, 0, kSeamW, kScreenH, Colors::kEvGreen);
-    lv_obj_set_style_shadow_color(g_seam, Colors::kEvGreen, 0);
-    lv_obj_set_style_shadow_width(g_seam, 12, 0);
-    lv_obj_set_style_shadow_spread(g_seam, 1, 0);
-    lv_obj_set_style_shadow_opa(g_seam, LV_OPA_50, 0);
-
-    g_evNumber = makeLabel(root, "0", &dinnext_120_speed, Colors::kEvGreen, 0, kNumberY, AnchorLeft);
-    lv_obj_set_style_text_letter_space(g_evNumber, kNumberTracking, 0);
-    g_evPct = makeLabel(root, "%", &dinnext_28_stat, Colors::kMutedText, 0, kNumberY, AnchorLeft);
-
-    g_engineNumber = makeLabel(root, "0", &dinnext_120_speed, Colors::kText, 0, kNumberY, AnchorLeft);
-    lv_obj_set_style_text_letter_space(g_engineNumber, kNumberTracking, 0);
-    g_enginePct = makeLabel(root, "%", &dinnext_28_stat, Colors::kMutedText, 0, kNumberY, AnchorLeft);
+    // The graph object spans the plot's full height plus room for the
+    // stroke, so the line's caps are never clipped at the top or bottom.
+    g_graph = lv_obj_create(root);
+    lv_obj_remove_style_all(g_graph);
+    lv_obj_set_size(g_graph, kScreenW, kGraphBase + kLineW);
+    lv_obj_set_pos(g_graph, 0, 0);
+    lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(g_graph, drawGraph, LV_EVENT_DRAW_MAIN, nullptr);
 
     // The two session stats keep the bottom corners, one per side.
     makeLabel(root, "DISTANCE", &lv_font_montserrat_14, Colors::kMutedText, kEdgeMargin,
@@ -146,52 +151,17 @@ void build(lv_obj_t *parent) {
 }
 
 void update(const VehicleState &) {
+    PwrHistory::Bucket openBucket = {0xff, 0xff};
+    PwrHistory::open(openBucket);
+    bool openMoved = openBucket.pwrPct != g_drawnOpen.pwrPct ||
+                     electric(openBucket) != electric(g_drawnOpen);
+    if (PwrHistory::revision() != g_drawnRevision || openMoved) {
+        g_drawnRevision = PwrHistory::revision();
+        g_drawnOpen = openBucket;
+        lv_obj_invalidate(g_graph);
+    }
+
     HybridStats::Snapshot s = HybridStats::getSnapshot();
-
-    int evPct = static_cast<int>(s.evSharePct + 0.5f);
-    if (evPct < 0) evPct = 0;
-    if (evPct > 100) evPct = 100;
-
-    int16_t seamX = static_cast<int16_t>(static_cast<int32_t>(evPct) * kScreenW / 100);
-
-    // A zero-width fill is not a thing LVGL draws sensibly, and neither edge
-    // of the screen has room for a 2px seam drawn half off it.
-    if (seamX <= 0) {
-        lv_obj_add_flag(g_evFill, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_clear_flag(g_evFill, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_width(g_evFill, seamX);
-    }
-    int16_t seamDrawX = seamX - kSeamW / 2;
-    if (seamDrawX < 0) seamDrawX = 0;
-    if (seamDrawX > kScreenW - kSeamW) seamDrawX = kScreenW - kSeamW;
-    lv_obj_set_x(g_seam, seamDrawX);
-
-    char evTxt[8], engineTxt[8];
-    snprintf(evTxt, sizeof(evTxt), "%d", evPct);
-    snprintf(engineTxt, sizeof(engineTxt), "%d", 100 - evPct);
-
-    // Both percentages hang off the seam -- EV's block ending just before it,
-    // ENGINE's starting just after. At the extremes that pair would run off
-    // an edge, so slide the pair back on screen as a unit: the numbers stop
-    // touching the seam, which is unavoidable when the seam is at the very
-    // edge, but they stay in reading order and keep their own colours.
-    int16_t evW = blockWidth(evTxt);
-    int16_t engineW = blockWidth(engineTxt);
-    int16_t evLeft = static_cast<int16_t>(seamX - kSeamPad - evW);
-    int16_t engineLeft = static_cast<int16_t>(seamX + kSeamPad);
-
-    int16_t shift = 0;
-    if (evLeft < kEdgeMargin) shift = static_cast<int16_t>(kEdgeMargin - evLeft);
-    int16_t engineRight = static_cast<int16_t>(engineLeft + engineW + shift);
-    if (engineRight > kScreenW - kEdgeMargin) {
-        shift = static_cast<int16_t>(shift - (engineRight - (kScreenW - kEdgeMargin)));
-    }
-    evLeft = static_cast<int16_t>(evLeft + shift);
-    engineLeft = static_cast<int16_t>(engineLeft + shift);
-
-    placeBlock(g_evNumber, g_evPct, evTxt, evLeft);
-    placeBlock(g_engineNumber, g_enginePct, engineTxt, engineLeft);
 
     char buf[16];
     snprintf(buf, sizeof(buf), "%.1f KM", static_cast<double>(s.distanceKm));

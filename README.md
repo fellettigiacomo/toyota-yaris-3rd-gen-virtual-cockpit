@@ -44,6 +44,18 @@ CHG/PWR power flow on the right.
 
 ![Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
 
+### 📊 Efficiency
+
+The whole drive's PWR demand as one line, on the same scale as the cockpit's
+power gauge: green where the car was electric, white where the engine was
+driving. Regen is drawn at zero and counts as electric. The line always spans
+the entire session — once it reaches the right edge, neighbouring points are
+merged in pairs and it keeps going at half the time resolution, so memory and
+redraw cost stay fixed however long the trip. Distance and average speed keep
+the bottom corners.
+
+![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
+
 ### ⚡ Energy Flow
 
 ENGINE / MOTOR / BATTERY / WHEELS and the four paths between them. Each link
@@ -52,15 +64,6 @@ does — red for the engine's mechanical drive, green for anything being
 recovered, blue for the pack when it is the one giving.
 
 ![Energy Flow](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/02_energy_flow.png?raw=true)
-
-### 📊 Efficiency
-
-The session's EV-vs-engine split, drawn as a full-bleed divide of the whole
-screen: the electric share fills from the left edge, the engine share holds
-the rest, and both percentages hang off the seam between them. Distance and
-average speed keep the bottom corners.
-
-![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
 
 ### 📈 G-Meter
 
