@@ -19,16 +19,24 @@ constexpr int16_t kEdgeMargin = 16;
 // was electric (regen included -- it is drawn at zero, but it is the pack's
 // time), white where the engine was driving. PwrHistory keeps the session in
 // kCapacity points however long it runs, so each point gets kPointStepX
-// pixels and a full buffer spans the screen edge to edge.
+// pixels and a full buffer spans the screen edge to edge. The plot takes the
+// whole screen; the stats sit over its top corners.
 constexpr int16_t kPointStepX = kScreenW / PwrHistory::kCapacity;
-constexpr int16_t kGraphTop = 10;
-constexpr int16_t kGraphBase = 110; // y of a zero reading
+constexpr int16_t kGraphTop = 8;
+constexpr int16_t kGraphBase = 168; // y of a zero reading
 constexpr int16_t kLineW = 2;
 
-// Stat rows, unchanged from the split layout: montserrat_14 captions over
-// dinnext_28_stat values, in the two bottom corners.
-constexpr int16_t kStatCaptionY = 124;
-constexpr int16_t kStatValueY = 142;
+// The area under the line fades from kFillMaxMix (0..255 share of the line's
+// colour, at the plot's top) down to the plain background at the zero line.
+// The fade is tied to screen height, not to each column's own height, so the
+// whole area reads as one gradient. LVGL 8.3 has no per-stop opacity, but the
+// background is a solid colour, so mixing towards it gives the same result.
+constexpr uint8_t kFillMaxMix = 120;
+
+// Stat rows: montserrat_14 captions over dinnext_28_stat values, in the two
+// top corners.
+constexpr int16_t kStatCaptionY = 8;
+constexpr int16_t kStatValueY = 26;
 
 lv_obj_t *g_graph = nullptr;
 lv_obj_t *g_distanceValue = nullptr;
@@ -82,9 +90,43 @@ bool electric(const PwrHistory::Bucket &b) {
     return b.evPct >= 50;
 }
 
-// One segment per pair of neighbouring points, coloured by the point it runs
-// into, so the colour changes exactly where the drive mode did. Round caps
-// close the joints between segments of different slope.
+lv_color_t colorOf(const PwrHistory::Bucket &b) {
+    return electric(b) ? Colors::kEvGreen : Colors::kPwrWhite;
+}
+
+// One gradient column per point, from the line down to the zero line.
+void drawFill(lv_draw_ctx_t *ctx, const lv_area_t &origin, int i, const PwrHistory::Bucket &b) {
+    lv_point_t p = pointAt(origin, i, b);
+    lv_coord_t base = static_cast<lv_coord_t>(origin.y1 + kGraphBase);
+    if (p.y >= base) return; // nothing under a zero reading
+
+    lv_area_t col;
+    col.x1 = static_cast<lv_coord_t>(origin.x1 + i * kPointStepX);
+    col.x2 = static_cast<lv_coord_t>(col.x1 + kPointStepX - 1);
+    col.y1 = p.y;
+    col.y2 = base;
+
+    uint8_t mix = static_cast<uint8_t>(static_cast<int32_t>(kFillMaxMix) * (base - p.y) /
+                                       (kGraphBase - kGraphTop));
+    lv_color_t top = lv_color_mix(colorOf(b), Colors::kBg, mix);
+
+    lv_draw_rect_dsc_t dsc;
+    lv_draw_rect_dsc_init(&dsc);
+    dsc.bg_opa = LV_OPA_COVER;
+    dsc.bg_color = top;
+    dsc.bg_grad.dir = LV_GRAD_DIR_VER;
+    dsc.bg_grad.stops_count = 2;
+    dsc.bg_grad.stops[0].color = top;
+    dsc.bg_grad.stops[0].frac = 0;
+    dsc.bg_grad.stops[1].color = Colors::kBg;
+    dsc.bg_grad.stops[1].frac = 255;
+    lv_draw_rect(ctx, &dsc, &col);
+}
+
+// The gradient first, then the line over it: one segment per pair of
+// neighbouring points, coloured by the point it runs into, so the colour
+// changes exactly where the drive mode did. Round caps close the joints
+// between segments of different slope.
 void drawGraph(lv_event_t *e) {
     lv_obj_t *obj = lv_event_get_target(e);
     lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(e);
@@ -103,12 +145,16 @@ void drawGraph(lv_event_t *e) {
     int total = n + (hasOpen ? 1 : 0);
     if (total < 2) return;
 
+    for (int i = 0; i < total; i++) {
+        drawFill(ctx, origin, i, (i < n) ? PwrHistory::at(i) : openBucket);
+    }
+
     PwrHistory::Bucket prev = PwrHistory::at(0);
     lv_point_t prevPt = pointAt(origin, 0, prev);
     for (int i = 1; i < total; i++) {
         PwrHistory::Bucket cur = (i < n) ? PwrHistory::at(i) : openBucket;
         lv_point_t curPt = pointAt(origin, i, cur);
-        dsc.color = electric(cur) ? Colors::kEvGreen : Colors::kPwrWhite;
+        dsc.color = colorOf(cur);
         lv_draw_line(ctx, &dsc, &prevPt, &curPt);
         prevPt = curPt;
     }
@@ -128,17 +174,18 @@ void build(lv_obj_t *parent) {
     // Zero line, just under where a zero reading's stroke sits.
     makeRect(root, 0, kGraphBase + kLineW, kScreenW, 1, Colors::kBarTrack);
 
-    // The graph object spans the plot's full height plus room for the
-    // stroke, so the line's caps are never clipped at the top or bottom.
+    // The graph object spans the whole screen, which leaves room for the
+    // stroke's caps above the top and below the zero line.
     g_graph = lv_obj_create(root);
     lv_obj_remove_style_all(g_graph);
-    lv_obj_set_size(g_graph, kScreenW, kGraphBase + kLineW);
+    lv_obj_set_size(g_graph, kScreenW, kScreenH);
     lv_obj_set_pos(g_graph, 0, 0);
     lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(g_graph, drawGraph, LV_EVENT_DRAW_MAIN, nullptr);
 
-    // The two session stats keep the bottom corners, one per side.
+    // The two session stats take the top corners, one per side. Created after
+    // the graph so they stay on top when the line runs up under them.
     makeLabel(root, "DISTANCE", &lv_font_montserrat_14, Colors::kMutedText, kEdgeMargin,
               kStatCaptionY, AnchorLeft);
     g_distanceValue = makeLabel(root, "0.0 KM", &dinnext_28_stat, Colors::kText, kEdgeMargin,
