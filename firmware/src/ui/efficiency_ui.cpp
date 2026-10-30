@@ -17,14 +17,23 @@ constexpr int16_t kEdgeMargin = 16;
 
 // The graph: the whole session's PWR demand as one line, green where the car
 // was electric (regen included -- it is drawn at zero, but it is the pack's
-// time), white where the engine was driving. PwrHistory keeps the session in
-// kCapacity points however long it runs, so each point gets kPointStepX
-// pixels and a full buffer spans the screen edge to edge. The plot takes the
-// whole screen; the stats sit over its top corners.
-constexpr int16_t kPointStepX = kScreenW / PwrHistory::kCapacity;
-constexpr int16_t kGraphTop = 8;
+// time), white where the engine was driving.
+//
+// The plot keeps itself full in both directions. Horizontally, whatever
+// points PwrHistory holds are stretched across the whole width, so the line
+// runs edge to edge from the first seconds of a drive. Vertically, the
+// session's peak (after smoothing) is scaled up to kGraphTop -- which sits
+// just under the stat values, so the line never climbs into them -- and the
+// scale eases towards a new peak over a few tenths of a second instead of
+// jumping. kMinScalePct keeps an almost-idle drive from blowing noise up to
+// full height.
+constexpr int16_t kGraphTop = 55;   // stat values end at 26 + 21 (line height), plus a gap
 constexpr int16_t kGraphBase = 168; // y of a zero reading
 constexpr int16_t kLineW = 2;
+constexpr float kMinScalePct = 10.0f;
+constexpr float kScaleEase = 0.25f;      // share of the gap to the target closed per UI tick
+constexpr float kScaleSettlePct = 0.2f;  // close enough: stop animating
+constexpr uint32_t kAnimRedrawMs = 100;  // redraw cap while the scale is moving
 
 // The area under the line fades from kFillMaxMix (0..255 share of the line's
 // colour, at the plot's top) down to the plain background at the zero line.
@@ -34,7 +43,7 @@ constexpr int16_t kLineW = 2;
 constexpr uint8_t kFillMaxMix = 120;
 
 // Stat rows: montserrat_14 captions over dinnext_28_stat values, in the two
-// top corners.
+// top corners, above the plot.
 constexpr int16_t kStatCaptionY = 8;
 constexpr int16_t kStatValueY = 26;
 
@@ -88,6 +97,11 @@ constexpr int kMaxPoints = PwrHistory::kCapacity + 1; // closed buckets + the op
 float g_raw[kMaxPoints];
 float g_smooth[kMaxPoints];
 bool g_ev[kMaxPoints];
+int g_count = 0;          // points prepared by update(), read by drawGraph()
+float g_peakPct = 0.0f;   // max of g_smooth
+float g_yScale = kMinScalePct; // pct that maps to kGraphTop, eased towards the peak
+float g_drawnScale = 0.0f;
+uint32_t g_lastAnimRedrawMs = 0;
 lv_coord_t g_colY[kScreenW]; // curve y per pixel column, for the two drawing passes
 bool g_colEv[kScreenW];
 
@@ -136,8 +150,29 @@ float curveAt(float u, int count) {
 }
 
 lv_coord_t yOf(const lv_area_t &origin, float pct) {
+    float h = pct / g_yScale;
+    if (h > 1.0f) h = 1.0f; // the scale is still easing up to a new peak
     return static_cast<lv_coord_t>(origin.y1 + kGraphBase -
-                                   pct * static_cast<float>(kGraphBase - kGraphTop) / 100.0f + 0.5f);
+                                   h * static_cast<float>(kGraphBase - kGraphTop) + 0.5f);
+}
+
+// Snapshot the history into g_smooth/g_ev and find the peak the vertical
+// scale follows.
+void prepare() {
+    int n = PwrHistory::size();
+    PwrHistory::Bucket openBucket;
+    bool hasOpen = PwrHistory::open(openBucket);
+    g_count = n + (hasOpen ? 1 : 0);
+    for (int i = 0; i < g_count; i++) {
+        PwrHistory::Bucket b = (i < n) ? PwrHistory::at(i) : openBucket;
+        g_raw[i] = static_cast<float>(b.pwrPct);
+        g_ev[i] = electric(b);
+    }
+    smooth(g_count);
+    g_peakPct = 0.0f;
+    for (int i = 0; i < g_count; i++) {
+        if (g_smooth[i] > g_peakPct) g_peakPct = g_smooth[i];
+    }
 }
 
 // One 1px gradient column, from the curve down to the zero line.
@@ -168,8 +203,8 @@ void drawFill(lv_draw_ctx_t *ctx, const lv_area_t &origin, lv_coord_t x, lv_coor
     lv_draw_rect(ctx, &dsc, &col);
 }
 
-// Points sit at the centre of their kPointStepX slot. Every pixel column
-// between the first and last point gets its curve value; all the gradient
+// The points are spread over the full width, first point on the left edge and
+// newest on the right. Every pixel column gets its curve value; all the gradient
 // columns go down first, then the line over them as 1px segments between
 // neighbouring columns (a second pass, so no fill column covers stroke that
 // spills past its own column). Each segment takes the nearest point's drive
@@ -181,18 +216,8 @@ void drawGraph(lv_event_t *e) {
     lv_area_t origin;
     lv_obj_get_coords(obj, &origin);
 
-    int n = PwrHistory::size();
-    PwrHistory::Bucket openBucket;
-    bool hasOpen = PwrHistory::open(openBucket);
-    int count = n + (hasOpen ? 1 : 0);
+    int count = g_count;
     if (count < 2) return;
-
-    for (int i = 0; i < count; i++) {
-        PwrHistory::Bucket b = (i < n) ? PwrHistory::at(i) : openBucket;
-        g_raw[i] = static_cast<float>(b.pwrPct);
-        g_ev[i] = electric(b);
-    }
-    smooth(count);
 
     lv_draw_line_dsc_t dsc;
     lv_draw_line_dsc_init(&dsc);
@@ -200,10 +225,9 @@ void drawGraph(lv_event_t *e) {
     dsc.round_start = 1;
     dsc.round_end = 1;
 
-    constexpr int kFirstX = kPointStepX / 2;
-    int lastX = (count - 1) * kPointStepX + kFirstX;
-    for (int x = kFirstX; x <= lastX; x++) {
-        float u = static_cast<float>(x - kFirstX) / kPointStepX;
+    const float pointsPerPx = static_cast<float>(count - 1) / static_cast<float>(kScreenW - 1);
+    for (int x = 0; x < kScreenW; x++) {
+        float u = static_cast<float>(x) * pointsPerPx;
         int nearest = static_cast<int>(u + 0.5f);
         if (nearest > count - 1) nearest = count - 1;
         g_colEv[x] = g_ev[nearest];
@@ -211,7 +235,7 @@ void drawGraph(lv_event_t *e) {
         drawFill(ctx, origin, static_cast<lv_coord_t>(origin.x1 + x), g_colY[x], g_colEv[x]);
     }
 
-    for (int x = kFirstX + 1; x <= lastX; x++) {
+    for (int x = 1; x < kScreenW; x++) {
         lv_point_t a = {static_cast<lv_coord_t>(origin.x1 + x - 1), g_colY[x - 1]};
         lv_point_t b = {static_cast<lv_coord_t>(origin.x1 + x), g_colY[x]};
         dsc.color = colorFor(g_colEv[x]);
@@ -261,9 +285,26 @@ void update(const VehicleState &) {
     PwrHistory::open(openBucket);
     bool openMoved = openBucket.pwrPct != g_drawnOpen.pwrPct ||
                      electric(openBucket) != electric(g_drawnOpen);
-    if (PwrHistory::revision() != g_drawnRevision || openMoved) {
+    bool dataChanged = PwrHistory::revision() != g_drawnRevision || openMoved;
+    if (dataChanged) {
         g_drawnRevision = PwrHistory::revision();
         g_drawnOpen = openBucket;
+        prepare();
+    }
+
+    float target = g_peakPct > kMinScalePct ? g_peakPct : kMinScalePct;
+    float gap = target - g_yScale;
+    bool animating = gap > kScaleSettlePct || gap < -kScaleSettlePct;
+    g_yScale = animating ? g_yScale + gap * kScaleEase : target;
+
+    // While easing, redraws are capped at kAnimRedrawMs; the step that
+    // settles on the target always gets one, so the last frame is exact.
+    uint32_t nowMs = lv_tick_get();
+    bool scaleMoved = g_yScale != g_drawnScale;
+    if (dataChanged ||
+        (scaleMoved && (!animating || nowMs - g_lastAnimRedrawMs >= kAnimRedrawMs))) {
+        g_drawnScale = g_yScale;
+        g_lastAnimRedrawMs = nowMs;
         lv_obj_invalidate(g_graph);
     }
 
