@@ -1,6 +1,7 @@
 #include "can_decoder.h"
 #include "board_pins.h"
 #include "app_config.h"
+#include "usb_dump.h"
 
 #include <Arduino.h>
 #include <algorithm>
@@ -83,6 +84,7 @@ void surveyHsi(uint8_t zone, uint8_t raw) {
 void dumpHsiSurveyIfDue() {
     uint32_t now = millis();
     if (!g_hsiSurveyDirty || now - g_hsiSurveyLastDumpMs < kHsiSurveyPeriodMs) return;
+    if (UsbDump::active()) return; // kept for later: 100+ console lines would only bury the dump
     g_hsiSurveyLastDumpMs = now;
     g_hsiSurveyDirty = false;
     Serial.println("[can_decoder] HSI byte[0] survey -- zone: frames raw[min..max]");
@@ -336,6 +338,11 @@ void canRxTask(void *) {
     for (;;) {
         twai_message_t msg;
         esp_err_t err = twai_receive(&msg, pdMS_TO_TICKS(50));
+        if (err == ESP_OK) {
+            // Every frame, RTR included: the dump is the raw bus, not just
+            // what this decoder understands.
+            UsbDump::push(msg.identifier, msg.extd, msg.rtr, msg.data_length_code, msg.data);
+        }
         if (err == ESP_OK && !msg.rtr) {
             taskENTER_CRITICAL(&g_stateMux);
             decodeIntoState(g_state, msg.identifier, msg.data, msg.data_length_code);
@@ -370,6 +377,7 @@ VehicleState getSnapshot() {
     taskENTER_CRITICAL(&g_stateMux);
     copy = g_state;
     taskEXIT_CRITICAL(&g_stateMux);
+    copy.usb_dump = UsbDump::active();
     return copy;
 }
 
@@ -430,10 +438,15 @@ VehicleState getSnapshot() {
     while (g_nextIdx < kDemoLogCount && kDemoLog[g_nextIdx].t_ms <= elapsedMs) {
         const DemoLogFrame &f = kDemoLog[g_nextIdx];
         decodeIntoState(g_demoState, f.id, f.data, f.dlc);
+        // The replayed frames go out over the USB dump too, so the whole
+        // capture path can be tried on the bench (timestamps are replay
+        // time, bunched at the UI sync rate).
+        UsbDump::push(f.id, f.id > 0x7FF, false, f.dlc, f.data);
         g_nextIdx++;
     }
     dumpHsiSurveyIfDue();
 
+    g_demoState.usb_dump = UsbDump::active();
     return g_demoState;
 }
 

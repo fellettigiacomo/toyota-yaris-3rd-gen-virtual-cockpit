@@ -27,4 +27,5 @@ struct VehicleState {
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
     float soc_trend_pct_per_s = 0.0f; // derived: EMA'd rate of change of battery_soc_pct, not a raw signal
+    bool usb_dump = false;            // not CAN: a USB CAN dump is streaming (usb_dump.h), shown on the cockpit
 };

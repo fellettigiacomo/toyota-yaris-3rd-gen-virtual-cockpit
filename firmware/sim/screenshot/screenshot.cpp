@@ -201,6 +201,13 @@ void sceneCockpit() {
     gotoScreen(0);
     runFor(400);
     dump("01_cockpit");
+
+    // Same frame with a USB CAN dump streaming: the RPM row says so.
+    g_state.usb_dump = true;
+    runFor(200);
+    dump("05_cockpit_usb_dump");
+    g_state.usb_dump = false;
+    runFor(200);
 }
 
 // --- 02 energy flow -------------------------------------------------------

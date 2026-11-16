@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Capture the obd-capture firmware's live USB candump stream to a file.
+"""Capture the live USB candump stream to a file -- from either the
+obd-capture firmware or the dashboard firmware (firmware/src/usb_dump.cpp),
+which speak the same protocol.
 
 Requires `pip install pyserial`. Talks to the board over the same USB-CDC
 port used for flashing/serial monitor: sends 'STREAM ON', writes every

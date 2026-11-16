@@ -155,6 +155,33 @@ cmake --build build -j
 Press SPACE to cycle screens, same as the board's BOOT button. Details and
 known rough edges in [`firmware/sim/README.md`](firmware/sim/README.md).
 
+## CAN dump over USB (no reflash)
+
+The dashboard firmware can stream every CAN frame to a computer over the same
+USB-C port used for flashing, in the same `candump` format as the sniffer
+below -- so capturing the bus doesn't mean swapping firmware. With the
+cluster running in the car, plug in a laptop and run:
+
+```sh
+pip install pyserial
+python3 re/tools/usb_stream_logger.py /dev/cu.usbmodem1101 --settime   # macOS; /dev/ttyACM0 on Linux, COM5 on Windows
+```
+
+The logger asks the board to start (`STREAM ON`), writes the frames to
+`re/data/logs/usb_<timestamp>.log`, and stops it again on Ctrl+C. While it
+streams, the cockpit's RPM/EV row reads **CAN DUMP USB · EV** /
+**CAN DUMP USB · 2300 RPM**. The dashboard keeps working normally the whole
+time.
+
+It starts on the computer's request rather than on the cable being plugged
+in: the board can tell that *a* USB host is there, but not whether it's a
+laptop or the car's head unit, and nothing reads the frames until a program
+opens the port anyway. It stops by itself if the cable is pulled or the
+computer stops reading for 2 s. `--settime` gives the log real wall-clock
+timestamps; without it they count from the start of the dump.
+
+![Cockpit during a USB CAN dump](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/05_cockpit_usb_dump.png?raw=true)
+
 ## Building the CAN sniffer (`re/obd-capture-fw`)
 
 ```sh

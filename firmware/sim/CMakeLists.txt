@@ -61,6 +61,7 @@ add_executable(sim
     ${PROJECT_ROOT}/src/ui/efficiency_ui.cpp
     ${PROJECT_ROOT}/src/ui/gmeter_ui.cpp
     ${PROJECT_ROOT}/src/ui/boot_ui.cpp
+    ${PROJECT_ROOT}/sim/usb_dump_sim.cpp
     ${PROJECT_ROOT}/src/ui/boot_images.c
     ${PROJECT_ROOT}/src/ui/app_ui.cpp
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_120_speed.c

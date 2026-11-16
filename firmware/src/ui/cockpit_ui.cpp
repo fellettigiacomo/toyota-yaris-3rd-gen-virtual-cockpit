@@ -5,6 +5,7 @@
 
 #include <cstdio>
 #include <lvgl.h>
+#include <cstring>
 
 namespace CockpitUi {
 
@@ -97,6 +98,7 @@ lv_obj_t *g_gearLabel = nullptr;
 lv_obj_t *g_unitsLabel = nullptr;
 lv_obj_t *g_rpmLabel = nullptr;
 lv_obj_t *g_evLabel = nullptr;
+lv_obj_t *g_dumpLabel = nullptr; // replaces the RPM/EV row while a USB CAN dump streams
 
 // 0-50/0-100 timer readout: shares the gear letter's slot (same anchor,
 // exactly one of the two is visible at a time), see AccelTimer.
@@ -295,6 +297,18 @@ void createCenterGroup(lv_obj_t *parent) {
     lv_label_set_text(g_evLabel, "EV");
     lv_obj_align(g_evLabel, LV_ALIGN_CENTER, 0, 50);
     lv_obj_add_flag(g_evLabel, LV_OBJ_FLAG_HIDDEN);
+
+    // Same anchor again: "CAN DUMP USB · EV" / "CAN DUMP USB · 2300 RPM"
+    // while usb_dump.cpp is streaming -- the row keeps its job, it just says
+    // the bus is being captured too. Recolor markup for the two halves.
+    g_dumpLabel = lv_label_create(parent);
+    lv_obj_set_style_text_font(g_dumpLabel, &dinnext_26_rpm, 0);
+    lv_obj_set_style_text_color(g_dumpLabel, lv_color_white(), 0);
+    lv_obj_set_style_text_letter_space(g_dumpLabel, 1, 0);
+    lv_label_set_recolor(g_dumpLabel, true);
+    lv_label_set_text(g_dumpLabel, "");
+    lv_obj_align(g_dumpLabel, LV_ALIGN_CENTER, 0, 50);
+    lv_obj_add_flag(g_dumpLabel, LV_OBJ_FLAG_HIDDEN);
 }
 
 } // namespace
@@ -405,7 +419,22 @@ void update(const VehicleState &state) {
     // RPM-or-EV row. Force "EV" whenever RPM reads 0 (boot before any CAN
     // traffic, or any RPM==0 state) so the cluster never shows a broken
     // "RPM 0". Raw ev_drive/ice_running are unaffected -- selection only.
-    if (state.ev_drive || state.rpm == 0) {
+    bool showEv = state.ev_drive || state.rpm == 0;
+    if (state.usb_dump) {
+        lv_obj_add_flag(g_rpmLabel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(g_evLabel, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(g_dumpLabel, LV_OBJ_FLAG_HIDDEN);
+        char buf[64];
+        if (showEv) {
+            snprintf(buf, sizeof(buf), "#00e5ff CAN DUMP USB#  ·  #3ddc84 EV#");
+        } else {
+            snprintf(buf, sizeof(buf), "#00e5ff CAN DUMP USB#  ·  %d RPM", state.rpm < 0 ? 0 : state.rpm);
+        }
+        if (strcmp(lv_label_get_text(g_dumpLabel), buf) != 0) lv_label_set_text(g_dumpLabel, buf);
+        return;
+    }
+    lv_obj_add_flag(g_dumpLabel, LV_OBJ_FLAG_HIDDEN);
+    if (showEv) {
         lv_obj_add_flag(g_rpmLabel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(g_evLabel, LV_OBJ_FLAG_HIDDEN);
     } else {

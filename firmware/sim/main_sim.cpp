@@ -23,6 +23,9 @@ extern bool g_simButtonHeld;
 // in for a tap anywhere on the panel (TouchNav never looks at coordinates).
 extern bool g_simTouchHeld;
 
+// usb_dump_sim.cpp: stands in for a USB CAN dump streaming; toggled with D.
+extern bool g_simUsbDump;
+
 namespace {
 constexpr int kLogicalW = 640; // matches the real panel's logical (post-rotation) resolution
 constexpr int kLogicalH = 172;
@@ -63,7 +66,7 @@ int main(int, char **) {
     AppUi::build();
 
     std::printf("Yaris virtual cockpit simulator -- press SPACE or click anywhere in the window to "
-                "cycle screens, close the window to quit.\n");
+                "cycle screens, D to toggle the USB CAN dump indicator, close the window to quit.\n");
 
     uint32_t lastTickMs = SDL_GetTicks();
     uint32_t lastSyncMs = 0;
@@ -78,6 +81,8 @@ int main(int, char **) {
                 g_simButtonHeld = true;
             } else if (e.type == SDL_KEYUP && e.key.keysym.sym == SDLK_SPACE) {
                 g_simButtonHeld = false;
+            } else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_d && !e.key.repeat) {
+                g_simUsbDump = !g_simUsbDump; // preview the cockpit's "CAN DUMP USB" row
             } else if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
                 g_simTouchHeld = true;
             } else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {

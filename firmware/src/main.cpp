@@ -11,6 +11,7 @@
 #include "app_config.h"
 #include "can_decoder.h"
 #include "display_driver.h"
+#include "usb_dump.h"
 
 void setup() {
     Serial.begin(SERIAL_BAUD);
@@ -21,6 +22,7 @@ void setup() {
     Serial.println("[main] DEMO_FAKE_DATA build -- no CAN/vehicle connection needed");
 #endif
 
+    UsbDump::begin(); // before CanDecoder, whose RX task feeds it
     CanDecoder::begin();
     DisplayDriver::begin();
 
