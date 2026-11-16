@@ -3,6 +3,7 @@
 #include "energy_flow_ui.h"
 #include "efficiency_ui.h"
 #include "gmeter_ui.h"
+#include "boot_ui.h"
 #include "colors.h"
 #include "screen_nav.h"
 #include "touch_nav.h"
@@ -66,6 +67,9 @@ void build() {
 
     g_active = ScreenCockpit;
     showOnly(g_active);
+
+    // Last, so it is drawn above every screen; it removes itself when done.
+    BootUi::build(scr);
 }
 
 void update(const VehicleState &state) {
@@ -75,7 +79,11 @@ void update(const VehicleState &state) {
     // timing drift.
     bool bootPressed = ScreenNav::pressed();
     bool tapped = TouchNav::pressed();
-    if (bootPressed || tapped) {
+    if ((bootPressed || tapped) && BootUi::active()) {
+        // A press during the splash just skips it -- it shouldn't also
+        // land the driver one screen past the cockpit.
+        BootUi::skip();
+    } else if (bootPressed || tapped) {
         g_active = (g_active + 1) % ScreenCount;
         showOnly(g_active);
     }

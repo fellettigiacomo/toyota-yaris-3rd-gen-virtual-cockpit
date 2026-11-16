@@ -36,6 +36,19 @@ The cluster cycles through four screens either with the board's physical
 **BOOT button**, or by **tapping anywhere on the panel** (presence-only
 touch).
 
+### 🔑 Boot splash
+
+On power-up the Toyota logo fades in and out, then the GR Yaris one, before
+the cockpit appears (~4 s; a BOOT press or tap skips it). Only the converted
+RGB565 arrays (`firmware/src/ui/boot_images.c`) are in the repo -- the source
+logos are trademarked and stay out of it. To change them, put
+`toyota.png` and `gr_yaris.png` in `firmware/assets/boot/` (git-ignored) and
+rerun `firmware/scripts/gen_boot_images.py`, which adapts them for the dark
+panel and regenerates `boot_images.c`.
+
+![Boot: Toyota](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/00_boot_toyota.png?raw=true)
+![Boot: GR Yaris](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/00_boot_gr_yaris.png?raw=true)
+
 ### 🏁 Cockpit
 
 Speed, gear (or 0–50 / 0–100 accel timer), RPM/EV state, and two matching

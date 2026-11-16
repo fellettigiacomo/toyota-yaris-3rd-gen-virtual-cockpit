@@ -8,3 +8,7 @@ build/
 # Intermediate dumps from firmware/sim/screenshot -- render.sh converts and
 # removes them; they only linger if a run is interrupted.
 *.rgb
+
+# Source logos for the boot splash: trademarked artwork, kept local only.
+# Only the converted firmware/src/ui/boot_images.c is committed.
+firmware/assets/boot/

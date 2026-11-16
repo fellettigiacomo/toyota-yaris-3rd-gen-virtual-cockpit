@@ -19,6 +19,7 @@
 #include <lvgl.h>
 
 #include "ui/app_ui.h"
+#include "ui/boot_ui.h"
 #include "imu.h"
 #include "g_meter.h"
 #include "hybrid_stats.h"
@@ -161,6 +162,27 @@ void gotoScreen(int target) {
         hold(false, 4);
         g_screen = (g_screen + 1) % 4;
     }
+}
+
+// --- 00 boot splash -------------------------------------------------------
+// Two frames from the power-on splash, one per beat, then it is played out
+// to the end so every later scene starts on the bare cockpit.
+void sceneBoot() {
+    std::printf("00_boot\n");
+    // Already moving, though the splash hides it: from a standstill the
+    // AccelTimer would arm here and latch a bogus 0-50 in the cockpit frame.
+    g_state = VehicleState{};
+    g_state.gear = Gear::D;
+    g_state.ice_running = true;
+    g_state.speed_kph = 64.0f;
+    g_state.battery_soc_pct = 68.0f;
+    // Stepped on LVGL's clock, not runFor()'s wall clock: the splash runs off
+    // lv_tick, which step() advances faster than real time.
+    for (int i = 0; i < 1100 / 16; i++) step(16);
+    dump("00_boot_toyota");
+    for (int i = 0; i < 2000 / 16; i++) step(16); // ~3.1 s: second logo fully in
+    dump("00_boot_gr_yaris");
+    while (BootUi::active()) step(16);
 }
 
 // --- 01 cockpit -----------------------------------------------------------
@@ -308,6 +330,7 @@ int main(int argc, char **argv) {
 
     AppUi::build();
 
+    sceneBoot();
     sceneCockpit();
     sceneEnergyFlow();
     sceneEfficiency();
