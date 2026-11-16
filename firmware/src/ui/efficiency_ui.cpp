@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 
 namespace EfficiencyUi {
 
@@ -44,12 +45,12 @@ constexpr uint32_t kAnimRedrawMs = 100;  // redraw cap while the scale is moving
 constexpr uint8_t kFillMaxMix = 120;
 
 // Stat row: five montserrat_14 captions over dinnext_28_stat values, in
-// equal columns across the top, above the plot. Units live in the captions so
-// the values stay short enough for a column.
+// equal columns across the whole width, each caption and value centred in its
+// column. Units live in the captions so the values stay short enough.
 constexpr int16_t kStatCaptionY = 8;
 constexpr int16_t kStatValueY = 26;
 constexpr int kStatCount = 5;
-constexpr int16_t kStatPitch = (kScreenW - 2 * kEdgeMargin) / kStatCount; // 121
+constexpr int16_t kStatPitch = kScreenW / kStatCount; // 128
 
 enum Stat { StatDistance, StatAvg, StatNow, StatRange, StatFuel };
 const char *const kStatCaptions[kStatCount] = {"TRIP KM", "AVG L/100", "NOW L/100", "RANGE KM",
@@ -277,11 +278,17 @@ void build(lv_obj_t *parent) {
     // Created after the graph so they stay on top when the line runs up
     // under them.
     for (int i = 0; i < kStatCount; i++) {
-        int16_t x = static_cast<int16_t>(kEdgeMargin + i * kStatPitch);
-        makeLabel(root, kStatCaptions[i], &lv_font_montserrat_14, Colors::kMutedText, x,
-                  kStatCaptionY, AnchorLeft);
+        int16_t x = static_cast<int16_t>(i * kStatPitch);
+        lv_obj_t *caption = makeLabel(root, kStatCaptions[i], &lv_font_montserrat_14,
+                                      Colors::kMutedText, x, kStatCaptionY, AnchorLeft);
         g_statValue[i] = makeLabel(root, "--", &dinnext_28_stat, Colors::kText, x, kStatValueY,
                                    AnchorLeft);
+        // A fixed column-wide box with centred text keeps each value centred
+        // whatever its digit count, with nothing to reposition on update.
+        for (lv_obj_t *l : {caption, g_statValue[i]}) {
+            lv_obj_set_width(l, kStatPitch);
+            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
+        }
     }
 }
 
