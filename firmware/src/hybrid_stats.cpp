@@ -24,6 +24,10 @@ double g_evDistKm = 0.0;
 double g_movingTimeS = 0.0;
 double g_regenTimeS = 0.0;
 float g_maxSpeedKph = 0.0f;
+double g_fuelUsedMm3 = 0.0;
+
+// Below this distance a litres-per-100-km figure is all start-up noise.
+constexpr double kMinDistForAvgKm = 0.1;
 
 float g_socNow = 0.0f;
 float g_socMin = -1.0f; // sentinel: not yet seen
@@ -50,6 +54,10 @@ void update(const VehicleState &state) {
         if (g_socMin < 0.0f || state.battery_soc_pct < g_socMin) g_socMin = state.battery_soc_pct;
         if (g_socMax < 0.0f || state.battery_soc_pct > g_socMax) g_socMax = state.battery_soc_pct;
     }
+
+    // Fuel is integrated at standstill too: an idling engine burns it, and
+    // the trip average has to carry that.
+    if (state.fuel_flow_mm3s > 0.0f) g_fuelUsedMm3 += static_cast<double>(state.fuel_flow_mm3s) * dtS;
 
     // Moving hysteresis.
     if (g_moving) {
@@ -84,6 +92,10 @@ Snapshot getSnapshot() {
     s.regenSharePct = (g_movingTimeS > 0.5) ? static_cast<float>(100.0 * g_regenTimeS / g_movingTimeS) : 0.0f;
     s.avgSpeedKph = (g_movingTimeS > 0.5) ? static_cast<float>(g_distanceKm / (g_movingTimeS / 3600.0)) : 0.0f;
     s.maxSpeedKph = g_maxSpeedKph;
+    s.fuelUsedL = static_cast<float>(g_fuelUsedMm3 * 1e-6);
+    s.avgConsumptionL100 = (g_distanceKm >= kMinDistForAvgKm)
+                               ? static_cast<float>(g_fuelUsedMm3 * 1e-6 / g_distanceKm * 100.0)
+                               : -1.0f;
     s.socNowPct = g_socNow;
     s.socMinPct = (g_socMin < 0.0f) ? g_socNow : g_socMin;
     s.socMaxPct = (g_socMax < 0.0f) ? g_socNow : g_socMax;

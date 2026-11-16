@@ -262,6 +262,12 @@ void sceneEfficiency() {
         } else {
             g_state.hsi_power = static_cast<int16_t>(110.0f + 50.0f * std::sin(t * 0.7f));
         }
+        // Fuel: none on the motor, a steady 5.8 l/100 km at this speed on the
+        // engine; range and tank level as the car would report them.
+        g_state.inst_consumption_l100 = 5.8f;
+        g_state.fuel_flow_mm3s = onMotor ? 0.0f : 5.8f * g_state.speed_kph / 0.36f;
+        g_state.range_km = 287.0f;
+        g_state.fuel_level_pct = 47.0f;
         step(16);
         HybridStats::Snapshot s = HybridStats::getSnapshot();
         if (t > 76.0f && s.evSharePct <= 72.0f) {

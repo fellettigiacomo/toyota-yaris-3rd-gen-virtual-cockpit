@@ -18,6 +18,8 @@ struct Snapshot {
     float regenSharePct = 0.0f;  // share of MOVING time spent regenerating (0..100)
     float avgSpeedKph = 0.0f;    // distance / moving-time (excludes standstill)
     float maxSpeedKph = 0.0f;    // peak speed seen this session
+    float fuelUsedL = 0.0f;      // fuel burned this session, standstill included
+    float avgConsumptionL100 = -1.0f; // fuelUsedL over distanceKm; negative until there is enough distance
     float socNowPct = 0.0f;
     float socMinPct = 0.0f;
     float socMaxPct = 0.0f;

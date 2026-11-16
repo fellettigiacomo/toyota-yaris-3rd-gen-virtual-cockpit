@@ -17,6 +17,14 @@ constexpr float kHvPackCapacityAh = 6.5f;
 constexpr float kHvCurrentAmpsPerBit = 2.0f;
 constexpr float kHvSocPctPerBit = 2.0f;
 
+// Fuel signals (see re/docs/capture_survey.md -- scales derived, not yet
+// checked against the car's own display or a refuel).
+constexpr float kFuelFlowMm3sPerBit = 0.975f;
+constexpr float kConsumptionL100PerBit = 0.1f;
+constexpr uint16_t kConsumptionInvalidRaw = 0xFF00; // the car sends 0xFFFD at standstill
+constexpr float kFuelLitresPerBit = 0.5f;
+constexpr float kFuelTankLitres = 36.0f;
+
 // 0x247 HSI_ZONE (byte[0]) values -- the sign source for HSI_VALUE, see the
 // 0x247 case below.
 constexpr uint8_t kHsiZoneZeroInGear = 4;  // in gear, needle at rest
@@ -217,6 +225,34 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
                 // charging from discharging; the current says it directly.
                 state.soc_trend_pct_per_s =
                     -state.battery_current_a * 100.0f / (kHvPackCapacityAh * 3600.0f);
+            }
+            break;
+
+        case 0x3D3: // FUEL_FLOW
+            if (dlc >= 2) {
+                uint16_t raw = (static_cast<uint16_t>(d[0]) << 8) | d[1];
+                state.fuel_flow_mm3s = raw * kFuelFlowMm3sPerBit;
+            }
+            break;
+
+        case 0x610: // COMBO_METER (instantaneous consumption)
+            if (dlc >= 7) {
+                uint16_t raw = (static_cast<uint16_t>(d[5]) << 8) | d[6];
+                state.inst_consumption_l100 =
+                    raw >= kConsumptionInvalidRaw ? -1.0f : raw * kConsumptionL100PerBit;
+            }
+            break;
+
+        case 0x619: // RANGE_TO_EMPTY
+            if (dlc >= 7) {
+                state.range_km = static_cast<float>((static_cast<uint16_t>(d[5]) << 8) | d[6]);
+            }
+            break;
+
+        case 0x4A6: // FUEL_LEVEL
+            if (dlc >= 5) {
+                float pct = d[4] * kFuelLitresPerBit * 100.0f / kFuelTankLitres;
+                state.fuel_level_pct = pct > 100.0f ? 100.0f : pct;
             }
             break;
 

@@ -28,6 +28,11 @@ struct VehicleState {
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
     float soc_trend_pct_per_s = 0.0f; // derived from battery_current_a and the pack capacity (+ = charging)
+    // Fuel. All four are negative until their first frame has arrived.
+    float fuel_flow_mm3s = 0.0f;      // 0x3D3 FUEL_FLOW, mm3/s, 0 with the engine off
+    float inst_consumption_l100 = -1.0f; // 0x610 INSTANT_CONSUMPTION; negative = none (standstill)
+    float range_km = -1.0f;           // 0x619 RANGE_TO_EMPTY
+    float fuel_level_pct = -1.0f;     // 0x4A6 FUEL_LEVEL as a share of the 36 l tank
     // 0x3B6 ENERGY_MONITOR: the car's own energy-flow flags (1 Hz). Only
     // meaningful while energy_flags_seen is set and energy_flags_ms is recent;
     // energy_flow_ui.cpp falls back to inferring the flows otherwise.

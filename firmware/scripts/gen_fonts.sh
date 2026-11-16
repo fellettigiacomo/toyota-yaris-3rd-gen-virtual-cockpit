@@ -36,7 +36,7 @@ gen dinnext_26_rpm       26 "RPM0123456789:°C ANDUSBEV·"   # RPM label+value r
 gen dinnext_14_chgpwr    14 "CHGPWR0123456789% " # "CHG"/"PWR" caption above the power gauge
 gen dinnext_13_pct       13 "%A"                  # "%" suffix; "A" when the power readout shows battery amps
 gen dinnext_24_label     24 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./% " # energy-flow labels + efficiency-screen numbers/units
-gen dinnext_28_stat      28 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./% " # efficiency-screen headline + tile values
+gen dinnext_28_stat      28 "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789./%- " # efficiency-screen headline + tile values
 gen dinnext_40_accel_time  40 "0123456789."  # 0-50/0-100 timer: elapsed seconds, e.g. "6.55" (replaces the gear letter while shown)
 gen dinnext_40_accel_label 40 "0123456789-"  # 0-50/0-100 timer: "0-50"/"0-100" threshold caption, below the seconds -- same size as the gear letter, was 15px and illegible
 

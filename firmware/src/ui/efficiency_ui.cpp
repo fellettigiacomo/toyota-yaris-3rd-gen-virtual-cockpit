@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 namespace EfficiencyUi {
 
@@ -42,14 +43,20 @@ constexpr uint32_t kAnimRedrawMs = 100;  // redraw cap while the scale is moving
 // background is a solid colour, so mixing towards it gives the same result.
 constexpr uint8_t kFillMaxMix = 120;
 
-// Stat rows: montserrat_14 captions over dinnext_28_stat values, in the two
-// top corners, above the plot.
+// Stat row: five montserrat_14 captions over dinnext_28_stat values, in
+// equal columns across the top, above the plot. Units live in the captions so
+// the values stay short enough for a column.
 constexpr int16_t kStatCaptionY = 8;
 constexpr int16_t kStatValueY = 26;
+constexpr int kStatCount = 5;
+constexpr int16_t kStatPitch = (kScreenW - 2 * kEdgeMargin) / kStatCount; // 121
+
+enum Stat { StatDistance, StatAvg, StatNow, StatRange, StatFuel };
+const char *const kStatCaptions[kStatCount] = {"TRIP KM", "AVG L/100", "NOW L/100", "RANGE KM",
+                                               "FUEL %"};
 
 lv_obj_t *g_graph = nullptr;
-lv_obj_t *g_distanceValue = nullptr;
-lv_obj_t *g_avgSpeedValue = nullptr;
+lv_obj_t *g_statValue[kStatCount] = {};
 
 // What the graph last showed, so update() only invalidates it when a point
 // has actually moved -- most ticks nothing has.
@@ -267,20 +274,38 @@ void build(lv_obj_t *parent) {
     lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(g_graph, drawGraph, LV_EVENT_DRAW_MAIN, nullptr);
 
-    // The two session stats take the top corners, one per side. Created after
-    // the graph so they stay on top when the line runs up under them.
-    makeLabel(root, "DISTANCE", &lv_font_montserrat_14, Colors::kMutedText, kEdgeMargin,
-              kStatCaptionY, AnchorLeft);
-    g_distanceValue = makeLabel(root, "0.0 KM", &dinnext_28_stat, Colors::kText, kEdgeMargin,
-                                kStatValueY, AnchorLeft);
-    makeLabel(root, "AVG SPEED", &lv_font_montserrat_14, Colors::kMutedText,
-              static_cast<int16_t>(kScreenW - kEdgeMargin), kStatCaptionY, AnchorRight);
-    g_avgSpeedValue = makeLabel(root, "0 KM/H", &dinnext_28_stat, Colors::kText,
-                                static_cast<int16_t>(kScreenW - kEdgeMargin), kStatValueY,
-                                AnchorRight);
+    // Created after the graph so they stay on top when the line runs up
+    // under them.
+    for (int i = 0; i < kStatCount; i++) {
+        int16_t x = static_cast<int16_t>(kEdgeMargin + i * kStatPitch);
+        makeLabel(root, kStatCaptions[i], &lv_font_montserrat_14, Colors::kMutedText, x,
+                  kStatCaptionY, AnchorLeft);
+        g_statValue[i] = makeLabel(root, "--", &dinnext_28_stat, Colors::kText, x, kStatValueY,
+                                   AnchorLeft);
+    }
 }
 
-void update(const VehicleState &) {
+namespace {
+
+void setStat(Stat which, const char *txt, lv_color_t color = Colors::kText) {
+    lv_obj_t *l = g_statValue[which];
+    if (strcmp(lv_label_get_text(l), txt) != 0) lv_label_set_text(l, txt);
+    lv_obj_set_style_text_color(l, color, 0);
+}
+
+// One decimal up to 99.9, which is also where the value stops fitting its
+// column; a negative input means "no reading".
+void formatL100(char *buf, size_t n, float v) {
+    if (v < 0.0f) {
+        snprintf(buf, n, "--");
+    } else {
+        snprintf(buf, n, "%.1f", static_cast<double>(v > 99.9f ? 99.9f : v));
+    }
+}
+
+} // namespace
+
+void update(const VehicleState &state) {
     PwrHistory::Bucket openBucket = {0xff, 0xff};
     PwrHistory::open(openBucket);
     bool openMoved = openBucket.pwrPct != g_drawnOpen.pwrPct ||
@@ -311,14 +336,35 @@ void update(const VehicleState &) {
     HybridStats::Snapshot s = HybridStats::getSnapshot();
 
     char buf[16];
-    snprintf(buf, sizeof(buf), "%.1f KM", static_cast<double>(s.distanceKm));
-    lv_label_set_text(g_distanceValue, buf);
-    lv_obj_set_x(g_distanceValue, kEdgeMargin);
+    snprintf(buf, sizeof(buf), "%.1f", static_cast<double>(s.distanceKm));
+    setStat(StatDistance, buf);
 
-    snprintf(buf, sizeof(buf), "%d KM/H", static_cast<int>(s.avgSpeedKph + 0.5f));
-    lv_label_set_text(g_avgSpeedValue, buf);
-    lv_obj_set_x(g_avgSpeedValue,
-                 static_cast<int16_t>(kScreenW - kEdgeMargin - textW(buf, &dinnext_28_stat)));
+    formatL100(buf, sizeof(buf), s.avgConsumptionL100);
+    setStat(StatAvg, buf);
+
+    // Right now: "EV" while no fuel is flowing, the car's own figure while
+    // the engine runs, and "--" when the car reports none (standstill, where
+    // litres per distance has no meaning).
+    if (state.fuel_flow_mm3s <= 0.0f) {
+        setStat(StatNow, "EV", Colors::kEvGreen);
+    } else {
+        formatL100(buf, sizeof(buf), state.inst_consumption_l100);
+        setStat(StatNow, buf);
+    }
+
+    if (state.range_km < 0.0f) {
+        setStat(StatRange, "--");
+    } else {
+        snprintf(buf, sizeof(buf), "%d", static_cast<int>(state.range_km + 0.5f));
+        setStat(StatRange, buf);
+    }
+
+    if (state.fuel_level_pct < 0.0f) {
+        setStat(StatFuel, "--");
+    } else {
+        snprintf(buf, sizeof(buf), "%d", static_cast<int>(state.fuel_level_pct + 0.5f));
+        setStat(StatFuel, buf);
+    }
 }
 
 } // namespace EfficiencyUi

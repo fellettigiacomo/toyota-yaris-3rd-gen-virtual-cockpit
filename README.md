@@ -1,241 +1,86 @@
 # Toyota Yaris (3rd Gen / XP130) — Virtual Cockpit
 
-![Platform](https://img.shields.io/badge/platform-ESP32--S3-3aa0ff)
-![UI](https://img.shields.io/badge/UI-LVGL%208.3-00e5ff)
-![Status](https://img.shields.io/badge/status-hardware%20bring--up-e03a2f)
-
 ![Virtual Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
 
-A from-scratch digital instrument cluster for a 2014 Toyota Yaris Hybrid
-(3rd gen / XP130, THS-II NoDSU), driven entirely by the car's own
-**reverse-engineered CAN bus** — no dealer tools, no published DBC, no OEM
-documentation.
+A digital instrument cluster for a 2014 Toyota Yaris Hybrid, driven by the
+car's own CAN bus, reverse-engineered from scratch.
 
-The repository is divided into three main folders:
+- `firmware/` — the dashboard (ESP32-S3, LVGL 8.3) and a desktop simulator
+- `re/` — CAN sniffer firmware, analysis scripts, sample logs and findings
+- `dbc/` — the decoded signals as a DBC file
+- `3d/` — Fusion 360 and 3MF files for the enclosure
 
-1. **Reverse-engineering** (`re/`) — a CAN bus sniffer and all the
-   documentation, Python tooling and findings used to decode the bus
-   signal by signal.
-2. **CAN Database (DBC)** (`dbc/`) — the CAN Database with all the decoded
-   signals and their translation formulas.
-3. **3D Models** (`3d/`) — Fusion360 Project File and 3MF print files to 3d print the enclosure
-4. **The dashboard** (`firmware/`) — an LVGL-based instrument cluster
-   firmware that decodes the resulting DBC live and drives a physical
-   display strip mounted in the car.
-
-> **Safety note.** The firmware only ever *listens* to the vehicle's CAN bus
-> (`TWAI_MODE_LISTEN_ONLY` — no transmit, no ACK, per the ESP-IDF driver
-> contract). It cannot send commands to the car. That said, this taps a real
-> vehicle's diagnostic bus: read the staged bring-up procedure in
+> **Safety.** The firmware only listens to the bus (`TWAI_MODE_LISTEN_ONLY`):
+> it cannot send anything to the car. Still, read the bring-up procedure in
 > [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md) before
-> connecting anything to a running car.
+> connecting to a running car.
 
 ## Screens
 
-The cluster cycles through four screens either with the board's physical
-**BOOT button**, or by **tapping anywhere on the panel** (presence-only
-touch).
+Press the board's BOOT button or tap the panel to switch screen.
 
-### 🔑 Boot splash
-
-On power-up the Toyota logo fades in and out, then the GR Yaris one, before
-the cockpit appears (~5 s; a BOOT press or tap skips it). Then, like a
-car's instrument check, both side gauges sweep 0 → 100 → 0 before settling
-onto their live values. Only the converted
-RGB565 arrays (`firmware/src/ui/boot_images.c`) are in the repo -- the source
-logos are trademarked and stay out of it. To change them, put
-`toyota.png` and `gr_yaris.png` in `firmware/assets/boot/` (git-ignored) and
-rerun `firmware/scripts/gen_boot_images.py`, which adapts them for the dark
-panel and regenerates `boot_images.c`.
-
-![Boot: Toyota](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/00_boot_toyota.png?raw=true)
-![Boot: GR Yaris](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/00_boot_gr_yaris.png?raw=true)
-
-### 🏁 Cockpit
-
-Speed, gear (or 0–50 / 0–100 accel timer), RPM/EV state, and two matching
-vertical gauges flanking it: HV battery charge on the left, instantaneous
-CHG/PWR power flow on the right.
+**Cockpit** — speed, gear (or 0–50 / 0–100 timer), RPM or EV, HV battery
+charge on the left, CHG/PWR on the right. With the engine off the PWR readout
+shows battery amps.
 
 ![Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
 
-### 📊 Efficiency
-
-The whole drive's PWR demand as one smoothed curve with a gradient fading
-down beneath it: green where the car was electric, white where the engine was
-driving. Regen is drawn at zero and counts as electric. The graph scales
-itself to stay full: the whole session is always stretched edge to edge, and
-the height eases to the drive's peak so the curve tops out just under the
-stats. Distance and average speed sit in the top corners. History is kept in
-a fixed 320 points — when they run out, neighbouring points are merged in
-pairs and the time resolution halves, so memory and redraw cost stay fixed
-however long the trip.
+**Efficiency** — the whole drive's power demand as one curve, green on
+electric and white on the engine. Above it: trip distance, average and
+instantaneous consumption, range and fuel level.
 
 ![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
 
-### ⚡ Energy Flow
-
-ENGINE / MOTOR / BATTERY / WHEELS and the four paths between them. Each link
-is a dim shaft carrying a bright segment that travels the way the energy
-does — red for the engine's mechanical drive, green for anything being
-recovered, blue for the pack when it is the one giving.
+**Energy flow** — engine, motor, battery and wheels, with the direction of
+each flow taken from the car's own energy-monitor flags.
 
 ![Energy Flow](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/02_energy_flow.png?raw=true)
 
-### 📈 G-Meter
-
-Longitudinal and lateral acceleration from the board's own QMI8658 IMU, on a
-g-ball where the dot is the acceleration vector — up under power, down under
-braking, sideways the way the car is turning — plus the session's four
-directional peaks.
+**G-meter** — longitudinal and lateral acceleration from the board's IMU,
+with the session's peaks.
 
 ![G-Meter](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/04_gmeter.png?raw=true)
 
 ## Hardware
 
-- **Board**: Waveshare ESP32-S3-Touch-LCD-3.49 (ESP32-S3R8, 8 MB PSRAM,
-  16 MB flash) — AXS15231B QSPI display, physical panel 172×640 portrait,
-  rotated in software to a 640×172 landscape strip.
-- **CAN transceiver**: SN65HVD230, wired to OBD-II pins 6 (CAN-H) / 14
-  (CAN-L). Full wiring table and GPIO rationale in
-  [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md).
-- **IMU**: the board's onboard QMI8658, on its sensor I2C bus (GPIO47/48,
-  address 0x6B) — accelerometer only, for the G-meter screen. Nothing to
-  wire: it is already on the board.
+- Waveshare ESP32-S3-Touch-LCD-3.49 (640×172 strip, onboard QMI8658 IMU)
+- SN65HVD230 CAN transceiver — wiring in
+  [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md)
 
-## Repository layout
+## Build
 
-```
-.
-├── dbc/                     # Reverse-engineered DBC (toyota_yaris_xp130_reversed.dbc)
-├── firmware/                # Dashboard firmware (LVGL) + desktop simulator
-│   ├── include/             #   board pins, VehicleState struct, LVGL config
-│   ├── src/
-│   │   ├── ui/               #   screens: cockpit_ui, energy_flow_ui, efficiency_ui, gmeter_ui
-│   │   ├── can_decoder.cpp   #   DBC-driven CAN -> VehicleState decode
-│   │   ├── imu.cpp           #   QMI8658 accelerometer (G-meter screen)
-│   │   └── g_meter.cpp       #   IMU + CAN -> forward/lateral g, axes self-calibrating
-│   └── sim/                 #   SDL2 desktop simulator, no board required
-└── re/                      # Reverse-engineering workspace
-    ├── obd-capture-fw/      #   ESP32-S3 passive CAN sniffer + SD logger
-    ├── docs/                #   Signal reverse-engineering notes and findings
-    ├── tools/               #   Python scripts used to reverse-engineer the bus
-    └── data/logs/           #   Sample real-drive CAN captures (candump format)
-```
-
-## Building the dashboard firmware
-
-Requires [PlatformIO](https://platformio.org/) (CLI or VS Code extension).
+Needs [PlatformIO](https://platformio.org/).
 
 ```sh
 cd firmware
-pio run                 # build
-pio run -t upload       # flash
-pio device monitor      # serial console @ 115200
+pio run -t upload            # dashboard
+pio run -e demo -t upload    # same UI replaying a recorded drive, no car needed
 ```
 
-No car handy? Build the `demo` environment instead — it sweeps `VehicleState`
-with fake data and skips CAN entirely:
+Desktop simulator (SDL2, no board): see
+[`firmware/sim/README.md`](firmware/sim/README.md).
 
-```sh
-pio run -e demo -t upload
-```
+## Capturing the bus
 
-## Desktop simulator
-
-Iterate on screen UI without any hardware, replaying a real drive log in an
-SDL2 window (macOS, via Homebrew):
-
-```sh
-brew install sdl2 cmake
-cd firmware/sim
-cmake -B build
-cmake --build build -j
-./build/sim
-```
-
-Press SPACE to cycle screens, same as the board's BOOT button. Details and
-known rough edges in [`firmware/sim/README.md`](firmware/sim/README.md).
-
-## CAN dump over USB (no reflash)
-
-The dashboard firmware can stream every CAN frame to a computer over the same
-USB-C port used for flashing, in the same `candump` format as the sniffer
-below -- so capturing the bus doesn't mean swapping firmware. With the
-cluster running in the car, plug in a laptop and run:
+The dashboard can stream every CAN frame over USB while it keeps running:
 
 ```sh
 pip install pyserial
-python3 re/tools/usb_stream_logger.py /dev/cu.usbmodem1101 --settime   # macOS; /dev/ttyACM0 on Linux, COM5 on Windows
+python3 re/tools/usb_stream_logger.py /dev/cu.usbmodem1101 --settime
 ```
 
-The logger asks the board to start (`STREAM ON`), writes the frames to
-`re/data/logs/usb_<timestamp>.log`, and stops it again on Ctrl+C. While it
-streams, the cockpit's RPM/EV row reads **CAN DUMP USB · EV** /
-**CAN DUMP USB · 2300 RPM**. The dashboard keeps working normally the whole
-time.
+Logs land in `re/data/logs/` in `candump` format. A standalone sniffer that
+logs to SD is in [`re/obd-capture-fw/`](re/obd-capture-fw/).
 
-It starts on the computer's request rather than on the cable being plugged
-in: the board can tell that *a* USB host is there, but not whether it's a
-laptop or the car's head unit, and nothing reads the frames until a program
-opens the port anyway. It stops by itself if the cable is pulled or the
-computer stops reading for 2 s. `--settime` gives the log real wall-clock
-timestamps; without it they count from the start of the dump.
+## Decoded signals
 
-![Cockpit during a USB CAN dump](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/05_cockpit_usb_dump.png?raw=true)
-
-## Building the CAN sniffer (`re/obd-capture-fw`)
-
-```sh
-cd re/obd-capture-fw
-pio run
-pio run -t upload
-pio device monitor
-```
-
-Logs every frame to SD in `candump`-compatible text, and can stream the same
-data live over USB (`STREAM ON` at the serial console) for capture straight
-to a PC via `re/tools/usb_stream_logger.py`. Full bring-up order, wiring, and
-safety steps in [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md).
-
-## Reverse-engineering workflow
-
-1. Capture raw frames with `re/obd-capture-fw` → SD card, `candump` format.
-2. Analyze with the scripts in [`re/tools/`](re/tools/) (`id_stats.py`,
-   `byte_stats.py`, `decode_dbc.py`, `cross_validate_candidates.py`, …) or
-   import into SavvyCAN / `python-can` / `cantools`.
-3. Confirmed signals go into [`dbc/toyota_yaris_xp130_reversed.dbc`](dbc/toyota_yaris_xp130_reversed.dbc),
-   with methodology and evidence in [`re/docs/signal_findings.md`](re/docs/signal_findings.md)
-   and a quick-reference table in [`re/docs/decoded_signals_summary.md`](re/docs/decoded_signals_summary.md).
-4. `firmware/src/can_decoder.cpp` decodes the same signals live on
-   the dashboard.
-
-Speed, RPM, gear, pedals, EV-drive, HV battery SOC, and the CHG/ECO/PWR
-gauge are all confirmed on two independent real-drive logs, and so is the
-HV battery current. Remaining range is confirmed **absent** from this bus.
+- [`dbc/toyota_yaris_xp130_reversed.dbc`](dbc/toyota_yaris_xp130_reversed.dbc) — the signals
+- [`re/docs/decoded_signals_summary.md`](re/docs/decoded_signals_summary.md) — quick table
+- [`re/docs/signal_findings.md`](re/docs/signal_findings.md) — method and evidence
+- [`re/docs/capture_survey.md`](re/docs/capture_survey.md) — full sweep of all IDs, open questions
 
 ## Status
 
-Hobby, single-vehicle reverse-engineering project — signal mappings may not
-carry over to other trims/markets/model years. Parts of this repo have not
-yet been compiled or run on real hardware (see the caveats in
-`re/obd-capture-fw/README.md` and `firmware/sim/README.md`); expect to
-iterate on first boot.
-
-## Contributing
-
-Issues and PRs are welcome, especially signal validation on other Yaris
-Hybrid units — please note your model year/market if you're confirming or
-contradicting a signal in `re/docs/signal_findings.md`.
-
-## License
-
-No license has been chosen yet.
-
-## Acknowledgments
-
-- [pioarduino/platform-espressif32](https://github.com/pioarduino/platform-espressif32)
-- [lewisxhe/SensorsLib](https://github.com/lewisxhe/SensorsLib)
-- [LVGL](https://lvgl.io/) 8.3
-- Waveshare's official ESP32-S3-Touch-LCD-3.49 example code (display/board
-  bring-up reference)
+A hobby project on a single car: signal mappings may not carry over to other
+years or markets, and several scales are derived rather than checked against
+a diagnostic tool. No license chosen yet.
