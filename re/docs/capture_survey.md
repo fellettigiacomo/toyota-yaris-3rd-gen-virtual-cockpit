@@ -84,6 +84,17 @@ display.
   cold start, while it is also lifting the battery from 60% to 78%; the trip
   figure is lower because nearly half the distance is driven with the engine
   off. Still unconfirmed against the car's own display.
+- **Range to empty** — `0x619` byte5–6 as a 16-bit number of km. It reads
+  290→287 over `session_0044` (3 km driven), 263→262 over `session_0047`
+  (1 km), and 185 in the mode-button capture. Against the odometer: 21 km
+  between the first two captures for 24 km of range, 73 km between the last
+  two for 77 km of range. This overturns the earlier "remaining range is not
+  on this bus". Three captures, one tank; no refuel seen.
+- **Fuel level** — `0x4A6` byte4: constant inside each capture and falling
+  across them, 36 → 34 → 26, i.e. one step per ~9.5 km. At 0.5 l/bit that is
+  18 → 17 → 13 l and 5 l/100 km between captures, which also matches the
+  range above (102 km of range lost for 5 l). The scale is a guess from
+  three points.
 - **Parking brake** — `0x620` byte7 bit4. In `session_0047` it is set at the
   start, clears 1 s before READY and sets again after the final stop. One
   log only.
