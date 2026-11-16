@@ -17,4 +17,10 @@ void build(lv_obj_t *parent);
 // Pushes a fresh VehicleState into the widget tree.
 void update(const VehicleState &state);
 
+// Start-up gauge sweep, like a car's instrument check: both side gauges run
+// 0 -> 100 -> 0 and then settle onto the live value. update() plays it out;
+// AppUi starts it the moment the boot splash is gone.
+void startSweep();
+bool sweeping();
+
 } // namespace CockpitUi

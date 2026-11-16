@@ -31,6 +31,7 @@ constexpr int16_t kScreenH = 172;
 enum Screen { ScreenCockpit = 0, ScreenEfficiency, ScreenEnergy, ScreenGMeter, ScreenCount };
 lv_obj_t *g_screens[ScreenCount] = {nullptr, nullptr, nullptr, nullptr};
 int g_active = ScreenCockpit;
+bool g_bootShown = true; // the splash was still up at the previous update()
 
 lv_obj_t *createScreenContainer(lv_obj_t *parent) {
     lv_obj_t *c = lv_obj_create(parent);
@@ -79,6 +80,13 @@ void update(const VehicleState &state) {
     // timing drift.
     bool bootPressed = ScreenNav::pressed();
     bool tapped = TouchNav::pressed();
+    // The splash just went (played out or skipped): run the gauge sweep now,
+    // so it is seen rather than played behind the logos.
+    if (g_bootShown && !BootUi::active()) {
+        g_bootShown = false;
+        CockpitUi::startSweep();
+    }
+
     if ((bootPressed || tapped) && BootUi::active()) {
         // A press during the splash just skips it -- it shouldn't also
         // land the driver one screen past the cockpit.

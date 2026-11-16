@@ -20,6 +20,7 @@
 
 #include "ui/app_ui.h"
 #include "ui/boot_ui.h"
+#include "ui/cockpit_ui.h"
 #include "imu.h"
 #include "g_meter.h"
 #include "hybrid_stats.h"
@@ -183,6 +184,9 @@ void sceneBoot() {
     for (int i = 0; i < 2900 / 16; i++) step(16); // ~4 s: second logo fully in
     dump("00_boot_gr_yaris");
     while (BootUi::active()) step(16);
+    for (int i = 0; i < 700 / 16; i++) step(16); // mid-sweep: both gauges near the top
+    dump("00_boot_sweep");
+    while (CockpitUi::sweeping()) step(16);
 }
 
 // --- 01 cockpit -----------------------------------------------------------

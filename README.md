@@ -39,7 +39,9 @@ touch).
 ### 🔑 Boot splash
 
 On power-up the Toyota logo fades in and out, then the GR Yaris one, before
-the cockpit appears (~5 s; a BOOT press or tap skips it). Only the converted
+the cockpit appears (~5 s; a BOOT press or tap skips it). Then, like a
+car's instrument check, both side gauges sweep 0 → 100 → 0 before settling
+onto their live values. Only the converted
 RGB565 arrays (`firmware/src/ui/boot_images.c`) are in the repo -- the source
 logos are trademarked and stay out of it. To change them, put
 `toyota.png` and `gr_yaris.png` in `firmware/assets/boot/` (git-ignored) and

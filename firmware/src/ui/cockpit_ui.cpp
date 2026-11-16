@@ -84,6 +84,35 @@ lv_obj_t *g_pwrCaptionLabel = nullptr;
 enum class PowerZone { Chg, Pwr, PwrRedline };
 PowerZone g_pwrZone = PowerZone::Pwr;
 
+// Start-up sweep (see startSweep()): up, down, then a short ease onto the
+// live reading instead of a jump from 0 to it.
+constexpr uint32_t kSweepUpMs = 650;
+constexpr uint32_t kSweepDownMs = 650;
+constexpr uint32_t kSweepSettleMs = 350;
+bool g_sweeping = false;
+uint32_t g_sweepStartMs = 0;
+
+float easeInOut(float p) {
+    return p < 0.5f ? 2.0f * p * p : 1.0f - 2.0f * (1.0f - p) * (1.0f - p);
+}
+
+// What a gauge shows during the sweep, given its live value. Returns false
+// once the sweep is over (and clears it), leaving `pct` untouched.
+bool sweepValue(uint32_t t, int live, int &pct) {
+    float v;
+    if (t < kSweepUpMs) {
+        v = 100.0f * easeInOut(static_cast<float>(t) / kSweepUpMs);
+    } else if ((t -= kSweepUpMs) < kSweepDownMs) {
+        v = 100.0f * (1.0f - easeInOut(static_cast<float>(t) / kSweepDownMs));
+    } else if ((t -= kSweepDownMs) < kSweepSettleMs) {
+        v = live * easeInOut(static_cast<float>(t) / kSweepSettleMs);
+    } else {
+        return false;
+    }
+    pct = static_cast<int>(v + 0.5f);
+    return true;
+}
+
 lv_color_t zoneColor(PowerZone z) {
     switch (z) {
         case PowerZone::Chg: return Colors::kChgGreen;
@@ -351,6 +380,26 @@ void update(const VehicleState &state) {
     if (pwrPct < 0) pwrPct = 0;
     if (pwrPct > 100) pwrPct = 100;
 
+    int battPct = static_cast<int>(state.battery_soc_pct + 0.5f);
+    if (battPct < 0) battPct = 0;
+    if (battPct > 100) battPct = 100;
+
+    // During the start-up sweep both gauges (and their readouts) show the
+    // sweep instead. The power gauge sweeps on the PWR side, so it runs
+    // through its redline colour at the top just like under real load, and
+    // settles onto the live reading's side only for the last stretch.
+    if (g_sweeping) {
+        uint32_t t = lv_tick_elaps(g_sweepStartMs);
+        int sweptPwr = pwrPct, sweptBatt = battPct;
+        if (sweepValue(t, pwrPct, sweptPwr) && sweepValue(t, battPct, sweptBatt)) {
+            if (t < kSweepUpMs + kSweepDownMs) isChg = false;
+            pwrPct = sweptPwr;
+            battPct = sweptBatt;
+        } else {
+            g_sweeping = false;
+        }
+    }
+
     // Pick the zone off the fill the gauge is actually showing, so the red
     // threshold means "three quarters up the bar" no matter how the raw
     // signal is scaled onto it. Between the redline and its hysteresis band
@@ -383,9 +432,6 @@ void update(const VehicleState &state) {
     lv_label_set_text(g_pwrValueLabel, pwrBuf);
 
     // Battery gauge.
-    int battPct = static_cast<int>(state.battery_soc_pct + 0.5f);
-    if (battPct < 0) battPct = 0;
-    if (battPct > 100) battPct = 100;
     lv_bar_set_value(g_battBar, battPct, LV_ANIM_OFF);
     char battBuf[8];
     snprintf(battBuf, sizeof(battBuf), "%d", battPct);
@@ -446,5 +492,12 @@ void update(const VehicleState &state) {
         lv_label_set_text(g_rpmLabel, rpmBuf);
     }
 }
+
+void startSweep() {
+    g_sweeping = true;
+    g_sweepStartMs = lv_tick_get();
+}
+
+bool sweeping() { return g_sweeping; }
 
 } // namespace CockpitUi
