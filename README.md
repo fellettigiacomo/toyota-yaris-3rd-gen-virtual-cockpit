@@ -211,8 +211,8 @@ safety steps in [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md).
    the dashboard.
 
 Speed, RPM, gear, pedals, EV-drive, HV battery SOC, and the CHG/ECO/PWR
-gauge are all confirmed on two independent real-drive logs. HV battery
-current/voltage and remaining range are confirmed **absent** from this bus.
+gauge are all confirmed on two independent real-drive logs, and so is the
+HV battery current. Remaining range is confirmed **absent** from this bus.
 
 ## Status
 

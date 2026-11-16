@@ -39,7 +39,8 @@ For a compact table, see [`decoded_signals_summary.md`](decoded_signals_summary.
 | Turn signals | `0x614` | `TURN_SIGNALS` | 2-bit enum + hazard bit |
 | Odometer (total) | `0x611` | `ODOMETER` | 20-bit, km/miles unit flag |
 | Ambient temperature | `0x442` | `AMBIENT_TEMP` | `byte0 - 40` = °C |
-| HV battery SOC | `0x4A7` | `BATTERY_SOC` | `byte2 * 0.5` = % |
+| HV battery SOC | `0x49D` | `BATTERY_SOC` | 6 bits (`byte5` bits 1–0, `byte6` bits 7–4) `* 2` = % |
+| HV battery current | `0x49D` | `BATTERY_CURRENT` | `byte2` signed `* 2` = A, positive = discharge |
 | EV drive (bit) | `0x498` | `EV_DRIVE` | byte5 bit7 |
 | CHG/ECO/PWR indicator | `0x247` | `HSI_VALUE` / `HSI_ZONE` | see below |
 
@@ -110,17 +111,38 @@ between the two capture days (77 vs 67 → 37 °C vs 27 °C) and the scale was
 confirmed against the actual outside temperature on each day. This is
 outside air temperature, not engine/coolant temperature.
 
-**HV battery SOC** — byte[2] of `0x4A7`, range 108–143 raw → 54.0–71.5%,
-matching the real THS-II NiMH operating band (~40–80%). A SOC is the
-*integral* of power flow, so it barely correlates with the accelerator at
-zero lag; it was found by scoring each value *change* against expected
-battery physics instead (discharge during EV driving, charge during ICE-on
-or regen) rather than by instantaneous correlation. Physics checks out on
-both logs: flat while parked, steady climb during stationary ICE warm-up
-charging, slow decline through every EV stretch, recovery through every
-ICE-on/regen stretch, never wraps. The 0.5%/bit scale matches the known
-Techstream/Prius-Gen2 convention but has not been checked against a
-reference tool reading.
+**HV battery SOC and current** — both in `0x49D` (~2 Hz).
+
+- *Current*: byte[2], signed, positive = discharge. About 0 parked, −23
+  during stationary warm-up charging, +25…+32 in EV acceleration, down to
+  −54 in hard regenerative braking.
+- *SOC*: a 6-bit field, byte[5] bits 1–0 (MSBs) followed by byte[6] bits
+  7–4. It is a coulomb counter of that current: in `session_0044` it steps
+  29→40 and every step lands ~235 raw-count-seconds of integrated current
+  after the previous one (11 consecutive steps, all within ±10%), and it
+  steps back down the same way through EV stretches. It starts at 30 in both
+  drive logs and at 34 in the mode-button capture.
+
+Scales are derived, not read off a reference tool. 1 A/bit is ruled out by
+energy conservation: in EV acceleration the pack would then deliver about
+0.14 kJ per count-second while the car gains 0.16 kJ of kinetic energy. At
+2 A/bit it delivers 0.28 kJ (57% ending up as kinetic energy at low speed)
+and regen recovers ~87% of the kinetic energy lost, both plausible. One SOC
+step is then 470 A·s = 0.13 Ah = 2% of the 6.5 Ah pack, so SOC = raw × 2:
+58–80% observed, starting at 60% — the THS-II target — and topping out at
+its 80% ceiling.
+
+**`0x4A7` byte[2] is not the SOC** (it was decoded as one, `byte2 * 0.5`,
+until this was noticed on the car: the display read 54% at every start).
+The value rises whenever the engine runs (+0.36…+0.42 raw/s) and falls
+whenever it is stopped (−0.2 raw/s moving, −0.05 at standstill). The
+giveaway is regenerative braking with the engine off: across both logs it
+went down 68 times and up once there, where a SOC has to rise. It also
+starts at raw 108 in all three captures. The original search scored value
+changes against "charges with ICE on, discharges in EV", which an
+engine-heated quantity satisfies just as well; regen is the case that
+separates the two. Faster decay while moving suggests airflow cooling —
+probably a modelled exhaust/catalyst temperature. Unidentified.
 
 **EV drive** — byte5 bit7 of `0x498`. On only while the vehicle moves with
 the ICE stopped (pure electric propulsion); off at standstill even with the
@@ -273,9 +295,11 @@ Not obtainable by passive listening on this connector:
 
 - **Remaining driving range (km)** — only the total odometer exists;
   likely computed inside the instrument cluster and never broadcast.
-- **HV battery current / voltage / temperature** — no broadcast found;
-  the Prius-style diagnostic IDs (`0x03B`/`0x3CB`/`0x529`) are absent on
-  this platform. Would require solicited UDS requests to the battery ECU.
+- **HV battery voltage / temperature** — not identified. `0x49D`
+  byte[0]/byte[1] behave like two pack-voltage readings (≈95 at rest, up
+  under charge current, down under discharge) and byte[3]/byte[4] rise
+  slowly over a drive, but none of these has a scale. The Prius-style
+  diagnostic IDs (`0x03B`/`0x3CB`/`0x529`) are absent on this platform.
 
 ## Architecture notes
 
@@ -292,8 +316,9 @@ diagnostic polling needed, despite the ~10s the box's screen takes to load
 
 ## Open questions
 
-1. **SOC scale** (`0.5%/bit`) is a known Toyota/Techstream convention, not
-   yet checked against a reference tool reading.
+1. **SOC and battery-current scales** (2%/bit, 2 A/bit) are derived from
+   the energy balance and the 6.5 Ah nominal capacity, not yet checked
+   against a reference tool reading (Techstream / an OBD hybrid app).
 2. **Fuel counter wrap** (`0x3A0` byte7) — needs a ≥30 min log to observe
    the predicted 255→0 rollover and confirm it's the low byte of a wider
    register.

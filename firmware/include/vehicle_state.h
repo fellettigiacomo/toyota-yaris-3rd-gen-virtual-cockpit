@@ -23,9 +23,10 @@ struct VehicleState {
     int16_t hsi_power = 0;             // 0x247 HSI_VALUE, -100..+255 (neg=CHG, pos=PWR);
                                         // sign comes from HSI_ZONE, not from the raw byte, because
                                         // the two sides' raw ranges overlap -- see can_decoder.cpp
-    float battery_soc_pct = 0.0f;     // 0x4A7 BATTERY_SOC, already *0.5, 0-100
+    float battery_soc_pct = 0.0f;     // 0x49D BATTERY_SOC, already *2, 0-100 (2% steps)
+    float battery_current_a = 0.0f;   // 0x49D BATTERY_CURRENT, amps, positive = discharge
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
-    float soc_trend_pct_per_s = 0.0f; // derived: EMA'd rate of change of battery_soc_pct, not a raw signal
+    float soc_trend_pct_per_s = 0.0f; // derived from battery_current_a and the pack capacity (+ = charging)
     bool usb_dump = false;            // not CAN: a USB CAN dump is streaming (usb_dump.h), shown on the cockpit
 };

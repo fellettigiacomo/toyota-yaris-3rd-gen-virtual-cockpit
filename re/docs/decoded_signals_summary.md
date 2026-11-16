@@ -16,8 +16,8 @@ Validated on two independent real-drive logs (~430s and ~440s).
   broadcasts — no active diagnostic polling needed.
 - A high-resolution **fuel-consumption counter** exists, but it is not a fuel
   level gauge — no absolute tank level is available on this bus.
-- HV battery current/voltage and remaining driving range are confirmed
-  absent from this bus; not obtainable by passive listening.
+- HV battery **current** is broadcast next to the SOC. Remaining driving
+  range is confirmed absent from this bus.
 
 ## Confirmed signals (validated on 2 independent logs)
 
@@ -30,7 +30,8 @@ Validated on two independent real-drive logs (~430s and ~440s).
 | ICE running (bit) | `0x245` | `ICE_RUNNING` | byte3 bit4, 98–99% agreement with RPM>50 |
 | Brake pressed (bit) | `0x230` | `BRAKE_PRESSED` | single bit |
 | EV drive (bit) | `0x498` | `EV_DRIVE` | byte5 bit7, on only while moving with ICE off |
-| HV battery SOC | `0x4A7` | `BATTERY_SOC` | `byte2 * 0.5` = % (observed 54–71.5%, matches THS-II operating band) |
+| HV battery SOC | `0x49D` | `BATTERY_SOC` | 6 bits (`byte5` bits 1–0, `byte6` bits 7–4) `* 2` = % (observed 58–80%; coulomb-counts the current below; scale derived) |
+| HV battery current | `0x49D` | `BATTERY_CURRENT` | `byte2` signed `* 2` = A, positive = discharge (scale derived from energy balance) |
 | CHG/ECO/PWR indicator | `0x247` | `HSI_VALUE` / `HSI_ZONE` | % of gauge scale; **the sign comes from `HSI_ZONE`, not from byte[1]** — zone 12 = PWR side, byte[1] unsigned (sweeps past 155 at full throttle), zone 15 = CHG side, byte[1] two's complement clamped at -100 (raw 156), zones 4/6 = zero. The two sides' raw ranges overlap, so inferring the sign from byte[1] alone flips full PWR into full CHG. Display halves the raw value on the PWR side (PWR% = raw/2, CHG unchanged) — the ECO/PWR boundary is only the midpoint of the real gauge's PWR sweep, not its top. See `signal_findings.md` |
 | Turn signals | `0x614` | `TURN_SIGNALS` | 2-bit enum (+ hazard bit) |
 | Odometer (total) | `0x611` | `ODOMETER` | 20-bit, km/miles unit flag — NOT remaining range |
@@ -55,6 +56,7 @@ Validated on two independent real-drive logs (~430s and ~440s).
 
 ## Ruled out / excluded (documented so they aren't re-investigated)
 
+- `0x4A7` byte2 — was decoded as the SOC (`* 0.5`): rises with the engine running, falls with it stopped even under regen, and reads 108 at every start. Engine-side, probably a modelled exhaust/catalyst temperature
 - `0x4A8` byte2 top-3-bits — looked like a battery bar level: cyclic counter (wraps every 60–100s)
 - `0x4A2` `CHASSIS_BRAKE2` — looked like battery power: actually a second brake/ABS-VSC signal
 - `0x612` byte5, `0x619` byte6, `0x63B` byte6 — unstable or heartbeat-like, not physical signals
@@ -63,7 +65,7 @@ Validated on two independent real-drive logs (~430s and ~440s).
 ## Confirmed absent from this bus (not obtainable by passive listening)
 
 - **Remaining driving range (km)** — only the total odometer exists; likely computed inside the instrument cluster only
-- **HV battery current / voltage / temperature** — no broadcast found; Prius-style diagnostic IDs (0x03B/0x3CB/0x529) are absent on this platform; would require solicited UDS requests to the battery ECU
+- **HV battery voltage / temperature** — not identified (`0x49D` byte0/byte1 look like pack voltage but have no scale); Prius-style diagnostic IDs (0x03B/0x3CB/0x529) are absent on this platform
 
 ## Architecture note
 

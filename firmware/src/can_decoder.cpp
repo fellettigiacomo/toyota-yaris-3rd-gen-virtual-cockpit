@@ -4,7 +4,6 @@
 #include "usb_dump.h"
 
 #include <Arduino.h>
-#include <algorithm>
 
 namespace {
 
@@ -12,20 +11,11 @@ inline int16_t signExtend16(uint16_t raw) {
     return static_cast<int16_t>(raw);
 }
 
-// battery_soc_pct arrives in coarse 0.5% steps every few seconds -- too
-// noisy to read instantaneously to tell "charging" from "discharging" near
-// zero. This EMA only samples a new rate when the raw value actually ticks
-// (an SOC that hasn't moved yet doesn't mean the rate is zero, it means we
-// don't have a fresh sample), and decays the estimate toward zero if it
-// stays quiet for a while so a stale trend doesn't linger after the vehicle
-// settles into a steady state.
-float g_socTrendEma = 0.0f;
-float g_lastRawSoc = -1.0f; // sentinel: no sample observed yet
-uint32_t g_lastSocChangeMs = 0;
-uint32_t g_lastSocSampleMs = 0;
-constexpr float kSocEmaAlpha = 0.3f;
-constexpr uint32_t kSocDecayStartMs = 4000;
-constexpr float kSocDecayPerSec = 0.5f;
+// HV pack capacity (XP130 hybrid: 120-cell NiMH, 6.5 Ah nominal). Turns the
+// battery current of 0x49D into a SOC rate of change, in %/s.
+constexpr float kHvPackCapacityAh = 6.5f;
+constexpr float kHvCurrentAmpsPerBit = 2.0f;
+constexpr float kHvSocPctPerBit = 2.0f;
 
 // 0x247 HSI_ZONE (byte[0]) values -- the sign source for HSI_VALUE, see the
 // 0x247 case below.
@@ -95,45 +85,6 @@ void dumpHsiSurveyIfDue() {
                       static_cast<unsigned>(g_hsiSurvey[z].rawMin),
                       static_cast<unsigned>(g_hsiSurvey[z].rawMax));
     }
-}
-
-void resetSocTrendState() {
-    g_socTrendEma = 0.0f;
-    g_lastRawSoc = -1.0f;
-    g_lastSocChangeMs = 0;
-    g_lastSocSampleMs = 0;
-}
-
-void updateSocTrend(VehicleState &state, float rawSocPct) {
-    uint32_t nowMs = millis();
-    if (g_lastRawSoc < 0.0f) {
-        g_lastRawSoc = rawSocPct;
-        g_lastSocChangeMs = nowMs;
-        g_lastSocSampleMs = nowMs;
-        state.soc_trend_pct_per_s = 0.0f;
-        return;
-    }
-
-    if (rawSocPct != g_lastRawSoc) {
-        float dtS = (nowMs - g_lastSocChangeMs) / 1000.0f;
-        if (dtS > 0.05f) {
-            float instRate = (rawSocPct - g_lastRawSoc) / dtS;
-            g_socTrendEma = kSocEmaAlpha * instRate + (1.0f - kSocEmaAlpha) * g_socTrendEma;
-        }
-        g_lastRawSoc = rawSocPct;
-        g_lastSocChangeMs = nowMs;
-    } else if (nowMs - g_lastSocChangeMs > kSocDecayStartMs) {
-        float dtS = (nowMs - g_lastSocSampleMs) / 1000.0f;
-        float decay = kSocDecayPerSec * dtS;
-        if (g_socTrendEma > 0.0f) {
-            g_socTrendEma = std::max(0.0f, g_socTrendEma - decay);
-        } else if (g_socTrendEma < 0.0f) {
-            g_socTrendEma = std::min(0.0f, g_socTrendEma + decay);
-        }
-    }
-
-    g_lastSocSampleMs = nowMs;
-    state.soc_trend_pct_per_s = g_socTrendEma;
 }
 
 // Per-signal byte/bit extraction below was cross-validated against
@@ -238,11 +189,34 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
             }
             break;
 
-        case 0x4A7: // HV_BATTERY
-            if (dlc >= 3) {
-                float soc = d[2] * 0.5f;
-                updateSocTrend(state, soc);
-                state.battery_soc_pct = soc;
+        case 0x49D: // HV_BATTERY (SOC + pack current)
+            if (dlc >= 7) {
+                // SOC is the 6-bit field straddling byte[5] bits 1..0 and
+                // byte[6] bits 7..4. It is a coulomb counter: across both
+                // drive logs every step of it lines up with a fixed amount
+                // of integrated pack current (byte[2], signed, positive =
+                // discharge), it rises under regen and falls in EV drive,
+                // and it differs between cold starts (60% / 60% / 68%).
+                //
+                // This replaces 0x4A7 byte[2], which the first decode took
+                // for the SOC: that value climbs whenever the engine runs
+                // and falls whenever it is stopped -- including through
+                // hard regenerative braking, where a SOC has to rise -- and
+                // reads raw 108 ("54%") at every single start. It is an
+                // engine-side quantity, not the battery.
+                //
+                // Scales: 2 A/bit comes from the energy balance against the
+                // car's kinetic energy (1 A/bit would have the pack deliver
+                // less energy than the car gains in EV acceleration), and
+                // with it one SOC step is 0.13 Ah = 2% of the 6.5 Ah pack.
+                // Not yet checked against a diagnostic-tool reading.
+                uint8_t socRaw = static_cast<uint8_t>(((d[5] & 0x03) << 4) | (d[6] >> 4));
+                state.battery_soc_pct = socRaw * kHvSocPctPerBit;
+                state.battery_current_a = static_cast<int8_t>(d[2]) * kHvCurrentAmpsPerBit;
+                // SOC only ticks every 20 s or so, far too slowly to tell
+                // charging from discharging; the current says it directly.
+                state.soc_trend_pct_per_s =
+                    -state.battery_current_a * 100.0f / (kHvPackCapacityAh * 3600.0f);
             }
             break;
 
@@ -431,7 +405,6 @@ VehicleState getSnapshot() {
         g_playbackStartMs = millis();
         g_nextIdx = 0;
         g_demoState = VehicleState{};
-        resetSocTrendState();
         elapsedMs = 0;
     }
 
