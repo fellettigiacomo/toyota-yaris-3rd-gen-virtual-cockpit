@@ -31,7 +31,7 @@ KBG = (0x0A, 0x0B, 0x0D)    # Colors::kBg
 KTEXT = (0xEA, 0xF1, 0xF5)  # Colors::kText
 
 TOYOTA_H = 132       # px on the 640x172 panel
-GR_YARIS_W = 600
+GR_YARIS_W = 440     # letters about as tall as the TOYOTA wordmark plus its badge read together
 
 
 def over(fg, a, bg):

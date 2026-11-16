@@ -180,7 +180,7 @@ void sceneBoot() {
     // lv_tick, which step() advances faster than real time.
     for (int i = 0; i < 1100 / 16; i++) step(16);
     dump("00_boot_toyota");
-    for (int i = 0; i < 2000 / 16; i++) step(16); // ~3.1 s: second logo fully in
+    for (int i = 0; i < 3400 / 16; i++) step(16); // ~4.5 s: second logo fully in
     dump("00_boot_gr_yaris");
     while (BootUi::active()) step(16);
 }
