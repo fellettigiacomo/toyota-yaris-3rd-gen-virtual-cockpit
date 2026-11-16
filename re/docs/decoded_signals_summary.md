@@ -19,6 +19,8 @@ Validated on two independent real-drive logs (~430s and ~440s).
 - HV battery **current** is broadcast next to the SOC. Remaining driving
   range is confirmed absent from this bus.
 
+See [`capture_survey.md`](capture_survey.md) for the signals added by the sweep of all IDs: steering angle, yaw rate, accelerations, MG1/MG2 speed, wheel speeds, engine power, energy-monitor flags.
+
 ## Confirmed signals (validated on 2 independent logs)
 
 | Signal | CAN ID | Field | Formula / meaning |

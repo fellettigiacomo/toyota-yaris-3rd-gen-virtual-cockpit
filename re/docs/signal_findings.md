@@ -3,6 +3,7 @@
 Full methodology and validation evidence behind the signals in
 [`toyota_yaris_xp130_reversed.dbc`](../../dbc/toyota_yaris_xp130_reversed.dbc).
 For a compact table, see [`decoded_signals_summary.md`](decoded_signals_summary.md).
+Signals found by the later sweep of all IDs are in [`capture_survey.md`](capture_survey.md).
 
 ## Capture setup
 
