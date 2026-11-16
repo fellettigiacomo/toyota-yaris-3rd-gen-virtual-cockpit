@@ -44,7 +44,7 @@ See [`capture_survey.md`](capture_survey.md) for the signals added by the sweep 
 | Signal | CAN ID | Field | Notes |
 |---|---|---|---|
 | Brake pedal (analog pressure/position) | `0x224` | `BRAKE_VALUE` | 16-bit, strongly correlated with brake bit |
-| Coolant temperature | `0x618` | `TEMP_RAW` | warm-up curve to plateau; scale guess `*0.375` ≈ 90°C |
+| ~~Coolant temperature~~ | `0x618` | `TEMP_RAW` | in doubt: falls again after the car stops in `session_0047`; see `capture_survey.md` |
 | Second temperature (oil/CVT/HV pack?) | `0x3B9` | `TEMP2_RAW` | correlates with elapsed time and coolant temp |
 | Longitudinal accel/torque demand | `0x320` | `ACCEL_DEMAND` | signed, positive on acceleration, negative on braking/coast |
 | Fuel consumption counter | `0x3A0` | `FUEL_COUNTER_RAW` | decrements with ICE-on runtime, NOT a tank-level gauge; likely low byte of a wider register |

@@ -207,7 +207,7 @@ and it is consistent with this halved scaling.
 | Signal | ID | Field | Notes |
 |---|---|---|---|
 | Brake pedal (analog) | `0x224` | `BRAKE_VALUE` | 16-bit, strongly correlated with the brake bit |
-| Coolant temperature | `0x618` | `TEMP_RAW` | warm-up curve to plateau; scale guess `*0.375` ≈ 90 °C |
+| ~~Coolant temperature~~ | `0x618` | `TEMP_RAW` | in doubt: falls again after the car stops in `session_0047`; see `capture_survey.md` |
 | Second temperature (oil/CVT/HV pack?) | `0x3B9` | `TEMP2_RAW` | correlates with elapsed time and coolant temp |
 | Longitudinal accel/torque demand | `0x320` | `ACCEL_DEMAND` | signed, positive on acceleration, negative on braking/coast |
 | Fuel consumption counter | `0x3A0` | `FUEL_COUNTER_RAW` | decrements with ICE-on runtime, **not** a tank-level gauge |
@@ -222,7 +222,7 @@ confirmed (max observed 537, slightly above the 0–511 9-bit range opendbc's
 unrelated `BRAKE_MODULE`/0x226 template would suggest — that ID is absent
 from this bus).
 
-**Coolant temperature** — byte[3] of `0x618`, part of a low-frequency
+**Coolant temperature (in doubt — see [`capture_survey.md`](capture_survey.md): the value falls again within a minute of stopping, which coolant cannot do)** — byte[3] of `0x618`, part of a low-frequency
 (~0.1 Hz) "combination meter" message family (`0x610`-`0x615`,
 `0x618`-`0x61C`). Climbs from 0 at cold start to a plateau around 230–240 by
 t≈350–430s, matching a textbook engine coolant warm-up curve reaching
