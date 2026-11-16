@@ -118,7 +118,27 @@ void IRAM_ATTR onLvglTick(void *) {
     lv_tick_inc(LVGL_TICK_PERIOD_MS);
 }
 
+// Writes an all-black frame into the panel's GRAM. Called while the panel is
+// still DISPOFF: after power-up its GRAM holds random leftovers, which would
+// otherwise show up as a screen of coloured noise between DISPON and LVGL's
+// first flush (a few hundred ms later, after the whole UI is built).
+void clearPanelRam() {
+    uint16_t *black = static_cast<uint16_t *>(heap_caps_calloc(1, kDmaChunkBytes, MALLOC_CAP_DMA));
+    if (black == nullptr) return; // only cosmetic -- carry on without it
+    xSemaphoreGive(g_flushSem); // prime the first iteration, as in dispFlush()
+    for (int i = 0; i < kChunkCount; i++) {
+        xSemaphoreTake(g_flushSem, portMAX_DELAY);
+        esp_lcd_panel_draw_bitmap(g_panel, 0, i * kChunkRows, kNativeW, (i + 1) * kChunkRows, black);
+    }
+    xSemaphoreTake(g_flushSem, portMAX_DELAY); // last chunk done before the buffer goes
+    heap_caps_free(black);
+}
+
 void initPanel() {
+    // Created here rather than in initLvgl(): clearPanelRam() below already
+    // waits on it, through the same on_color_trans_done callback.
+    g_flushSem = xSemaphoreCreateBinary();
+
     pinMode(PIN_LCD_BACKLIGHT, OUTPUT);
     digitalWrite(PIN_LCD_BACKLIGHT, HIGH);
 
@@ -156,9 +176,10 @@ void initPanel() {
     // (09_LVGL_V8_Test.ino / 10_LVGL_V9_Test.ino), which overrides the
     // driver's elaborate default gamma/timing table with just these two
     // commands. This board/panel apparently doesn't need the rest at boot.
+    // DISPON is deliberately not in here: it is sent at the end of
+    // initPanel(), once clearPanelRam() has blanked the GRAM.
     static const axs15231b_lcd_init_cmd_t kInitCmds[] = {
         {0x11, (uint8_t[]){0x00}, 0, 100}, // SLPOUT
-        {0x29, (uint8_t[]){0x00}, 0, 100}, // DISPON
     };
     axs15231b_vendor_config_t vendorConf = {};
     vendorConf.init_cmds = kInitCmds;
@@ -179,10 +200,16 @@ void initPanel() {
     ESP_ERROR_CHECK(gpio_set_level(static_cast<gpio_num_t>(PIN_LCD_RESET), 1));
     vTaskDelay(pdMS_TO_TICKS(30));
     ESP_ERROR_CHECK(esp_lcd_panel_init(g_panel));
+
+    clearPanelRam();
+    // DISPON. Note the inverted argument: Waveshare's driver registers its
+    // panel_axs15231b_disp_off(panel, bool off) as the disp_on_off hook, so
+    // `false` here means "not off", i.e. on.
+    ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(g_panel, false));
+    vTaskDelay(pdMS_TO_TICKS(20));
 }
 
 void initLvgl() {
-    g_flushSem = xSemaphoreCreateBinary();
 
     g_dmaChunkBuf = static_cast<uint16_t *>(heap_caps_malloc(kDmaChunkBytes, MALLOC_CAP_DMA));
     g_nativeFrameBuf = static_cast<uint16_t *>(heap_caps_malloc(kFullFrameBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));

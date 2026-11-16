@@ -6,7 +6,7 @@ extern "C" const lv_img_dsc_t boot_img_toyota;
 extern "C" const lv_img_dsc_t boot_img_gr_yaris;
 
 // Timeline, in ms from build(). Two beats -- the Toyota logo, then the
-// GR Yaris one -- each a fade in / ~2 s hold / fade out. ~6 s in all: long enough
+// GR Yaris one -- each a fade in / 1.5 s hold / fade out. ~5 s in all: long enough
 // to read as a deliberate start-up, short enough that it is over before the
 // car is in gear.
 //
@@ -20,12 +20,12 @@ namespace BootUi {
 namespace {
 constexpr uint32_t kFirstInStart = 150;
 constexpr uint32_t kFirstInEnd = 650;
-constexpr uint32_t kFirstOutStart = 2750;
-constexpr uint32_t kFirstOutEnd = 3100;
-constexpr uint32_t kSecondInStart = 3200;
-constexpr uint32_t kSecondInEnd = 3700;
-constexpr uint32_t kSecondOutStart = 5800;
-constexpr uint32_t kSecondOutEnd = 6150;
+constexpr uint32_t kFirstOutStart = 2150;
+constexpr uint32_t kFirstOutEnd = 2500;
+constexpr uint32_t kSecondInStart = 2600;
+constexpr uint32_t kSecondInEnd = 3100;
+constexpr uint32_t kSecondOutStart = 4600;
+constexpr uint32_t kSecondOutEnd = 4950;
 
 lv_obj_t *g_overlay = nullptr;
 lv_obj_t *g_first = nullptr;
