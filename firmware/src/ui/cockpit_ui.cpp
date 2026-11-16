@@ -3,6 +3,7 @@
 #include "fonts/fonts.h"
 #include "accel_timer.h"
 
+#include <cmath>
 #include <cstdio>
 #include <lvgl.h>
 #include <cstring>
@@ -427,9 +428,19 @@ void update(const VehicleState &state) {
         lv_label_set_text(g_pwrCaptionLabel, zone == PowerZone::Chg ? "CHG" : "PWR");
     }
     lv_bar_set_value(g_pwrBar, pwrPct, LV_ANIM_OFF);
+    // The readout under the caption: the HSI percentage while the engine
+    // runs, the HV pack current in amps while it does not. With the engine
+    // off everything the car does goes through the battery, so the current
+    // is the real size of what the bar only shows as a share of its scale.
+    // Magnitude only -- CHG/PWR above already says which way it flows. The
+    // start-up sweep keeps its percentage.
+    bool showAmps = !g_sweeping && (state.ev_drive || state.rpm == 0);
+    int pwrReadout = showAmps ? static_cast<int>(lroundf(fabsf(state.battery_current_a))) : pwrPct;
     char pwrBuf[8];
-    snprintf(pwrBuf, sizeof(pwrBuf), "%d", pwrPct);
+    snprintf(pwrBuf, sizeof(pwrBuf), "%d", pwrReadout);
     lv_label_set_text(g_pwrValueLabel, pwrBuf);
+    const char *suffix = showAmps ? "A" : "%";
+    if (strcmp(lv_label_get_text(g_pwrPctLabel), suffix) != 0) lv_label_set_text(g_pwrPctLabel, suffix);
 
     // Battery gauge.
     lv_bar_set_value(g_battBar, battPct, LV_ANIM_OFF);
