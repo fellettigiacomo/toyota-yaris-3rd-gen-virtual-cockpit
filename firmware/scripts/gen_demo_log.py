@@ -30,7 +30,7 @@ DEFAULT_LOG = REPO_ROOT / "re" / "data" / "logs" / "session_0047.log"
 OUTPUT = Path(__file__).resolve().parents[1] / "src" / "demo_log_data.cpp"
 
 # Must match the IDs can_decoder.cpp's decodeIntoState() switches on.
-RELEVANT_IDS = {0x0B4, 0x1C4, 0x127, 0x245, 0x498, 0x247, 0x49D, 0x442, 0x320, 0x230}
+RELEVANT_IDS = {0x0B4, 0x1C4, 0x127, 0x245, 0x498, 0x247, 0x49D, 0x3B6, 0x442, 0x320, 0x230}
 
 # The UI only syncs at ~30Hz (UI_SYNC_INTERVAL_MS), so the ~33-47Hz native
 # rate of some of these signals (SPEED/RPM/GEAR/GAS_PEDAL/HSI) is more

@@ -63,16 +63,27 @@ From those patterns: bit3 = battery charging and bit4 = battery discharging
 (95–97% agreement with the sign of the battery current), bit6 = motor →
 wheels, bit7 = wheels → motor, bit2 = vehicle moving; byte5 bits 2–3 =
 engine running, bits 5–6 = engine → wheels. This looks like the flag set
-the car's own energy-flow display is drawn from, which would let the
-firmware's energy-flow screen read the directions instead of inferring
-them. The bit names have not been compared with the car's display.
+the car's own energy-flow display is drawn from. The firmware's energy-flow
+screen now reads its directions from these flags and only infers them when
+the message is missing. The bit names have not been compared with the car's
+display.
 
 ## Hypotheses
 
-- **Instantaneous consumption** — `0x610` byte5–6: 0 while moving with the
-  engine off, `0xFFFD` at standstill, `0x4B`–`0xCE` with the engine running.
-  At 0.1 l/100 km per bit that is 7.5–20.6 l/100 km on a cold engine that is
-  also charging the battery. The scale is a guess.
+- **Instantaneous consumption and fuel flow** — `0x610` byte5–6 and
+  `0x3D3` (16-bit). The `0x610` value is 0 while moving with the engine off,
+  `0xFFFD` at standstill and 6–365 while the engine runs. It is a
+  per-distance figure: value × speed = 3.51 × the `0x3D3` value, with the
+  same constant on both logs (r=0.96), so `0x3D3` is fuel flow and `0x610`
+  is that flow divided by speed.
+
+  Read as 0.1 l/100 km per bit, the numbers hang together: `0x3D3` comes out
+  at 0.975 mm³/s per bit (a round 1 within 2.5%), one step of the `0x3A0`
+  fuel counter at 15–21 ml, and the whole of `session_0044` at 4.9 l/100 km.
+  The 7–16 l/100 km seen while the engine runs is the engine-on figure on a
+  cold start, while it is also lifting the battery from 60% to 78%; the trip
+  figure is lower because nearly half the distance is driven with the engine
+  off. Still unconfirmed against the car's own display.
 - **Parking brake** — `0x620` byte7 bit4. In `session_0047` it is set at the
   start, clears 1 s before READY and sets again after the final stop. One
   log only.
@@ -116,8 +127,8 @@ them. The bit names have not been compared with the car's display.
 
 ## Still open
 
-- `0x3D3` (16-bit) and `0x38A` byte1: engine-only values that track RPM
-  (r=0.92–0.96) — load, air or fuel flow.
+- `0x38A` byte1: an engine-only value that tracks RPM (r=0.91–0.93) —
+  load or air flow.
 - `0x3B9` byte0: a temperature (105→173 over a drive, fastest with the
   engine on); the best coolant candidate now that `0x618` is in doubt.
 - `0x4AE` byte7 (72→75), `0x49D` byte3/byte4, `0x3B0` byte1: slow risers,

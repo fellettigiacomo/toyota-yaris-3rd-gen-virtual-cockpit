@@ -220,6 +220,25 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
             }
             break;
 
+        case 0x3B6: // ENERGY_MONITOR (the cluster's energy-flow flags)
+            if (dlc >= 7) {
+                // byte[6] takes one fixed pattern per driving state on both
+                // drive logs (0x75 EV, 0xAD regen, 0x6D/0x6C engine driving
+                // and charging, 0x0C engine only, 0x01 standstill); the bit
+                // meanings are read off those patterns -- see
+                // re/docs/capture_survey.md. Not yet compared with the car's
+                // own display.
+                state.ef_engine_running = (d[5] & 0x04) != 0;
+                state.ef_engine_to_wheels = (d[5] & 0x20) != 0;
+                state.ef_batt_charging = (d[6] & 0x08) != 0;
+                state.ef_batt_discharging = (d[6] & 0x10) != 0;
+                state.ef_motor_to_wheels = (d[6] & 0x40) != 0;
+                state.ef_wheels_to_motor = (d[6] & 0x80) != 0;
+                state.energy_flags_seen = true;
+                state.energy_flags_ms = millis();
+            }
+            break;
+
         case 0x320: // PWR_DEMAND (ACCEL_DEMAND)
             if (dlc >= 5) {
                 state.accel_demand = static_cast<int8_t>(d[4]);

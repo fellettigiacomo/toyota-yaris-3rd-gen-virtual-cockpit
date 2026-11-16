@@ -80,6 +80,44 @@ struct FlowState {
 
 // The qualitative "brain": maps VehicleState onto the 4 link directions.
 // See re/docs/signal_findings.md for the underlying signal semantics.
+// How long the car's own flags stay trusted after the last 0x3B6 frame. The
+// message comes once a second; three missed frames means it is gone.
+constexpr uint32_t kEnergyFlagsMaxAgeMs = 3500;
+
+// The car broadcasts the flow directions its own energy monitor draws
+// (0x3B6). When those are fresh they are used as they are; the inference
+// below remains as the fallback for a bus where the message never shows up,
+// and for the one flow the flags do not carry: engine braking in B.
+bool flowFromCar(const VehicleState &state, bool engineBraking, FlowState &f) {
+    if (!state.energy_flags_seen) return false;
+    if (millis() - state.energy_flags_ms > kEnergyFlagsMaxAgeMs) return false;
+
+    if (engineBraking) {
+        f.engineWheels = Dir::Reverse; // WHEELS -> ENGINE
+    } else if (state.ef_engine_to_wheels) {
+        f.engineWheels = Dir::Forward; // ENGINE -> WHEELS
+    }
+
+    if (state.ef_wheels_to_motor) {
+        f.motorWheels = Dir::Reverse; // WHEELS -> MOTOR (regen)
+    } else if (state.ef_motor_to_wheels) {
+        f.motorWheels = Dir::Forward; // MOTOR -> WHEELS
+    }
+
+    if (state.ef_batt_charging) {
+        f.motorBattery = Dir::Forward; // MOTOR -> BATTERY
+    } else if (state.ef_batt_discharging) {
+        f.motorBattery = Dir::Reverse; // BATTERY -> MOTOR
+    }
+
+    // The engine feeds the motor-generators whenever it runs and the battery
+    // is being charged by something other than the wheels.
+    if (state.ef_engine_running && state.ef_batt_charging && !state.ef_wheels_to_motor) {
+        f.engineMotor = Dir::Forward; // ENGINE -> MOTOR
+    }
+    return true;
+}
+
 FlowState deriveFlow(const VehicleState &state) {
     if (g_stoppedLatched) {
         if (state.speed_kph > kStopExitKph) g_stoppedLatched = false;
@@ -97,6 +135,8 @@ FlowState deriveFlow(const VehicleState &state) {
         (state.hsi_power >= kPwrHsiConfident || (state.hsi_power >= kPwrHsiThreshold && socFalling));
 
     FlowState f;
+
+    if (flowFromCar(state, state.gear == Gear::B && decelerating && !isStopped, f)) return f;
 
     if (state.gear == Gear::B && decelerating && !isStopped) {
         f.engineWheels = Dir::Reverse; // WHEELS -> ENGINE (engine braking)

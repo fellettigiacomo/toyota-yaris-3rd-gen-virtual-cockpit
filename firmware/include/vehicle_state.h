@@ -28,5 +28,16 @@ struct VehicleState {
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
     float soc_trend_pct_per_s = 0.0f; // derived from battery_current_a and the pack capacity (+ = charging)
+    // 0x3B6 ENERGY_MONITOR: the car's own energy-flow flags (1 Hz). Only
+    // meaningful while energy_flags_seen is set and energy_flags_ms is recent;
+    // energy_flow_ui.cpp falls back to inferring the flows otherwise.
+    bool energy_flags_seen = false;
+    uint32_t energy_flags_ms = 0;     // millis() of the last 0x3B6 frame
+    bool ef_engine_running = false;   // byte5 bit2
+    bool ef_engine_to_wheels = false; // byte5 bit5
+    bool ef_batt_charging = false;    // byte6 bit3
+    bool ef_batt_discharging = false; // byte6 bit4
+    bool ef_motor_to_wheels = false;  // byte6 bit6
+    bool ef_wheels_to_motor = false;  // byte6 bit7 (regen)
     bool usb_dump = false;            // not CAN: a USB CAN dump is streaming (usb_dump.h), shown on the cockpit
 };
