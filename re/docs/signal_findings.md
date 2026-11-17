@@ -39,7 +39,7 @@ Signals found by the later sweep of all IDs are in [`capture_survey.md`](capture
 | Brake pressed (bit) | `0x230` | `BRAKE_PRESSED` | single bit |
 | Turn signals | `0x614` | `TURN_SIGNALS` | 2-bit enum + hazard bit |
 | Odometer (total) | `0x611` | `ODOMETER` | 20-bit, km/miles unit flag |
-| Ambient temperature | `0x442` | `AMBIENT_TEMP` | `byte0 - 40` = °C |
+| ~~Ambient temperature~~ (wrong: read 27 °C at a real 7 °C, see `capture_survey.md`) | `0x442` | `AMBIENT_TEMP` | `byte0 - 40` = °C |
 | HV battery SOC | `0x49D` | `BATTERY_SOC` | 6 bits (`byte5` bits 1–0, `byte6` bits 7–4) `* 2` = % |
 | HV battery current | `0x49D` | `BATTERY_CURRENT` | `byte2` signed `* 2` = A, positive = discharge |
 | EV drive (bit) | `0x498` | `EV_DRIVE` | byte5 bit7 |

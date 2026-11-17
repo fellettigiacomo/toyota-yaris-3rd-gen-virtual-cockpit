@@ -150,17 +150,27 @@ engine start and the first metres of driving.
   down.
 - **Ambient temperature (`0x442` byte0) is in doubt.** It reads 37 °C before
   READY and 27 °C after, at 06:54 in mid-November — and 27 is the same value
-  as one of the July captures. It looks like a state byte, not a temperature.
+  as one of the July captures. The owner puts the real temperature
+  that morning at about 7 °C. It is a state byte, not a temperature.
 - **`0x3B9` byte0 reads 45 on this cold start**, against 105–110 at the July
   starts and 173 at the end of a warm drive. That is what coolant
   temperature would do; at 0.5 °C per bit the warm plateau is 86 °C.
-- **Fuel level and range disagree.** `0x4A6` byte4 is 50 here (36, 34, 26 in
-  July) while `0x619` gives 215 km (290, 263, 185 in July): more fuel, less
-  range. One of the two readings is wrong, or the scale between them is not
-  what three summer points suggested. In favour of `0x4A6` being the fuel
-  sender: byte4, byte5 and byte6 are the same quantity at three filter
-  strengths, and the fastest one (byte6) moves with lateral acceleration,
-  as fuel sloshing would.
+- **Fuel level and range both match the car.** `0x4A6` byte4 is 50 here
+  (36, 34, 26 in July) while `0x619` gives 215 km (290, 263, 185 in July).
+  The owner confirms both: the gauge showed 8 bars of 10 (50 × 0.5 l of a
+  36 l tank is 69%) and the car's own range read about 200 km — it had been
+  refuelled with the ignition on, so the car's range estimate had not caught
+  up. The range signal is the car's figure, wrong when the car is wrong.
+  Also in favour of `0x4A6`: byte4, byte5 and byte6 are the same quantity at
+  three filter strengths, and the fastest one (byte6) moves with lateral
+  acceleration, as fuel sloshing would.
+- **Outside-temperature candidate: `0x3B0` byte3 − 50.** It reads 57 here,
+  with the real outside temperature about 7 °C, and 76–82 in the July
+  captures (26–32 °C). Within a summer drive it drifts down a few counts,
+  as a heat-soaked sensor does once air moves over it. Two seasons, one
+  known temperature: a candidate, not a calibration.
+- **Battery-temperature candidate: `0x49D` byte4** — 112 here against
+  153–163 in July, and it creeps up during a drive.
 - **Somebody is running diagnostics at start-up.** Requests on `0x770` and
   `0x7C6` (services `0x21` and `0xA8`) are answered on `0x778` and `0x7CE`
   two seconds after READY. Not the dashboard, which never transmits; most

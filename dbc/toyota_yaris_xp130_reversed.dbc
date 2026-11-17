@@ -265,6 +265,7 @@ CM_ SG_ 1560 TEMP_RAW "REVISED: probably not coolant temperature. byte[3] moves 
 CM_ "0x49D byte[0]/byte[1] (HV_BATTERY): two readings that rise under charge current and sag under discharge, ~95 at rest. Pack voltage with unknown scale; roughly 1.66 V/bit if the rested pack sits at a NiMH-typical 1.32 V/cell. 0x38B byte[5] and 0x4AE byte[5] are linear functions of it.";
 CM_ "IDs 0x2FC, 0x387, 0x389, 0x38E, 0x38F, 0x434, 0x435, 0x443, 0x458, 0x6F9 appear only in the captures taken with the Simplesoft box in line (session_0047, mode-button capture) and carry constant data: frames from the box, not from the car.";
 
+CM_ SG_ 1090 AMBIENT_TEMP "WRONG: reads 37 before READY and 27 after on a 7 degC November morning. A state byte. Outside-temperature candidate instead: 0x3B0 byte[3] - 50 (57 at 7 degC, 76-82 in July).";
 CM_ "=== SIGNALS NOT ON THIS BUS (see re/docs/signal_findings.md for full explanation) ===";
 CM_ "Remaining range: see RANGE_TO_EMPTY (0x619), found later; the earlier conclusion that it is not broadcast was wrong.";
 CM_ "HV battery current is on 0x49D byte[2] (see BATTERY_CURRENT). The Prius Gen2/Gen3-style 0x03B/0x3CB/0x3CD/0x529 IDs are absent on this platform.";
