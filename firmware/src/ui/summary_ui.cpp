@@ -13,13 +13,13 @@ namespace {
 constexpr int16_t kScreenW = 640;
 constexpr int16_t kScreenH = 172;
 
-// Title, then two rows of four equal columns; caption over value, both
-// centred in their column, same pairing as the efficiency screen's stat row.
-constexpr int16_t kTitleY = 8;
+// Two rows of four equal columns, centred on the screen as a block; caption
+// over value, both centred in their column, same pairing as the efficiency
+// screen's stat row. No title: nothing else ever looks like this screen.
 constexpr int kCols = 4;
 constexpr int kRows = 2;
 constexpr int16_t kColW = kScreenW / kCols; // 160
-constexpr int16_t kRowCaptionY[kRows] = {38, 104};
+constexpr int16_t kRowCaptionY[kRows] = {30, 100};
 constexpr int16_t kValueDy = 18; // caption top to value top
 
 enum Stat {
@@ -55,9 +55,6 @@ void build(lv_obj_t *parent) {
     lv_obj_set_style_bg_color(g_root, Colors::kBg, 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(g_root, LV_OBJ_FLAG_SCROLLABLE);
-
-    makeCentred(g_root, "TRIP SUMMARY", &lv_font_montserrat_14, Colors::kEvGreen, 0, kTitleY,
-                kScreenW);
 
     for (int i = 0; i < StatCount; i++) {
         int16_t x = static_cast<int16_t>((i % kCols) * kColW);
