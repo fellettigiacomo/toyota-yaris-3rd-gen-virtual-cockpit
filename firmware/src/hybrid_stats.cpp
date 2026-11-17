@@ -25,6 +25,12 @@ double g_movingTimeS = 0.0;
 double g_regenTimeS = 0.0;
 float g_maxSpeedKph = 0.0f;
 double g_fuelUsedMm3 = 0.0;
+double g_tripTimeS = 0.0;
+float g_socStart = -1.0f; // sentinel: not yet seen
+
+// A powertrain frame older than this means the car is off (or the bus has
+// stalled); either way that time is not part of the trip.
+constexpr uint32_t kPowertrainFreshMs = 1500;
 
 // Below this distance a litres-per-100-km figure is all start-up noise.
 constexpr double kMinDistForAvgKm = 0.1;
@@ -50,9 +56,14 @@ void update(const VehicleState &state) {
     // battery_soc_pct is still its 0 default -- a real HV pack never sits at
     // 0%, so treat 0 as "no reading yet" and don't let it latch the minimum.
     if (state.battery_soc_pct > 0.0f) {
+        if (g_socStart < 0.0f) g_socStart = state.battery_soc_pct;
         g_socNow = state.battery_soc_pct;
         if (g_socMin < 0.0f || state.battery_soc_pct < g_socMin) g_socMin = state.battery_soc_pct;
         if (g_socMax < 0.0f || state.battery_soc_pct > g_socMax) g_socMax = state.battery_soc_pct;
+    }
+
+    if (state.powertrain_seen && nowMs - state.powertrain_ms <= kPowertrainFreshMs) {
+        g_tripTimeS += dtS;
     }
 
     // Fuel is integrated at standstill too: an idling engine burns it, and
@@ -92,6 +103,8 @@ Snapshot getSnapshot() {
     s.regenSharePct = (g_movingTimeS > 0.5) ? static_cast<float>(100.0 * g_regenTimeS / g_movingTimeS) : 0.0f;
     s.avgSpeedKph = (g_movingTimeS > 0.5) ? static_cast<float>(g_distanceKm / (g_movingTimeS / 3600.0)) : 0.0f;
     s.maxSpeedKph = g_maxSpeedKph;
+    s.tripTimeS = static_cast<float>(g_tripTimeS);
+    s.socStartPct = (g_socStart < 0.0f) ? g_socNow : g_socStart;
     s.fuelUsedL = static_cast<float>(g_fuelUsedMm3 * 1e-6);
     s.avgConsumptionL100 = (g_distanceKm >= kMinDistForAvgKm)
                                ? static_cast<float>(g_fuelUsedMm3 * 1e-6 / g_distanceKm * 100.0)

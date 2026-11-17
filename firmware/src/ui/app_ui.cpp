@@ -4,6 +4,7 @@
 #include "efficiency_ui.h"
 #include "gmeter_ui.h"
 #include "boot_ui.h"
+#include "summary_ui.h"
 #include "colors.h"
 #include "screen_nav.h"
 #include "touch_nav.h"
@@ -12,6 +13,7 @@
 #include "accel_timer.h"
 #include "g_meter.h"
 
+#include <Arduino.h>
 #include <lvgl.h>
 
 // The BOOT button and a tap anywhere on the panel (TouchNav -- presence-only,
@@ -32,6 +34,16 @@ enum Screen { ScreenCockpit = 0, ScreenEfficiency, ScreenEnergy, ScreenGMeter, S
 lv_obj_t *g_screens[ScreenCount] = {nullptr, nullptr, nullptr, nullptr};
 int g_active = ScreenCockpit;
 bool g_bootShown = true; // the splash was still up at the previous update()
+
+// Trip summary. The board stays powered for some seconds after the car is
+// switched off; the powertrain messages stop at once, which is the cue.
+// kCarOffMs is long enough to ride out a dropped frame or two (0x0B4 comes
+// every 24 ms) and short enough to leave the summary most of that window.
+// A trip shorter than kSummaryMinKm is not worth a screen.
+constexpr uint32_t kCarOffMs = 1500;
+constexpr float kSummaryMinKm = 0.1f;
+bool g_summaryShown = false;
+bool g_summaryDismissed = false; // tapped away; stays away until the car is back on
 
 lv_obj_t *createScreenContainer(lv_obj_t *parent) {
     lv_obj_t *c = lv_obj_create(parent);
@@ -69,6 +81,9 @@ void build() {
     g_active = ScreenCockpit;
     showOnly(g_active);
 
+    // Above the screens, below the splash.
+    SummaryUi::build(scr);
+
     // Last, so it is drawn above every screen; it removes itself when done.
     BootUi::build(scr);
 }
@@ -91,6 +106,9 @@ void update(const VehicleState &state) {
         // A press during the splash just skips it -- it shouldn't also
         // land the driver one screen past the cockpit.
         BootUi::skip();
+    } else if ((bootPressed || tapped) && g_summaryShown) {
+        // A press on the summary puts it away instead of changing screen.
+        g_summaryDismissed = true;
     } else if (bootPressed || tapped) {
         g_active = (g_active + 1) % ScreenCount;
         showOnly(g_active);
@@ -109,6 +127,17 @@ void update(const VehicleState &state) {
     // driving (see g_meter.cpp), which mostly happens while the driver is
     // looking at some other screen.
     GMeter::update(state);
+
+    bool carOff = state.powertrain_seen && millis() - state.powertrain_ms > kCarOffMs;
+    if (!carOff) g_summaryDismissed = false;
+    bool wantSummary = carOff && !g_summaryDismissed &&
+                       HybridStats::getSnapshot().distanceKm >= kSummaryMinKm;
+    if (wantSummary && !g_summaryShown) {
+        SummaryUi::show();
+    } else if (!wantSummary && g_summaryShown) {
+        SummaryUi::hide(); // dismissed, or the car came back on: the trip goes on
+    }
+    g_summaryShown = wantSummary;
 
     CockpitUi::update(state);
 

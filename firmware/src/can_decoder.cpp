@@ -117,6 +117,8 @@ void decodeIntoState(VehicleState &state, uint32_t id, const uint8_t *d, uint8_t
             if (dlc >= 7) {
                 uint16_t raw = (static_cast<uint16_t>(d[5]) << 8) | d[6];
                 state.speed_kph = raw * 0.01f * SPEED_CORRECTION;
+                state.powertrain_seen = true;
+                state.powertrain_ms = millis();
             }
             break;
 
@@ -475,6 +477,10 @@ VehicleState getSnapshot() {
     dumpHsiSurveyIfDue();
 
     g_demoState.usb_dump = UsbDump::active();
+    // The replayed log has gaps of its own (missed frames, a hole of over a
+    // minute); none of them is the car being switched off, so the demo keeps
+    // the powertrain alive rather than popping the trip summary mid-drive.
+    if (g_demoState.powertrain_seen) g_demoState.powertrain_ms = millis();
     return g_demoState;
 }
 

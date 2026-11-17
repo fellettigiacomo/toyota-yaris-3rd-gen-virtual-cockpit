@@ -136,6 +136,39 @@ display.
   taken with the Simplesoft box in line and carry constant data — they come
   from the box, not the car.
 
+## Fourth capture: `usb_20261117_065425.log`
+
+47 s taken through the dashboard's own USB dump on a November morning
+(odometer 102366 km): 31 s with the car on but not READY, then READY, a cold
+engine start and the first metres of driving.
+
+- **Before READY the bus carries body messages only** — 24 IDs, all in
+  `0x44x` and `0x6xx`, about 35 frames/s. `SPEED` (`0x0B4`) and the whole
+  powertrain set appear only at READY. The firmware uses that: `0x0B4` going
+  silent is its "car switched off" cue for the trip summary. A capture that
+  runs through a shutdown would confirm the bus looks the same on the way
+  down.
+- **Ambient temperature (`0x442` byte0) is in doubt.** It reads 37 °C before
+  READY and 27 °C after, at 06:54 in mid-November — and 27 is the same value
+  as one of the July captures. It looks like a state byte, not a temperature.
+- **`0x3B9` byte0 reads 45 on this cold start**, against 105–110 at the July
+  starts and 173 at the end of a warm drive. That is what coolant
+  temperature would do; at 0.5 °C per bit the warm plateau is 86 °C.
+- **Fuel level and range disagree.** `0x4A6` byte4 is 50 here (36, 34, 26 in
+  July) while `0x619` gives 215 km (290, 263, 185 in July): more fuel, less
+  range. One of the two readings is wrong, or the scale between them is not
+  what three summer points suggested. In favour of `0x4A6` being the fuel
+  sender: byte4, byte5 and byte6 are the same quantity at three filter
+  strengths, and the fastest one (byte6) moves with lateral acceleration,
+  as fuel sloshing would.
+- **Somebody is running diagnostics at start-up.** Requests on `0x770` and
+  `0x7C6` (services `0x21` and `0xA8`) are answered on `0x778` and `0x7CE`
+  two seconds after READY. Not the dashboard, which never transmits; most
+  likely the Simplesoft box.
+- **`0x618` byte3 resets at READY** (30 → 0, then starts counting again),
+  which fits a per-trip figure and not coolant.
+- SOC starts at 60% again and `0x4A7` byte2 at 108 again, as before.
+
 ## Still open
 
 - `0x38A` byte1: an engine-only value that tracks RPM (r=0.91–0.93) —

@@ -131,8 +131,14 @@ namespace {
 int g_screen = 0; // 0 cockpit, 1 efficiency, 2 energy, 3 G-meter
 VehicleState g_state;
 
+bool g_carOn = true; // scenes drive with the car on; the summary scene switches it off
+
 void step(int ms) {
     lv_tick_inc(ms);
+    if (g_carOn) {
+        g_state.powertrain_seen = true;
+        g_state.powertrain_ms = millis();
+    }
     AppUi::update(g_state);
     lv_timer_handler();
 }
@@ -280,6 +286,23 @@ void sceneEfficiency() {
     dump("03_efficiency");
 }
 
+// --- 06 trip summary ------------------------------------------------------
+// The car is switched off: the powertrain frames stop, and after the
+// debounce the summary of everything the scenes above drove comes up.
+void sceneSummary() {
+    std::printf("06_trip_summary\n");
+    g_state.speed_kph = 0.0f;
+    g_state.ice_running = false;
+    g_state.ev_drive = false;
+    g_state.hsi_power = 0;
+    g_state.fuel_flow_mm3s = 0.0f;
+    g_state.battery_soc_pct = 64.0f;
+    runFor(300);
+    g_carOn = false;
+    runFor(2200);
+    dump("06_trip_summary");
+}
+
 // --- 04 G-meter -----------------------------------------------------------
 // Plays a short drive so the calibration actually converges: a standstill for
 // the level reference, a launch for the forward axis, then braking and both
@@ -352,6 +375,7 @@ int main(int argc, char **argv) {
     sceneEnergyFlow();
     sceneEfficiency();
     sceneGMeter();
+    sceneSummary();
 
     std::printf("done -- run topng.py over the .rgb files\n");
     return 0;

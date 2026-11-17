@@ -41,6 +41,11 @@ with the session's peaks.
 
 ![G-Meter](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/04_gmeter.png?raw=true)
 
+**Trip summary** — comes up by itself when the car is switched off, for the
+seconds the board stays powered.
+
+![Trip summary](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/06_trip_summary.png?raw=true)
+
 ## Hardware
 
 - Waveshare ESP32-S3-Touch-LCD-3.49 (640×172 strip, onboard QMI8658 IMU)

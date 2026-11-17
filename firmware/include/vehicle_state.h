@@ -28,6 +28,12 @@ struct VehicleState {
     int8_t accel_demand = 0;          // 0x320 ACCEL_DEMAND, signed, sign = traction(+)/regen-brake(-)
     bool brake_pressed = false;       // 0x230 BRAKE_PRESSED
     float soc_trend_pct_per_s = 0.0f; // derived from battery_current_a and the pack capacity (+ = charging)
+    // Powertrain presence: 0x0B4 SPEED only exists on the bus while the car
+    // is switched on (before READY the bus carries body messages only), so
+    // its last arrival time tells "car on" from "car off".
+    bool powertrain_seen = false;
+    uint32_t powertrain_ms = 0;       // millis() of the last 0x0B4 frame
+
     // Fuel. All four are negative until their first frame has arrived.
     float fuel_flow_mm3s = 0.0f;      // 0x3D3 FUEL_FLOW, mm3/s, 0 with the engine off
     float inst_consumption_l100 = -1.0f; // 0x610 INSTANT_CONSUMPTION; negative = none (standstill)
