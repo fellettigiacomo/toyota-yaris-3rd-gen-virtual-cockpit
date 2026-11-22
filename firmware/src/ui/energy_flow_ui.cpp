@@ -129,11 +129,16 @@ FlowState deriveFlow(const VehicleState &state) {
     return f;
 }
 
+// Readouts and funnels share the screen's vertical centre.
+constexpr int16_t kCenterY = 86;
+
 // --- readouts ---------------------------------------------------------------
+// Each readout is the 10px-tall tag, a 10px gap, then the 18px-tall value:
+// 38px of ink, centred on kCenterY.
 constexpr int16_t kLeftX = 24;
 constexpr int16_t kRightX = 616;
-constexpr int16_t kTagBaseline = 61;
-constexpr int16_t kValueBaseline = 89;
+constexpr int16_t kTagBaseline = kCenterY - 9;
+constexpr int16_t kValueBaseline = kCenterY + 19;
 constexpr int16_t kUnitGap = 4;
 constexpr lv_opa_t kDimmedOpa = 102;
 constexpr float kIdleAmps = 1.0f;
@@ -150,10 +155,10 @@ enum class Flow : uint8_t { Off, In, Out };
 
 constexpr float kRunPx = 124.0f;   // mouth to speed
 constexpr float kSpreadPx = 24.0f; // outer lanes' offset at the mouth
-constexpr float kFunnelY = 72.0f;  // the speed's vertical centre, where the lanes meet
+constexpr float kFunnelY = kCenterY; // where the lanes meet
 constexpr int16_t kFunnelW = 150;
 constexpr int16_t kFunnelH = 64;
-constexpr int16_t kFunnelTop = 40;
+constexpr int16_t kFunnelTop = kCenterY - kFunnelH / 2;
 
 struct Lane {
     float spread;

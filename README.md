@@ -1,6 +1,6 @@
 # Toyota Yaris (3rd Gen / XP130) — Virtual Cockpit
 
-![Virtual Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
+![Virtual Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/demo.gif?raw=true)
 
 A digital instrument cluster for a 2014 Toyota Yaris Hybrid, driven by the
 car's own CAN bus, reverse-engineered from scratch.
