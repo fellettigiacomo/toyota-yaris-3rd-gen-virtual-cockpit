@@ -169,22 +169,22 @@ void build(lv_obj_t *parent) {
     lv_obj_clear_flag(g_dot, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_pos(g_dot, static_cast<int16_t>(kBallCx - kDotR), static_cast<int16_t>(kBallCy - kDotR));
 
-    g_caption = makeLabel(root, "G-FORCE", &dinnext_12_label, Colors::kMutedText, 1);
+    g_caption = makeLabel(root, "G-FORCE", &spacegrotesk_12_label, Colors::kMutedText, 1);
     placeOnBaseline(g_caption, kRightX, kCaptionBaseline);
 
-    g_valueLabel = makeLabel(root, "0.00", &dinnext_36_value, Colors::kAccentCyan);
+    g_valueLabel = makeLabel(root, "0.00", &spacegrotesk_35_value, Colors::kAccentCyan);
     placeOnBaseline(g_valueLabel, kRightX, kValueBaseline);
-    g_unitLabel = makeLabel(root, "G", &dinnext_20_value, Colors::kMutedText);
+    g_unitLabel = makeLabel(root, "G", &spacegrotesk_19_value, Colors::kMutedText);
     placeOnBaseline(g_unitLabel, static_cast<int16_t>(kRightX + textW(g_valueLabel) + kUnitGap), kValueBaseline);
 
-    g_statusLabel = makeLabel(root, "", &dinnext_24_label, Colors::kText);
+    g_statusLabel = makeLabel(root, "", &spacegrotesk_23_label, Colors::kText);
     placeOnBaseline(g_statusLabel, kRightX, kStatusBaseline);
 
     for (int i = 0; i < PeakCount; i++) {
         int16_t x = kPeakX[kPeakCol[i]];
-        lv_obj_t *caption = makeLabel(root, kPeakCaption[i], &dinnext_12_label, Colors::kMutedText, 1);
+        lv_obj_t *caption = makeLabel(root, kPeakCaption[i], &spacegrotesk_12_label, Colors::kMutedText, 1);
         placeOnBaseline(caption, x, kPeakCaptionBaseline[kPeakRow[i]]);
-        g_peakValue[i] = makeLabel(root, "0.00 G", &dinnext_20_value, Colors::kText);
+        g_peakValue[i] = makeLabel(root, "0.00 G", &spacegrotesk_19_value, Colors::kText);
         placeOnBaseline(g_peakValue[i], x, kPeakValueBaseline[kPeakRow[i]]);
     }
 }

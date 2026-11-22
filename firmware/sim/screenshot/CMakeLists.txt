@@ -50,26 +50,27 @@ add_executable(screenshot
     ${PROJECT_ROOT}/src/ui/boot_ui.cpp
     ${PROJECT_ROOT}/sim/usb_dump_sim.cpp
     ${PROJECT_ROOT}/src/ui/boot_images.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_120_speed.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_13_pct.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_14_chgpwr.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_26_battery.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_26_rpm.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_28_ev.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_30_units.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_gear.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_24_label.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_28_stat.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_accel_time.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_accel_label.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_72_speed.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_21_small.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_17_rpm.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_13_tag.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_26_value.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_36_value.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_20_value.c
-    ${PROJECT_ROOT}/src/ui/fonts/dinnext_12_label.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_106_speed.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_13_pct.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_14_chgpwr.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_25_battery.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_25_rpm.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_27_ev.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_29_units.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_39_gear.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_23_label.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_27_stat.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_39_accel_time.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_39_accel_label.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_64_speed.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_20_small.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_16_rpm.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_13_tag.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_25_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_35_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_19_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_12_label.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_14_caption.c
 )
 
 target_compile_definitions(screenshot PRIVATE LV_CONF_INCLUDE_SIMPLE LV_LVGL_H_INCLUDE_SIMPLE)

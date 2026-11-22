@@ -61,8 +61,8 @@ void build(lv_obj_t *parent) {
     for (int i = 0; i < StatCount; i++) {
         int16_t x = static_cast<int16_t>((i % kCols) * kColW);
         int16_t y = kRowCaptionY[i / kCols];
-        makeCentred(g_root, kCaptions[i], &lv_font_montserrat_14, Colors::kMutedText, x, y, kColW);
-        g_value[i] = makeCentred(g_root, "--", &dinnext_28_stat, Colors::kText, x,
+        makeCentred(g_root, kCaptions[i], &spacegrotesk_14_caption, Colors::kMutedText, x, y, kColW);
+        g_value[i] = makeCentred(g_root, "--", &spacegrotesk_27_stat, Colors::kText, x,
                                  static_cast<int16_t>(y + kValueDy), kColW);
     }
 

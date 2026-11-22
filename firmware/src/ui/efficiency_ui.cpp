@@ -238,9 +238,9 @@ void build(lv_obj_t *parent) {
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
     const char *tripCaption = "TRIP KM";
-    makeLabel(root, tripCaption, &dinnext_12_label, Colors::kMutedText, kTripX, kTripBaseline, 1);
-    g_tripValue = makeLabel(root, "--", &dinnext_24_label, Colors::kText,
-                            static_cast<int16_t>(kTripX + textW(tripCaption, &dinnext_12_label, 1) + kTripGap),
+    makeLabel(root, tripCaption, &spacegrotesk_12_label, Colors::kMutedText, kTripX, kTripBaseline, 1);
+    g_tripValue = makeLabel(root, "--", &spacegrotesk_23_label, Colors::kText,
+                            static_cast<int16_t>(kTripX + textW(tripCaption, &spacegrotesk_12_label, 1) + kTripGap),
                             kTripBaseline);
 
     g_graph = lv_obj_create(root);
@@ -253,9 +253,9 @@ void build(lv_obj_t *parent) {
 
     for (int i = 0; i < StatCount; i++) {
         int16_t x = kStatX[i % 2];
-        makeLabel(root, kStatCaptions[i], &dinnext_12_label, Colors::kMutedText, x,
+        makeLabel(root, kStatCaptions[i], &spacegrotesk_12_label, Colors::kMutedText, x,
                   kCaptionBaseline[i / 2], 1);
-        g_statValue[i] = makeLabel(root, "--", &dinnext_28_stat, Colors::kText, x, kValueBaseline[i / 2]);
+        g_statValue[i] = makeLabel(root, "--", &spacegrotesk_27_stat, Colors::kText, x, kValueBaseline[i / 2]);
     }
 }
 

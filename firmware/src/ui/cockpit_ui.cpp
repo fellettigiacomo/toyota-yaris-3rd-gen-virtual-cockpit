@@ -43,11 +43,11 @@ constexpr int16_t kGaugeH = kGaugeBottom - kGaugeY;              // 140
 
 // Shared "bottom row" Y for both columns' numeric value, bottom-aligned with
 // the gauges themselves.
-constexpr int16_t kSideValueY = kGaugeBottom - 18; // 18 = dinnext_26_battery's line_height
+constexpr int16_t kSideValueY = kGaugeBottom - 18; // 18 = spacegrotesk_25_battery's line_height
 // Each column's "top row" sits just above that: the battery icon on the left
-// (12px tall), the CHG/PWR caption on the right (10px line height).
+// (12px tall), the CHG/PWR caption on the right (12px line height).
 constexpr int16_t kSideIconY = kSideValueY - 3 - 12;    // 3px gap above the value row
-constexpr int16_t kSideCaptionY = kSideValueY - 3 - 10; // same gap, 10px line height
+constexpr int16_t kSideCaptionY = kSideValueY - 3 - 12; // same gap, spacegrotesk_14_chgpwr's line_height
 
 // Left column: HV battery gauge, flush to the left screen edge.
 constexpr int16_t kBattTickX = kSideMargin; // 18
@@ -218,13 +218,13 @@ void createBatteryGauge(lv_obj_t *parent) {
 
     // Numeric readout: value (26px bold) + "%" (13px semi-bold, muted).
     g_battValueLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_battValueLabel, &dinnext_26_battery, 0);
+    lv_obj_set_style_text_font(g_battValueLabel, &spacegrotesk_25_battery, 0);
     lv_obj_set_style_text_color(g_battValueLabel, Colors::kText, 0);
     lv_label_set_text(g_battValueLabel, "--");
     lv_obj_set_pos(g_battValueLabel, kBattInnerX - 2, kSideValueY);
 
     g_battPctLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_battPctLabel, &dinnext_13_pct, 0);
+    lv_obj_set_style_text_font(g_battPctLabel, &spacegrotesk_13_pct, 0);
     lv_obj_set_style_text_color(g_battPctLabel, Colors::kMutedText, 0);
     lv_label_set_text(g_battPctLabel, "%");
     lv_obj_align_to(g_battPctLabel, g_battValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
@@ -245,11 +245,11 @@ void createPowerGauge(lv_obj_t *parent) {
     // The suffix's width is measured from the font rather than hardcoded, and
     // the whole arrangement is static -- update() only ever sets the text.
     lv_point_t pctSize;
-    lv_txt_get_size(&pctSize, "%", &dinnext_13_pct, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
+    lv_txt_get_size(&pctSize, "%", &spacegrotesk_13_pct, 0, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     int16_t valueBoxX = kPwrTextRight - 2 - static_cast<int16_t>(pctSize.x) - kPwrTextBoxW;
 
     g_pwrCaptionLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_pwrCaptionLabel, &dinnext_14_chgpwr, 0);
+    lv_obj_set_style_text_font(g_pwrCaptionLabel, &spacegrotesk_14_chgpwr, 0);
     lv_obj_set_style_text_letter_space(g_pwrCaptionLabel, 1, 0);
     lv_obj_set_style_text_color(g_pwrCaptionLabel, Colors::kPwrWhite, 0);
     lv_obj_set_width(g_pwrCaptionLabel, kPwrTextBoxW);
@@ -258,7 +258,7 @@ void createPowerGauge(lv_obj_t *parent) {
     lv_obj_set_pos(g_pwrCaptionLabel, kPwrTextRight - kPwrTextBoxW, kSideCaptionY);
 
     g_pwrValueLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_pwrValueLabel, &dinnext_26_battery, 0);
+    lv_obj_set_style_text_font(g_pwrValueLabel, &spacegrotesk_25_battery, 0);
     lv_obj_set_style_text_color(g_pwrValueLabel, Colors::kText, 0);
     lv_obj_set_width(g_pwrValueLabel, kPwrTextBoxW);
     lv_obj_set_style_text_align(g_pwrValueLabel, LV_TEXT_ALIGN_RIGHT, 0);
@@ -266,7 +266,7 @@ void createPowerGauge(lv_obj_t *parent) {
     lv_obj_set_pos(g_pwrValueLabel, valueBoxX, kSideValueY);
 
     g_pwrPctLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_pwrPctLabel, &dinnext_13_pct, 0);
+    lv_obj_set_style_text_font(g_pwrPctLabel, &spacegrotesk_13_pct, 0);
     lv_obj_set_style_text_color(g_pwrPctLabel, Colors::kMutedText, 0);
     lv_label_set_text(g_pwrPctLabel, "%");
     lv_obj_align_to(g_pwrPctLabel, g_pwrValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
@@ -279,7 +279,7 @@ void createCenterGroup(lv_obj_t *parent) {
     // Speed + the RPM/EV row form one vertically-centered block (see the
     // layout comment above): speed dy=-19, RPM/EV dy=+50.
     g_speedLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_speedLabel, &dinnext_120_speed, 0);
+    lv_obj_set_style_text_font(g_speedLabel, &spacegrotesk_106_speed, 0);
     lv_obj_set_style_text_color(g_speedLabel, Colors::kText, 0);
     lv_obj_set_style_text_letter_space(g_speedLabel, -3, 0);
     lv_label_set_text(g_speedLabel, "0");
@@ -288,7 +288,7 @@ void createCenterGroup(lv_obj_t *parent) {
     // Gear keeps its own fixed anchor (dy=-4), holding the same offset
     // relative to the speed number it flanks.
     g_gearLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_gearLabel, &dinnext_40_gear, 0);
+    lv_obj_set_style_text_font(g_gearLabel, &spacegrotesk_39_gear, 0);
     lv_obj_set_style_text_color(g_gearLabel, Colors::kAccentCyan, 0);
     lv_label_set_text(g_gearLabel, "P");
     lv_obj_align(g_gearLabel, LV_ALIGN_CENTER, -158, -4);
@@ -297,26 +297,26 @@ void createCenterGroup(lv_obj_t *parent) {
     // hidden by default, swapped in for the gear letter by update() while
     // AccelTimer has a result to show. Two stacked labels, same centering
     // trick the RPM/EV row already uses one anchor over. Both lines use the
-    // same 40px size as the gear letter itself (dinnext_40_gear's
+    // same 39px size as the gear letter itself (spacegrotesk_39_gear's
     // line_height is 28px) for readability at a glance. Centered on the gear
     // letter's own anchor (dy=-4): seconds on top (dy=-22), threshold caption
     // below (dy=14), 36px apart so the two 28px-tall lines don't touch.
     g_accelTimeLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_accelTimeLabel, &dinnext_40_accel_time, 0);
+    lv_obj_set_style_text_font(g_accelTimeLabel, &spacegrotesk_39_accel_time, 0);
     lv_obj_set_style_text_color(g_accelTimeLabel, Colors::kAccentCyan, 0);
     lv_label_set_text(g_accelTimeLabel, "0.00");
     lv_obj_align(g_accelTimeLabel, LV_ALIGN_CENTER, -158, -22);
     lv_obj_add_flag(g_accelTimeLabel, LV_OBJ_FLAG_HIDDEN);
 
     g_accelThresholdLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_accelThresholdLabel, &dinnext_40_accel_label, 0);
+    lv_obj_set_style_text_font(g_accelThresholdLabel, &spacegrotesk_39_accel_label, 0);
     lv_obj_set_style_text_color(g_accelThresholdLabel, Colors::kMutedText, 0);
     lv_label_set_text(g_accelThresholdLabel, "0-50");
     lv_obj_align(g_accelThresholdLabel, LV_ALIGN_CENTER, -158, 14);
     lv_obj_add_flag(g_accelThresholdLabel, LV_OBJ_FLAG_HIDDEN);
 
     g_unitsLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_unitsLabel, &dinnext_30_units, 0);
+    lv_obj_set_style_text_font(g_unitsLabel, &spacegrotesk_29_units, 0);
     lv_obj_set_style_text_color(g_unitsLabel, Colors::kAccentCyan, 0);
     lv_obj_set_style_text_letter_space(g_unitsLabel, 2, 0);
     lv_label_set_text(g_unitsLabel, "KM/H");
@@ -325,14 +325,14 @@ void createCenterGroup(lv_obj_t *parent) {
     // RPM row and EV row share the same anchor; exactly one of the two is
     // visible at a time based on ev_drive.
     g_rpmLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_rpmLabel, &dinnext_26_rpm, 0);
+    lv_obj_set_style_text_font(g_rpmLabel, &spacegrotesk_25_rpm, 0);
     lv_obj_set_style_text_color(g_rpmLabel, lv_color_white(), 0);
     lv_obj_set_style_text_letter_space(g_rpmLabel, 1, 0);
     lv_label_set_text(g_rpmLabel, "RPM 0");
     lv_obj_align(g_rpmLabel, LV_ALIGN_CENTER, 0, 50);
 
     g_evLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_evLabel, &dinnext_28_ev, 0);
+    lv_obj_set_style_text_font(g_evLabel, &spacegrotesk_27_ev, 0);
     lv_obj_set_style_text_color(g_evLabel, Colors::kEvGreen, 0);
     lv_obj_set_style_text_letter_space(g_evLabel, 2, 0);
     lv_label_set_text(g_evLabel, "EV");
@@ -343,7 +343,7 @@ void createCenterGroup(lv_obj_t *parent) {
     // while usb_dump.cpp is streaming -- the row keeps its job, it just says
     // the bus is being captured too. Recolor markup for the two halves.
     g_dumpLabel = lv_label_create(parent);
-    lv_obj_set_style_text_font(g_dumpLabel, &dinnext_26_rpm, 0);
+    lv_obj_set_style_text_font(g_dumpLabel, &spacegrotesk_25_rpm, 0);
     lv_obj_set_style_text_color(g_dumpLabel, lv_color_white(), 0);
     lv_obj_set_style_text_letter_space(g_dumpLabel, 1, 0);
     lv_label_set_recolor(g_dumpLabel, true);
@@ -358,7 +358,7 @@ void createCenterGroup(lv_obj_t *parent) {
 // compact glyphs are separate labels in smaller fonts; each pair travels the
 // same path and cross-fades, which reads as the number shrinking without the
 // transform layer (a full object-sized buffer) LVGL would need to scale it.
-constexpr int16_t kRailW = 5;
+constexpr int16_t kRailW = 8;
 constexpr uint32_t kMorphMs = 450;
 
 lv_obj_t *g_speedSmall = nullptr;
@@ -398,10 +398,10 @@ lv_obj_t *makeCompactLabel(lv_obj_t *parent, const lv_font_t *font, lv_color_t c
 }
 
 void createCompactGroup(lv_obj_t *parent) {
-    g_speedSmall = makeCompactLabel(parent, &dinnext_72_speed, Colors::kText, -2, "0");
-    g_gearSmall = makeCompactLabel(parent, &dinnext_21_small, Colors::kAccentCyan, 0, "P");
-    g_unitsSmall = makeCompactLabel(parent, &dinnext_21_small, Colors::kAccentCyan, 1, "KM/H");
-    g_rpmSmall = makeCompactLabel(parent, &dinnext_17_rpm, Colors::kEvGreen, 1, "EV");
+    g_speedSmall = makeCompactLabel(parent, &spacegrotesk_64_speed, Colors::kText, -2, "0");
+    g_gearSmall = makeCompactLabel(parent, &spacegrotesk_20_small, Colors::kAccentCyan, 0, "P");
+    g_unitsSmall = makeCompactLabel(parent, &spacegrotesk_20_small, Colors::kAccentCyan, 1, "KM/H");
+    g_rpmSmall = makeCompactLabel(parent, &spacegrotesk_16_rpm, Colors::kEvGreen, 1, "EV");
 }
 
 // Vertical distance from a label's box centre to the centre of `glyph`'s ink.

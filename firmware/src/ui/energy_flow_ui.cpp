@@ -303,16 +303,16 @@ void build(lv_obj_t *parent) {
     buildFunnel(root, g_engineFunnel);
     buildFunnel(root, g_electricFunnel);
 
-    g_engineTag = makeLabel(root, &dinnext_13_tag, Colors::kEngineText, 1, "ENGINE");
+    g_engineTag = makeLabel(root, &spacegrotesk_13_tag, Colors::kEngineText, 1, "ENGINE");
     placeOnBaseline(g_engineTag, kLeftX, kTagBaseline);
-    g_engineValue = makeLabel(root, &dinnext_26_value, Colors::kText, 0, "0.0");
+    g_engineValue = makeLabel(root, &spacegrotesk_25_value, Colors::kText, 0, "0.0");
     placeOnBaseline(g_engineValue, kLeftX, kValueBaseline);
-    g_engineUnit = makeLabel(root, &dinnext_12_label, Colors::kMutedText, 1, "L/100");
+    g_engineUnit = makeLabel(root, &spacegrotesk_12_label, Colors::kMutedText, 1, "L/100");
 
-    g_electricTag = makeLabel(root, &dinnext_13_tag, Colors::kAccentCyan, 1, "MOTOR");
-    g_ampsUnit = makeLabel(root, &dinnext_12_label, Colors::kMutedText, 1, "A");
+    g_electricTag = makeLabel(root, &spacegrotesk_13_tag, Colors::kAccentCyan, 1, "MOTOR");
+    g_ampsUnit = makeLabel(root, &spacegrotesk_12_label, Colors::kMutedText, 1, "A");
     placeOnBaseline(g_ampsUnit, static_cast<int16_t>(kRightX - textW(g_ampsUnit)), kValueBaseline);
-    g_ampsValue = makeLabel(root, &dinnext_26_value, Colors::kText, 0, "0");
+    g_ampsValue = makeLabel(root, &spacegrotesk_25_value, Colors::kText, 0, "0");
 }
 
 void update(const VehicleState &state) {
