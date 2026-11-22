@@ -3,19 +3,19 @@
 #include <lvgl.h>
 #include "vehicle_state.h"
 
-// The second screen (reached by pressing the BOOT button, see screen_nav.h):
-// a qualitative ENGINE/MOTOR/BATTERY/WHEELS energy-flow diagram,
-// direction-only (no kW -- HV pack current/voltage aren't on this bus, see
-// docs/signal_findings.md). All lv_* calls happen from the LVGL task, same
-// rule as CockpitUi.
+// Third screen: where the energy is going. Engine consumption on the left,
+// HV pack current on the right, and particles funnelling from each source
+// into the cockpit's speed (the wheels), or out of it towards the pack when
+// it charges. All lv_* calls happen from the LVGL task, same rule as
+// CockpitUi.
 namespace EnergyFlowUi {
 
-// Builds the node icons + flow arrows onto `parent` (a plain full-screen
+// Builds the readouts and the two funnels onto `parent` (a plain full-screen
 // container -- see AppUi::build()).
 void build(lv_obj_t *parent);
 
-// Derives flow directions from the latest VehicleState and advances the
-// arrow animations. Call at the same cadence CockpitUi::update() runs at.
+// Derives flow directions from the latest VehicleState, refreshes the
+// readouts and advances the particles. Call at the UI sync cadence.
 void update(const VehicleState &state);
 
 } // namespace EnergyFlowUi

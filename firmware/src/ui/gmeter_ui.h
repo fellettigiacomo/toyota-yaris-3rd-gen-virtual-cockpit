@@ -4,10 +4,10 @@
 
 #include <lvgl.h>
 
-// Fourth screen: a G-meter. A classic g-ball on the left (dot = the
-// acceleration vector, up is accelerating, down is braking, sides are which
-// way the car is turning), the current magnitude in the middle, and the
-// session's four directional peaks on the right.
+// Fourth screen: a G-meter. A classic g-ball left of the cockpit's centre
+// column (dot = the acceleration vector, up is accelerating, down is braking,
+// sides are which way the car is turning), the current magnitude and the
+// session's four directional peaks right of it.
 //
 // All the math -- and all the work of figuring out how the board is mounted
 // -- is in g_meter.cpp; this file only draws what GMeter::get() reports.

@@ -9,10 +9,14 @@
 // from there.
 namespace CockpitUi {
 
-// Constructs the static widget tree once, parented to `parent` (a plain
-// full-screen container -- see AppUi::build()). Call after
+// Constructs the static widget tree once, parented to `parent` (the screen
+// itself: the cluster stays on every screen, see setCompact()). Call after
 // lv_disp_drv_register().
 void build(lv_obj_t *parent);
+
+// Animates between the cockpit layout (false) and the compact one every other
+// screen uses (true): a narrow centre column, gauges reduced to edge rails.
+void setCompact(bool compact);
 
 // Pushes a fresh VehicleState into the widget tree.
 void update(const VehicleState &state);

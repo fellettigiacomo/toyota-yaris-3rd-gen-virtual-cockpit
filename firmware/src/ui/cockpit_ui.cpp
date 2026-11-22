@@ -5,6 +5,8 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <initializer_list>
 #include <lvgl.h>
 #include <cstring>
 
@@ -79,6 +81,12 @@ lv_obj_t *g_pwrBar = nullptr;
 lv_obj_t *g_pwrValueLabel = nullptr;
 lv_obj_t *g_pwrPctLabel = nullptr;
 lv_obj_t *g_pwrCaptionLabel = nullptr;
+
+lv_obj_t *g_battIcon = nullptr;
+lv_obj_t *g_battNub = nullptr;
+constexpr int kTickCount = 11;
+lv_obj_t *g_battTicks[kTickCount] = {};
+lv_obj_t *g_pwrTicks[kTickCount] = {};
 // What the power gauge is currently painted as. Tracked so update() only
 // restyles on an actual zone change -- a style change invalidates the object,
 // and a zone holds for many frames at a time.
@@ -150,7 +158,7 @@ char gearChar(Gear g) {
 // vertical since h > w, filling bottom-up by default -- exactly the spec's
 // behavior, no extra code needed for the fill direction) with 11 static tick
 // marks layered on top, evenly spaced, drawn once.
-lv_obj_t *createTickGauge(lv_obj_t *parent, int16_t x, lv_color_t color) {
+lv_obj_t *createTickGauge(lv_obj_t *parent, int16_t x, lv_color_t color, lv_obj_t **ticks) {
     lv_obj_t *bar = lv_bar_create(parent);
     lv_obj_remove_style_all(bar);
     lv_obj_set_size(bar, kGaugeW, kGaugeH);
@@ -168,8 +176,9 @@ lv_obj_t *createTickGauge(lv_obj_t *parent, int16_t x, lv_color_t color) {
     lv_obj_set_style_shadow_spread(bar, 1, LV_PART_INDICATOR);
     lv_obj_set_style_shadow_opa(bar, LV_OPA_60, LV_PART_INDICATOR);
 
-    for (int i = 0; i < 11; i++) {
+    for (int i = 0; i < kTickCount; i++) {
         lv_obj_t *tick = lv_obj_create(parent);
+        ticks[i] = tick;
         lv_obj_remove_style_all(tick);
         lv_obj_set_size(tick, 9, 1);
         int16_t ty = kGaugeY + static_cast<int16_t>(i * (kGaugeH - 1) / 10);
@@ -188,6 +197,7 @@ void createBatteryGauge(lv_obj_t *parent) {
     // on the inner side (kBattInnerX), toward screen center, with the nub
     // pointing back toward the ticks.
     lv_obj_t *icon = lv_obj_create(parent);
+    g_battIcon = icon;
     lv_obj_remove_style_all(icon);
     lv_obj_set_size(icon, 16, 12);
     lv_obj_set_pos(icon, kBattInnerX, kSideIconY);
@@ -198,6 +208,7 @@ void createBatteryGauge(lv_obj_t *parent) {
     lv_obj_clear_flag(icon, LV_OBJ_FLAG_SCROLLABLE);
 
     lv_obj_t *nub = lv_obj_create(parent);
+    g_battNub = nub;
     lv_obj_remove_style_all(nub);
     lv_obj_set_size(nub, 2, 4);
     lv_obj_set_pos(nub, kBattInnerX - 2, kSideIconY + 5);
@@ -218,7 +229,7 @@ void createBatteryGauge(lv_obj_t *parent) {
     lv_label_set_text(g_battPctLabel, "%");
     lv_obj_align_to(g_battPctLabel, g_battValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
 
-    g_battBar = createTickGauge(parent, kBattTickX, Colors::kBatteryBlue);
+    g_battBar = createTickGauge(parent, kBattTickX, Colors::kBatteryBlue, g_battTicks);
 }
 
 void createPowerGauge(lv_obj_t *parent) {
@@ -260,7 +271,7 @@ void createPowerGauge(lv_obj_t *parent) {
     lv_label_set_text(g_pwrPctLabel, "%");
     lv_obj_align_to(g_pwrPctLabel, g_pwrValueLabel, LV_ALIGN_OUT_RIGHT_BOTTOM, 2, 0);
 
-    g_pwrBar = createTickGauge(parent, kPwrTickX, Colors::kPwrWhite);
+    g_pwrBar = createTickGauge(parent, kPwrTickX, Colors::kPwrWhite, g_pwrTicks);
     g_pwrZone = PowerZone::Pwr;
 }
 
@@ -341,24 +352,142 @@ void createCenterGroup(lv_obj_t *parent) {
     lv_obj_add_flag(g_dumpLabel, LV_OBJ_FLAG_HIDDEN);
 }
 
+// --- Compact layout ---------------------------------------------------------
+// Every screen but the cockpit shows the centre group as a narrow column in
+// the middle and the side gauges as thin rails on the screen edges. The
+// compact glyphs are separate labels in smaller fonts; each pair travels the
+// same path and cross-fades, which reads as the number shrinking without the
+// transform layer (a full object-sized buffer) LVGL would need to scale it.
+constexpr int16_t kRailW = 5;
+constexpr uint32_t kMorphMs = 450;
+
+lv_obj_t *g_speedSmall = nullptr;
+lv_obj_t *g_gearSmall = nullptr;
+lv_obj_t *g_unitsSmall = nullptr;
+lv_obj_t *g_rpmSmall = nullptr;
+
+float g_layoutK = 0.0f; // 0 = cockpit layout, 1 = compact
+
+struct Morph {
+    lv_obj_t **full;
+    lv_obj_t **compact;    // nullptr: only fades out
+    lv_point_t fullOffset; // LV_ALIGN_CENTER offset in the cockpit layout
+    lv_point_t compactInk; // screen point the compact glyphs' ink is centred on
+    uint32_t glyph;        // whose ink box defines the vertical centre
+};
+
+const Morph kMorphs[] = {
+    {&g_speedLabel, &g_speedSmall, {0, -19}, {320, 72}, '0'},
+    {&g_gearLabel, &g_gearSmall, {-158, -4}, {320, 22}, 'D'},
+    {&g_accelTimeLabel, nullptr, {-158, -22}, {320, 22}, '0'},
+    {&g_accelThresholdLabel, nullptr, {-158, 14}, {320, 22}, '0'},
+    {&g_unitsLabel, &g_unitsSmall, {168, -4}, {320, 113}, 'K'},
+    {&g_rpmLabel, &g_rpmSmall, {0, 50}, {320, 145}, 'R'},
+    {&g_evLabel, nullptr, {0, 50}, {320, 145}, 'E'},
+    {&g_dumpLabel, nullptr, {0, 50}, {320, 145}, 'C'},
+};
+
+lv_obj_t *makeCompactLabel(lv_obj_t *parent, const lv_font_t *font, lv_color_t color,
+                           int16_t letterSpace, const char *txt) {
+    lv_obj_t *l = lv_label_create(parent);
+    lv_obj_set_style_text_font(l, font, 0);
+    lv_obj_set_style_text_color(l, color, 0);
+    lv_obj_set_style_text_letter_space(l, letterSpace, 0);
+    lv_label_set_text(l, txt);
+    return l;
+}
+
+void createCompactGroup(lv_obj_t *parent) {
+    g_speedSmall = makeCompactLabel(parent, &dinnext_72_speed, Colors::kText, -2, "0");
+    g_gearSmall = makeCompactLabel(parent, &dinnext_21_small, Colors::kAccentCyan, 0, "P");
+    g_unitsSmall = makeCompactLabel(parent, &dinnext_21_small, Colors::kAccentCyan, 1, "KM/H");
+    g_rpmSmall = makeCompactLabel(parent, &dinnext_17_rpm, Colors::kEvGreen, 1, "EV");
+}
+
+// Vertical distance from a label's box centre to the centre of `glyph`'s ink.
+int16_t inkDy(lv_obj_t *label, uint32_t glyph) {
+    const lv_font_t *f = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+    lv_font_glyph_dsc_t g;
+    lv_font_get_glyph_dsc(f, &g, glyph, 0);
+    return static_cast<int16_t>((f->line_height - f->base_line) - g.ofs_y - g.box_h / 2 -
+                                f->line_height / 2);
+}
+
+lv_coord_t rounded(float v) {
+    return static_cast<lv_coord_t>(lroundf(v));
+}
+
+lv_coord_t lerp(float a, float b, float k) {
+    return rounded(a + (b - a) * k);
+}
+
+lv_opa_t toOpa(float v) {
+    if (v <= 0.0f) return LV_OPA_TRANSP;
+    if (v >= 1.0f) return LV_OPA_COVER;
+    return static_cast<lv_opa_t>(v * 255.0f + 0.5f);
+}
+
+void applyLayout(float k) {
+    g_layoutK = k;
+    // A short, complementary cross-fade around the midpoint: a long one leaves
+    // two differently sized copies of the speed on screen at once, a fade out
+    // then in leaves none.
+    float swap = (k - 0.4f) / 0.2f;
+    lv_opa_t fullOpa = toOpa(1.0f - swap);
+    lv_opa_t compactOpa = toOpa(swap);
+
+    for (const Morph &m : kMorphs) {
+        lv_obj_t *full = *m.full;
+        int16_t fullDy = inkDy(full, m.glyph);
+        float fromX = kScreenW / 2 + m.fullOffset.x;
+        float fromY = kScreenH / 2 + m.fullOffset.y + fullDy;
+        float x = fromX + (m.compactInk.x - fromX) * k - kScreenW / 2;
+        float y = fromY + (m.compactInk.y - fromY) * k - kScreenH / 2;
+        lv_obj_align(full, LV_ALIGN_CENTER, rounded(x), rounded(y - fullDy));
+        lv_obj_set_style_opa(full, fullOpa, 0);
+        if (m.compact) {
+            lv_obj_t *compact = *m.compact;
+            int16_t compactDy = inkDy(compact, m.glyph);
+            lv_obj_align(compact, LV_ALIGN_CENTER, rounded(x), rounded(y - compactDy));
+            lv_obj_set_style_opa(compact, compactOpa, 0);
+        }
+    }
+
+    lv_obj_set_pos(g_battBar, lerp(kBattTickX, 0, k), lerp(kGaugeY, 0, k));
+    lv_obj_set_size(g_battBar, lerp(kGaugeW, kRailW, k), lerp(kGaugeH, kScreenH, k));
+    lv_obj_set_pos(g_pwrBar, lerp(kPwrTickX, kScreenW - kRailW, k), lerp(kGaugeY, 0, k));
+    lv_obj_set_size(g_pwrBar, lerp(kGaugeW, kRailW, k), lerp(kGaugeH, kScreenH, k));
+
+    lv_opa_t sideOpa = toOpa(1.0f - k * 2.5f);
+    for (int i = 0; i < kTickCount; i++) {
+        lv_obj_set_style_opa(g_battTicks[i], sideOpa, 0);
+        lv_obj_set_style_opa(g_pwrTicks[i], sideOpa, 0);
+    }
+    for (lv_obj_t *o : {g_battIcon, g_battNub, g_battValueLabel, g_battPctLabel, g_pwrCaptionLabel,
+                        g_pwrValueLabel, g_pwrPctLabel}) {
+        lv_obj_set_style_opa(o, sideOpa, 0);
+    }
+}
+
+void morphExec(void *, int32_t v) {
+    applyLayout(static_cast<float>(v) / 1000.0f);
+}
+
 } // namespace
 
 void build(lv_obj_t *parent) {
-    // Builds onto its own child object rather than restyling `parent`
-    // directly, so this stays agnostic to whatever `parent` actually is
-    // (AppUi currently passes a plain per-screen container -- see
-    // AppUi::build()).
+    // Transparent: the glow and the other screens' content show through.
     lv_obj_t *root = lv_obj_create(parent);
     lv_obj_remove_style_all(root);
     lv_obj_set_size(root, kScreenW, kScreenH);
     lv_obj_set_pos(root, 0, 0);
-    lv_obj_set_style_bg_color(root, Colors::kBg, 0);
-    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
     createBatteryGauge(root);
     createPowerGauge(root);
     createCenterGroup(root);
+    createCompactGroup(root);
+    applyLayout(0.0f);
 }
 
 void update(const VehicleState &state) {
@@ -453,6 +582,12 @@ void update(const VehicleState &state) {
     char speedBuf[8];
     snprintf(speedBuf, sizeof(speedBuf), "%d", static_cast<int>(state.speed_kph + 0.5f));
     lv_label_set_text(g_speedLabel, speedBuf);
+    lv_label_set_text(g_speedSmall, speedBuf);
+
+    // The compact column always shows the gear: the 0-50/0-100 readout is a
+    // cockpit-only feature, and it fades out with the rest of the full layout.
+    char gearBuf[2] = {gearChar(state.gear), '\0'};
+    lv_label_set_text(g_gearSmall, gearBuf);
 
     AccelTimer::Display accel = AccelTimer::getDisplay();
     if (accel.active) {
@@ -466,7 +601,6 @@ void update(const VehicleState &state) {
         lv_obj_clear_flag(g_accelTimeLabel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(g_accelThresholdLabel, LV_OBJ_FLAG_HIDDEN);
     } else {
-        char gearBuf[2] = {gearChar(state.gear), '\0'};
         lv_label_set_text(g_gearLabel, gearBuf);
         lv_obj_clear_flag(g_gearLabel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(g_accelTimeLabel, LV_OBJ_FLAG_HIDDEN);
@@ -477,6 +611,15 @@ void update(const VehicleState &state) {
     // traffic, or any RPM==0 state) so the cluster never shows a broken
     // "RPM 0". Raw ev_drive/ice_running are unaffected -- selection only.
     bool showEv = state.ev_drive || state.rpm == 0;
+    if (showEv) {
+        lv_label_set_text(g_rpmSmall, "EV");
+        lv_obj_set_style_text_color(g_rpmSmall, Colors::kEvGreen, 0);
+    } else {
+        char rpmSmallBuf[16];
+        snprintf(rpmSmallBuf, sizeof(rpmSmallBuf), "RPM %d", state.rpm < 0 ? 0 : state.rpm);
+        lv_label_set_text(g_rpmSmall, rpmSmallBuf);
+        lv_obj_set_style_text_color(g_rpmSmall, lv_color_white(), 0);
+    }
     if (state.usb_dump) {
         lv_obj_add_flag(g_rpmLabel, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(g_evLabel, LV_OBJ_FLAG_HIDDEN);
@@ -510,5 +653,21 @@ void startSweep() {
 }
 
 bool sweeping() { return g_sweeping; }
+
+void setCompact(bool compact) {
+    int32_t from = static_cast<int32_t>(lroundf(g_layoutK * 1000.0f));
+    int32_t to = compact ? 1000 : 0;
+    lv_anim_del(&g_layoutK, nullptr);
+    if (from == to) return;
+
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, &g_layoutK);
+    lv_anim_set_exec_cb(&a, morphExec);
+    lv_anim_set_values(&a, from, to);
+    lv_anim_set_time(&a, static_cast<uint32_t>(kMorphMs * std::abs(to - from) / 1000));
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+    lv_anim_start(&a);
+}
 
 } // namespace CockpitUi

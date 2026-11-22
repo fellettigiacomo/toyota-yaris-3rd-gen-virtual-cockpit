@@ -7,15 +7,25 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <initializer_list>
 
 namespace EfficiencyUi {
 
 namespace {
 
-constexpr int16_t kScreenW = 640;
-constexpr int16_t kScreenH = 172;
-constexpr int16_t kEdgeMargin = 16;
+// Left of the cockpit's centre column: trip distance over the drive's PWR
+// graph. Right of it: average and instantaneous consumption, range and fuel.
+constexpr int16_t kTripX = 22;
+constexpr int16_t kTripBaseline = 32;
+constexpr int16_t kTripGap = 8;
+
+constexpr int16_t kGraphX = 20;
+constexpr int16_t kGraphY = 54;
+constexpr int16_t kGraphW = 200;
+constexpr int16_t kGraphH = 108;
+
+constexpr int16_t kStatX[2] = {424, 528};
+constexpr int16_t kCaptionBaseline[2] = {36, 110};
+constexpr int16_t kValueBaseline[2] = {66, 140};
 
 // The graph: the whole session's PWR demand as one line, green where the car
 // was electric (regen included -- it is drawn at zero, but it is the pack's
@@ -24,75 +34,49 @@ constexpr int16_t kEdgeMargin = 16;
 // The plot keeps itself full in both directions. Horizontally, whatever
 // points PwrHistory holds are stretched across the whole width, so the line
 // runs edge to edge from the first seconds of a drive. Vertically, the
-// session's peak (after smoothing) is scaled up to kGraphTop -- which sits
-// just under the stat values, so the line never climbs into them -- and the
-// scale eases towards a new peak over a few tenths of a second instead of
-// jumping. kMinScalePct keeps an almost-idle drive from blowing noise up to
-// full height.
-constexpr int16_t kGraphTop = 55;   // stat values end at 26 + 21 (line height), plus a gap
-constexpr int16_t kGraphBase = 168; // y of a zero reading
+// session's peak (after smoothing) is scaled up to kGraphTop, and the scale
+// eases towards a new peak over a few tenths of a second instead of jumping.
+// kMinScalePct keeps an almost-idle drive from blowing noise up to full height.
+constexpr int16_t kGraphTop = 4;    // inside the graph object, which leaves room for the caps
+constexpr int16_t kGraphBase = 104; // y of a zero reading, inside the graph object
 constexpr int16_t kLineW = 2;
 constexpr float kMinScalePct = 10.0f;
 constexpr float kScaleEase = 0.25f;      // share of the gap to the target closed per UI tick
 constexpr float kScaleSettlePct = 0.2f;  // close enough: stop animating
 constexpr uint32_t kAnimRedrawMs = 100;  // redraw cap while the scale is moving
 
-// The area under the line fades from kFillMaxMix (0..255 share of the line's
-// colour, at the plot's top) down to the plain background at the zero line.
-// The fade is tied to screen height, not to each column's own height, so the
-// whole area reads as one gradient. LVGL 8.3 has no per-stop opacity, but the
-// background is a solid colour, so mixing towards it gives the same result.
-constexpr uint8_t kFillMaxMix = 120;
+// The area under the line fades from kFillOpa at the plot's top to nothing at
+// the zero line, tied to the plot's height rather than each column's, so the
+// whole area reads as one gradient over the glow behind it.
+constexpr lv_opa_t kFillOpa = 120;
 
-// Stat row: five montserrat_14 captions over dinnext_28_stat values, in
-// equal columns across the whole width, each caption and value centred in its
-// column. Units live in the captions so the values stay short enough.
-constexpr int16_t kStatCaptionY = 8;
-constexpr int16_t kStatValueY = 26;
-constexpr int kStatCount = 5;
-constexpr int16_t kStatPitch = kScreenW / kStatCount; // 128
-
-enum Stat { StatDistance, StatAvg, StatNow, StatRange, StatFuel };
-const char *const kStatCaptions[kStatCount] = {"TRIP KM", "AVG L/100", "NOW L/100", "RANGE KM",
-                                               "FUEL %"};
+enum Stat { StatAvg, StatNow, StatRange, StatFuel, StatCount };
+const char *const kStatCaptions[StatCount] = {"AVG L/100", "NOW L/100", "RANGE KM", "FUEL %"};
 
 lv_obj_t *g_graph = nullptr;
-lv_obj_t *g_statValue[kStatCount] = {};
+lv_obj_t *g_tripValue = nullptr;
+lv_obj_t *g_statValue[StatCount] = {};
 
 // What the graph last showed, so update() only invalidates it when a point
 // has actually moved -- most ticks nothing has.
 uint32_t g_drawnRevision = UINT32_MAX;
 PwrHistory::Bucket g_drawnOpen = {0xff, 0xff};
 
-int16_t textW(const char *txt, const lv_font_t *font, int16_t letterSpace = 0) {
+int16_t textW(const char *txt, const lv_font_t *font, int16_t letterSpace) {
     lv_point_t sz;
     lv_txt_get_size(&sz, txt, font, letterSpace, 0, LV_COORD_MAX, LV_TEXT_FLAG_NONE);
     return static_cast<int16_t>(sz.x);
 }
 
-enum Anchor { AnchorLeft, AnchorRight };
 lv_obj_t *makeLabel(lv_obj_t *parent, const char *txt, const lv_font_t *font, lv_color_t color,
-                    int16_t anchorX, int16_t y, Anchor anchor) {
+                    int16_t x, int16_t baseline, int16_t letterSpace = 0) {
     lv_obj_t *l = lv_label_create(parent);
     lv_obj_set_style_text_font(l, font, 0);
     lv_obj_set_style_text_color(l, color, 0);
+    lv_obj_set_style_text_letter_space(l, letterSpace, 0);
     lv_label_set_text(l, txt);
-    lv_obj_set_pos(l, anchor == AnchorRight ? static_cast<int16_t>(anchorX - textW(txt, font))
-                                            : anchorX,
-                   y);
+    lv_obj_set_pos(l, x, static_cast<int16_t>(baseline - (font->line_height - font->base_line)));
     return l;
-}
-
-lv_obj_t *makeRect(lv_obj_t *parent, int16_t x, int16_t y, int16_t w, int16_t h, lv_color_t color) {
-    lv_obj_t *r = lv_obj_create(parent);
-    lv_obj_remove_style_all(r);
-    lv_obj_set_size(r, w, h);
-    lv_obj_set_pos(r, x, y);
-    lv_obj_set_style_bg_color(r, color, 0);
-    lv_obj_set_style_bg_opa(r, LV_OPA_COVER, 0);
-    lv_obj_set_style_radius(r, 0, 0);
-    lv_obj_clear_flag(r, LV_OBJ_FLAG_SCROLLABLE);
-    return r;
 }
 
 // Drawing is smoothed, the history is not: the points get a small weighted
@@ -110,8 +94,8 @@ float g_peakPct = 0.0f;   // max of g_smooth
 float g_yScale = kMinScalePct; // pct that maps to kGraphTop, eased towards the peak
 float g_drawnScale = 0.0f;
 uint32_t g_lastAnimRedrawMs = 0;
-lv_coord_t g_colY[kScreenW]; // curve y per pixel column, for the two drawing passes
-bool g_colEv[kScreenW];
+lv_coord_t g_colY[kGraphW]; // curve y per pixel column, for the two drawing passes
+bool g_colEv[kGraphW];
 
 bool electric(const PwrHistory::Bucket &b) {
     return b.evPct >= 50;
@@ -183,41 +167,13 @@ void prepare() {
     }
 }
 
-// One 1px gradient column, from the curve down to the zero line.
-void drawFill(lv_draw_ctx_t *ctx, const lv_area_t &origin, lv_coord_t x, lv_coord_t y, bool ev) {
-    lv_coord_t base = static_cast<lv_coord_t>(origin.y1 + kGraphBase);
-    if (y >= base) return; // nothing under a zero reading
-
-    lv_area_t col;
-    col.x1 = x;
-    col.x2 = x;
-    col.y1 = y;
-    col.y2 = base;
-
-    uint8_t mix = static_cast<uint8_t>(static_cast<int32_t>(kFillMaxMix) * (base - y) /
-                                       (kGraphBase - kGraphTop));
-    lv_color_t top = lv_color_mix(colorFor(ev), Colors::kBg, mix);
-
-    lv_draw_rect_dsc_t dsc;
-    lv_draw_rect_dsc_init(&dsc);
-    dsc.bg_opa = LV_OPA_COVER;
-    dsc.bg_color = top;
-    dsc.bg_grad.dir = LV_GRAD_DIR_VER;
-    dsc.bg_grad.stops_count = 2;
-    dsc.bg_grad.stops[0].color = top;
-    dsc.bg_grad.stops[0].frac = 0;
-    dsc.bg_grad.stops[1].color = Colors::kBg;
-    dsc.bg_grad.stops[1].frac = 255;
-    lv_draw_rect(ctx, &dsc, &col);
-}
-
 // The points are spread over the full width, first point on the left edge and
-// newest on the right. Every pixel column gets its curve value; all the gradient
-// columns go down first, then the line over them as 1px segments between
-// neighbouring columns (a second pass, so no fill column covers stroke that
-// spills past its own column). Each segment takes the nearest point's drive
-// mode, so green/white still switch sharply where the mode did. Round caps
-// close the joints between segments.
+// newest on the right. Every pixel column gets its curve value; the fill
+// columns go down first, under a fade mask spanning the plot, then the line
+// over them as 1px segments between neighbouring columns (a second pass, so
+// no fill column covers stroke that spills past its own column). Each segment
+// takes the nearest point's drive mode, so green/white still switch sharply
+// where the mode did. Round caps close the joints between segments.
 void drawGraph(lv_event_t *e) {
     lv_obj_t *obj = lv_event_get_target(e);
     lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(e);
@@ -225,29 +181,50 @@ void drawGraph(lv_event_t *e) {
     lv_obj_get_coords(obj, &origin);
 
     int count = g_count;
-    if (count < 2) return;
+    lv_opa_t opa = lv_obj_get_style_opa_recursive(obj, LV_PART_MAIN);
+    if (count < 2 || opa <= LV_OPA_MIN) return;
 
-    lv_draw_line_dsc_t dsc;
-    lv_draw_line_dsc_init(&dsc);
-    dsc.width = kLineW;
-    dsc.round_start = 1;
-    dsc.round_end = 1;
-
-    const float pointsPerPx = static_cast<float>(count - 1) / static_cast<float>(kScreenW - 1);
-    for (int x = 0; x < kScreenW; x++) {
+    const float pointsPerPx = static_cast<float>(count - 1) / static_cast<float>(kGraphW - 1);
+    for (int x = 0; x < kGraphW; x++) {
         float u = static_cast<float>(x) * pointsPerPx;
         int nearest = static_cast<int>(u + 0.5f);
         if (nearest > count - 1) nearest = count - 1;
         g_colEv[x] = g_ev[nearest];
         g_colY[x] = yOf(origin, curveAt(u, count));
-        drawFill(ctx, origin, static_cast<lv_coord_t>(origin.x1 + x), g_colY[x], g_colEv[x]);
     }
 
-    for (int x = 1; x < kScreenW; x++) {
+    lv_coord_t top = static_cast<lv_coord_t>(origin.y1 + kGraphTop);
+    lv_coord_t base = static_cast<lv_coord_t>(origin.y1 + kGraphBase);
+    lv_area_t plot = {origin.x1, top, origin.x2, base};
+    lv_draw_mask_fade_param_t fade;
+    lv_draw_mask_fade_init(&fade, &plot, LV_OPA_COVER, top, LV_OPA_TRANSP, base);
+    int16_t fadeId = lv_draw_mask_add(&fade, nullptr);
+
+    lv_draw_rect_dsc_t fill;
+    lv_draw_rect_dsc_init(&fill);
+    fill.bg_opa = static_cast<lv_opa_t>(kFillOpa * opa / LV_OPA_COVER);
+    for (int x = 0; x < kGraphW; x++) {
+        if (g_colY[x] >= base) continue; // nothing under a zero reading
+        lv_area_t col = {static_cast<lv_coord_t>(origin.x1 + x), g_colY[x],
+                         static_cast<lv_coord_t>(origin.x1 + x), base};
+        fill.bg_color = colorFor(g_colEv[x]);
+        lv_draw_rect(ctx, &fill, &col);
+    }
+
+    lv_draw_mask_free_param(&fade);
+    lv_draw_mask_remove_id(fadeId);
+
+    lv_draw_line_dsc_t line;
+    lv_draw_line_dsc_init(&line);
+    line.width = kLineW;
+    line.round_start = 1;
+    line.round_end = 1;
+    line.opa = opa;
+    for (int x = 1; x < kGraphW; x++) {
         lv_point_t a = {static_cast<lv_coord_t>(origin.x1 + x - 1), g_colY[x - 1]};
         lv_point_t b = {static_cast<lv_coord_t>(origin.x1 + x), g_colY[x]};
-        dsc.color = colorFor(g_colEv[x]);
-        lv_draw_line(ctx, &dsc, &a, &b);
+        line.color = colorFor(g_colEv[x]);
+        lv_draw_line(ctx, &line, &a, &b);
     }
 }
 
@@ -256,52 +233,40 @@ void drawGraph(lv_event_t *e) {
 void build(lv_obj_t *parent) {
     lv_obj_t *root = lv_obj_create(parent);
     lv_obj_remove_style_all(root);
-    lv_obj_set_size(root, kScreenW, kScreenH);
+    lv_obj_set_size(root, 640, 172);
     lv_obj_set_pos(root, 0, 0);
-    lv_obj_set_style_bg_color(root, Colors::kBg, 0);
-    lv_obj_set_style_bg_opa(root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
-    // Zero line, just under where a zero reading's stroke sits.
-    makeRect(root, 0, kGraphBase + kLineW, kScreenW, 1, Colors::kBarTrack);
+    const char *tripCaption = "TRIP KM";
+    makeLabel(root, tripCaption, &dinnext_12_label, Colors::kMutedText, kTripX, kTripBaseline, 1);
+    g_tripValue = makeLabel(root, "--", &dinnext_24_label, Colors::kText,
+                            static_cast<int16_t>(kTripX + textW(tripCaption, &dinnext_12_label, 1) + kTripGap),
+                            kTripBaseline);
 
-    // The graph object spans the whole screen, which leaves room for the
-    // stroke's caps above the top and below the zero line.
     g_graph = lv_obj_create(root);
     lv_obj_remove_style_all(g_graph);
-    lv_obj_set_size(g_graph, kScreenW, kScreenH);
-    lv_obj_set_pos(g_graph, 0, 0);
+    lv_obj_set_size(g_graph, kGraphW, kGraphH);
+    lv_obj_set_pos(g_graph, kGraphX, kGraphY);
     lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(g_graph, drawGraph, LV_EVENT_DRAW_MAIN, nullptr);
 
-    // Created after the graph so they stay on top when the line runs up
-    // under them.
-    for (int i = 0; i < kStatCount; i++) {
-        int16_t x = static_cast<int16_t>(i * kStatPitch);
-        lv_obj_t *caption = makeLabel(root, kStatCaptions[i], &lv_font_montserrat_14,
-                                      Colors::kMutedText, x, kStatCaptionY, AnchorLeft);
-        g_statValue[i] = makeLabel(root, "--", &dinnext_28_stat, Colors::kText, x, kStatValueY,
-                                   AnchorLeft);
-        // A fixed column-wide box with centred text keeps each value centred
-        // whatever its digit count, with nothing to reposition on update.
-        for (lv_obj_t *l : {caption, g_statValue[i]}) {
-            lv_obj_set_width(l, kStatPitch);
-            lv_obj_set_style_text_align(l, LV_TEXT_ALIGN_CENTER, 0);
-        }
+    for (int i = 0; i < StatCount; i++) {
+        int16_t x = kStatX[i % 2];
+        makeLabel(root, kStatCaptions[i], &dinnext_12_label, Colors::kMutedText, x,
+                  kCaptionBaseline[i / 2], 1);
+        g_statValue[i] = makeLabel(root, "--", &dinnext_28_stat, Colors::kText, x, kValueBaseline[i / 2]);
     }
 }
 
 namespace {
 
-void setStat(Stat which, const char *txt, lv_color_t color = Colors::kText) {
-    lv_obj_t *l = g_statValue[which];
+void setText(lv_obj_t *l, const char *txt, lv_color_t color = Colors::kText) {
     if (strcmp(lv_label_get_text(l), txt) != 0) lv_label_set_text(l, txt);
     lv_obj_set_style_text_color(l, color, 0);
 }
 
-// One decimal up to 99.9, which is also where the value stops fitting its
-// column; a negative input means "no reading".
+// One decimal up to 99.9; a negative input means "no reading".
 void formatL100(char *buf, size_t n, float v) {
     if (v < 0.0f) {
         snprintf(buf, n, "--");
@@ -344,33 +309,33 @@ void update(const VehicleState &state) {
 
     char buf[16];
     snprintf(buf, sizeof(buf), "%.1f", static_cast<double>(s.distanceKm));
-    setStat(StatDistance, buf);
+    setText(g_tripValue, buf);
 
     formatL100(buf, sizeof(buf), s.avgConsumptionL100);
-    setStat(StatAvg, buf);
+    setText(g_statValue[StatAvg], buf);
 
     // Right now: "EV" while no fuel is flowing, the car's own figure while
     // the engine runs, and "--" when the car reports none (standstill, where
     // litres per distance has no meaning).
     if (state.fuel_flow_mm3s <= 0.0f) {
-        setStat(StatNow, "EV", Colors::kEvGreen);
+        setText(g_statValue[StatNow], "EV", Colors::kEvGreen);
     } else {
         formatL100(buf, sizeof(buf), state.inst_consumption_l100);
-        setStat(StatNow, buf);
+        setText(g_statValue[StatNow], buf);
     }
 
     if (state.range_km < 0.0f) {
-        setStat(StatRange, "--");
+        setText(g_statValue[StatRange], "--");
     } else {
         snprintf(buf, sizeof(buf), "%d", static_cast<int>(state.range_km + 0.5f));
-        setStat(StatRange, buf);
+        setText(g_statValue[StatRange], buf);
     }
 
     if (state.fuel_level_pct < 0.0f) {
-        setStat(StatFuel, "--");
+        setText(g_statValue[StatFuel], "--");
     } else {
         snprintf(buf, sizeof(buf), "%d", static_cast<int>(state.fuel_level_pct + 0.5f));
-        setStat(StatFuel, buf);
+        setText(g_statValue[StatFuel], buf);
     }
 }
 

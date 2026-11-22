@@ -18,6 +18,7 @@ const lv_color_t kTickDim     = LV_COLOR_MAKE(0x4d, 0x4f, 0x52); // approximates
 const lv_color_t kMutedText   = LV_COLOR_MAKE(0x8f, 0x9c, 0xa3); // approximates rgba(255,255,255,.5)
 
 const lv_color_t kEngineRed = LV_COLOR_MAKE(0xe0, 0x3a, 0x2f); // ICE-driven segments/icon
+const lv_color_t kEngineText = LV_COLOR_MAKE(0xff, 0x6b, 0x5f); // engine name + particles: kEngineRed lifted for legibility on the glow
 const lv_color_t kFlowOff   = LV_COLOR_MAKE(0x2a, 0x2c, 0x30); // inactive flow-arrow outline
 
 } // namespace Colors

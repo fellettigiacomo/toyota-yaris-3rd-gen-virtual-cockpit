@@ -234,6 +234,9 @@ void sceneEnergyFlow() {
     g_state.accel_demand = 40;
     g_state.hsi_power = 60;
     g_state.soc_trend_pct_per_s = -0.3f;
+    g_state.fuel_flow_mm3s = 1100.0f;
+    g_state.inst_consumption_l100 = 5.8f;
+    g_state.battery_current_a = 12.0f;
     gotoScreen(2);
     // Long enough for the travelling segments to be caught mid-run rather
     // than parked at a link's start.

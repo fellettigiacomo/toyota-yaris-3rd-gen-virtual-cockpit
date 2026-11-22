@@ -24,7 +24,7 @@ it is to actually drive the distance.
 | File | Scene |
 |---|---|
 | `01_cockpit.png` | 64 km/h in D, engine running, 68% SOC, 19% PWR |
-| `02_energy_flow.png` | Hybrid drive — engine to the wheels, pack assisting through the motor, one link idle |
+| `02_energy_flow.png` | Hybrid drive — engine and motor both driving the wheels |
 | `03_efficiency.png` | ~2 km covered, 72% of it electric |
 | `04_gmeter.png` | Trail-braking into a right-hander, after a drive that fills the peaks |
 

@@ -65,6 +65,7 @@ add_executable(sim
     ${PROJECT_ROOT}/sim/usb_dump_sim.cpp
     ${PROJECT_ROOT}/src/ui/boot_images.c
     ${PROJECT_ROOT}/src/ui/app_ui.cpp
+    ${PROJECT_ROOT}/src/ui/glow.cpp
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_120_speed.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_13_pct.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_14_chgpwr.c
@@ -77,6 +78,14 @@ add_executable(sim
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_28_stat.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_accel_time.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_accel_label.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_72_speed.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_21_small.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_17_rpm.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_13_tag.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_26_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_36_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_20_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_12_label.c
 )
 
 target_compile_definitions(sim PRIVATE DEMO_FAKE_DATA)

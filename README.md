@@ -17,7 +17,10 @@ car's own CAN bus, reverse-engineered from scratch.
 
 ## Screens
 
-Press the board's BOOT button or tap the panel to switch screen.
+Press the board's BOOT button or tap the panel to switch screen. Speed, gear
+and RPM or EV stay on every screen: leaving the cockpit, they slide into a
+narrow column in the middle and the side gauges shrink to thin rails on the
+screen edges.
 
 **Cockpit** — speed, gear (or 0–50 / 0–100 timer), RPM or EV, HV battery
 charge on the left, CHG/PWR on the right. With the engine off the PWR readout
@@ -25,14 +28,16 @@ shows battery amps.
 
 ![Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
 
-**Efficiency** — the whole drive's power demand as one curve, green on
-electric and white on the engine. Above it: trip distance, average and
-instantaneous consumption, range and fuel level.
+**Efficiency** — trip distance and the whole drive's power demand as one
+curve, green on electric and white on the engine, left of the speed; average
+and instantaneous consumption, range and fuel level right of it.
 
 ![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
 
-**Energy flow** — engine, motor, battery and wheels, with the direction of
-each flow taken from the car's own energy-monitor flags.
+**Energy flow** — engine consumption on the left, HV battery current on the
+right, and particles funnelling from each source into the speed, or out of it
+in green while the battery charges. The directions come from the car's own
+energy-monitor flags.
 
 ![Energy Flow](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/02_energy_flow.png?raw=true)
 

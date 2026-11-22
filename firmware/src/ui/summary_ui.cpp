@@ -1,5 +1,6 @@
 #include "summary_ui.h"
 #include "colors.h"
+#include "glow.h"
 #include "fonts/fonts.h"
 #include "hybrid_stats.h"
 
@@ -55,6 +56,7 @@ void build(lv_obj_t *parent) {
     lv_obj_set_style_bg_color(g_root, Colors::kBg, 0);
     lv_obj_set_style_bg_opa(g_root, LV_OPA_COVER, 0);
     lv_obj_clear_flag(g_root, LV_OBJ_FLAG_SCROLLABLE);
+    Glow::create(g_root);
 
     for (int i = 0; i < StatCount; i++) {
         int16_t x = static_cast<int16_t>((i % kCols) * kColW);

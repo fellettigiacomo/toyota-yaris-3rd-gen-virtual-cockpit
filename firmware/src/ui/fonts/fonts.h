@@ -23,6 +23,14 @@ extern const lv_font_t dinnext_24_label;  // energy-flow node labels (full A-Z u
 extern const lv_font_t dinnext_28_stat;   // efficiency-screen headline + tile values (full A-Z uppercase)
 extern const lv_font_t dinnext_40_accel_time;  // 0-50/0-100 timer: elapsed seconds -- same size as dinnext_40_gear, replaces the gear letter while shown
 extern const lv_font_t dinnext_40_accel_label; // 0-50/0-100 timer: "0-50"/"0-100" threshold caption, below the seconds
+extern const lv_font_t dinnext_72_speed;  // speed in the compact centre column
+extern const lv_font_t dinnext_21_small;  // gear letter + "KM/H" in the compact centre column
+extern const lv_font_t dinnext_17_rpm;    // RPM/EV row in the compact centre column
+extern const lv_font_t dinnext_13_tag;    // energy-flow source names
+extern const lv_font_t dinnext_26_value;  // energy-flow readouts
+extern const lv_font_t dinnext_36_value;  // G-meter headline value
+extern const lv_font_t dinnext_20_value;  // G-meter peaks and unit
+extern const lv_font_t dinnext_12_label;  // muted captions and units (Regular weight, not the synthetic Bold)
 
 #ifdef __cplusplus
 }

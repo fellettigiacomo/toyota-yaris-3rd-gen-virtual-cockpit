@@ -41,6 +41,7 @@ add_executable(screenshot
     ${PROJECT_ROOT}/src/pwr_history.cpp
     ${PROJECT_ROOT}/src/accel_timer.cpp
     ${PROJECT_ROOT}/src/ui/app_ui.cpp
+    ${PROJECT_ROOT}/src/ui/glow.cpp
     ${PROJECT_ROOT}/src/ui/cockpit_ui.cpp
     ${PROJECT_ROOT}/src/ui/energy_flow_ui.cpp
     ${PROJECT_ROOT}/src/ui/efficiency_ui.cpp
@@ -61,6 +62,14 @@ add_executable(screenshot
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_28_stat.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_accel_time.c
     ${PROJECT_ROOT}/src/ui/fonts/dinnext_40_accel_label.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_72_speed.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_21_small.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_17_rpm.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_13_tag.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_26_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_36_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_20_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/dinnext_12_label.c
 )
 
 target_compile_definitions(screenshot PRIVATE LV_CONF_INCLUDE_SIMPLE LV_LVGL_H_INCLUDE_SIMPLE)
