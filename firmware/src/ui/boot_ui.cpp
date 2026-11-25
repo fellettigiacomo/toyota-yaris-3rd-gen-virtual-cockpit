@@ -93,7 +93,7 @@ void build(lv_obj_t *parent) {
     g_overlay = lv_obj_create(parent);
     lv_obj_remove_style_all(g_overlay);
     lv_obj_set_size(g_overlay, LV_PCT(100), LV_PCT(100));
-    lv_obj_set_style_bg_color(g_overlay, Colors::kBg, 0);
+    lv_obj_set_style_bg_color(g_overlay, Colors::kBootBg, 0);
     lv_obj_set_style_bg_opa(g_overlay, LV_OPA_COVER, 0);
     lv_obj_clear_flag(g_overlay, LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_CLICKABLE);
 

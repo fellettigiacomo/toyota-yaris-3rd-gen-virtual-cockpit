@@ -51,6 +51,15 @@ seconds the board stays powered.
 
 ![Trip summary](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/06_trip_summary.png?raw=true)
 
+## Light theme
+
+A daytime theme, chosen at build time (`pio run -e light -t upload`, or
+`-e demo-light` on the bench). Same layout; the accents are darkened to stay
+legible on the off-white background, and the PWR bar turns graphite. The boot
+splash stays dark.
+
+![Dark vs light](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/light/compare_dark_light.png?raw=true)
+
 ## Hardware
 
 - Waveshare ESP32-S3-Touch-LCD-3.49 (640×172 strip, onboard QMI8658 IMU)

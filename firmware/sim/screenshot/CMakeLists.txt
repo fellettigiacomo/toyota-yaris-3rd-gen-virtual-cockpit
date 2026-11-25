@@ -75,6 +75,12 @@ add_executable(screenshot
 
 target_compile_definitions(screenshot PRIVATE LV_CONF_INCLUDE_SIMPLE LV_LVGL_H_INCLUDE_SIMPLE)
 
+# -DCOCKPIT_THEME_LIGHT=ON renders the daytime theme (see src/ui/colors.h).
+option(COCKPIT_THEME_LIGHT "Render the light theme" OFF)
+if(COCKPIT_THEME_LIGHT)
+    target_compile_definitions(screenshot PRIVATE COCKPIT_THEME_LIGHT)
+endif()
+
 # The Arduino/Wire shims come first so <Arduino.h> resolves to the simulator's
 # stand-ins rather than to anything on the system.
 target_include_directories(screenshot BEFORE PRIVATE

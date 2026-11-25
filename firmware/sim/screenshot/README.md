@@ -13,6 +13,9 @@ cd firmware/sim/screenshot
 That builds, plays the scenes, and writes `screenshots/*.png` at the panel's
 native 640×172.
 
+`./render.sh --light` does the same with the light theme
+(`-DCOCKPIT_THEME_LIGHT`, see `src/ui/colors.h`) into `screenshots/light/`.
+
 **It takes a couple of minutes**, most of it the efficiency scene. The UI
 modules integrate against `millis()`, so the scenes run in real time rather
 than fast-forwarded — and the efficiency screen's EV share is weighted by

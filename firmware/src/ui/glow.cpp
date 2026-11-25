@@ -1,5 +1,7 @@
 #include "glow.h"
 
+#include "colors.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -14,7 +16,6 @@ namespace {
 
 constexpr int kW = 640;
 constexpr int kH = 172;
-constexpr float kStrength = 0.40f;
 constexpr float kReachX = 0.75f; // ellipse radii, as fractions of the screen
 constexpr float kReachY = 0.95f;
 
@@ -46,15 +47,15 @@ const lv_img_dsc_t *image() {
 
     lv_color_t *px = allocFrame();
     static const uint8_t kBayer[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
-    // 8-bit channels, before RGB565 truncation: bg is Colors::kBg, keep in sync.
-    const float bg[3] = {0x0a, 0x0b, 0x0d};
-    const float glow[3] = {0x1f, 0xb0, 0xff};
+    // 8-bit channels, before RGB565 truncation.
+    const float bg[3] = {float(Colors::kBgRgb[0]), float(Colors::kBgRgb[1]), float(Colors::kBgRgb[2])};
+    const float glow[3] = {float(Colors::kGlowRgb[0]), float(Colors::kGlowRgb[1]), float(Colors::kGlowRgb[2])};
     const float step[3] = {8, 4, 8}; // RGB565 quantisation step per channel
     for (int y = 0; y < kH; y++) {
         for (int x = 0; x < kW; x++) {
             float dx = (x + 0.5f - kW / 2.0f) / (kReachX * kW);
             float dy = (kH - (y + 0.5f)) / (kReachY * kH);
-            float a = kStrength * falloff(std::sqrt(dx * dx + dy * dy));
+            float a = Colors::kGlowStrength * falloff(std::sqrt(dx * dx + dy * dy));
             float threshold = kBayer[(y & 3) * 4 + (x & 3)] / 16.0f;
             uint8_t c[3];
             for (int i = 0; i < 3; i++) {

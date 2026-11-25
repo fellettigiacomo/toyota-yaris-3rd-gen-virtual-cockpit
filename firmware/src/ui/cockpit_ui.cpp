@@ -326,7 +326,7 @@ void createCenterGroup(lv_obj_t *parent) {
     // visible at a time based on ev_drive.
     g_rpmLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_rpmLabel, &spacegrotesk_25_rpm, 0);
-    lv_obj_set_style_text_color(g_rpmLabel, lv_color_white(), 0);
+    lv_obj_set_style_text_color(g_rpmLabel, Colors::kTextBright, 0);
     lv_obj_set_style_text_letter_space(g_rpmLabel, 1, 0);
     lv_label_set_text(g_rpmLabel, "RPM 0");
     lv_obj_align(g_rpmLabel, LV_ALIGN_CENTER, 0, 50);
@@ -344,7 +344,7 @@ void createCenterGroup(lv_obj_t *parent) {
     // the bus is being captured too. Recolor markup for the two halves.
     g_dumpLabel = lv_label_create(parent);
     lv_obj_set_style_text_font(g_dumpLabel, &spacegrotesk_25_rpm, 0);
-    lv_obj_set_style_text_color(g_dumpLabel, lv_color_white(), 0);
+    lv_obj_set_style_text_color(g_dumpLabel, Colors::kTextBright, 0);
     lv_obj_set_style_text_letter_space(g_dumpLabel, 1, 0);
     lv_label_set_recolor(g_dumpLabel, true);
     lv_label_set_text(g_dumpLabel, "");
@@ -618,7 +618,7 @@ void update(const VehicleState &state) {
         char rpmSmallBuf[16];
         snprintf(rpmSmallBuf, sizeof(rpmSmallBuf), "RPM %d", state.rpm < 0 ? 0 : state.rpm);
         lv_label_set_text(g_rpmSmall, rpmSmallBuf);
-        lv_obj_set_style_text_color(g_rpmSmall, lv_color_white(), 0);
+        lv_obj_set_style_text_color(g_rpmSmall, Colors::kTextBright, 0);
     }
     if (state.usb_dump) {
         lv_obj_add_flag(g_rpmLabel, LV_OBJ_FLAG_HIDDEN);
@@ -626,9 +626,9 @@ void update(const VehicleState &state) {
         lv_obj_clear_flag(g_dumpLabel, LV_OBJ_FLAG_HIDDEN);
         char buf[64];
         if (showEv) {
-            snprintf(buf, sizeof(buf), "#00e5ff CAN DUMP USB#  ·  #3ddc84 EV#");
+            snprintf(buf, sizeof(buf), COCKPIT_HEX_ACCENT " CAN DUMP USB#  ·  " COCKPIT_HEX_EV " EV#");
         } else {
-            snprintf(buf, sizeof(buf), "#00e5ff CAN DUMP USB#  ·  %d RPM", state.rpm < 0 ? 0 : state.rpm);
+            snprintf(buf, sizeof(buf), COCKPIT_HEX_ACCENT " CAN DUMP USB#  ·  %d RPM", state.rpm < 0 ? 0 : state.rpm);
         }
         if (strcmp(lv_label_get_text(g_dumpLabel), buf) != 0) lv_label_set_text(g_dumpLabel, buf);
         return;
