@@ -17,7 +17,8 @@ car's own CAN bus, reverse-engineered from scratch.
 
 ## Screens
 
-Press the board's BOOT button or tap the panel to switch screen. Speed, gear
+Press MODE on the steering wheel, the board's BOOT button, or tap the panel
+to switch screen. Speed, gear
 and RPM or EV stay on every screen: leaving the cockpit, they slide into a
 narrow column in the middle and the side gauges shrink to thin rails on the
 screen edges.
@@ -56,6 +57,10 @@ seconds the board stays powered.
 - Waveshare ESP32-S3-Touch-LCD-3.49 (640×172 strip, onboard QMI8658 IMU)
 - SN65HVD230 CAN transceiver — wiring in
   [`re/obd-capture-fw/README.md`](re/obd-capture-fw/README.md)
+- Steering-wheel MODE button: not on the CAN bus, so the radio's SW2 wire is
+  moved to GPIO4 with a 10 kΩ pull-up and a 1 kΩ series resistor — wiring in
+  [`firmware/src/steering_buttons.h`](firmware/src/steering_buttons.h), how
+  it was traced in [`re/mode-button-test/`](re/mode-button-test/README.md)
 
 ## Build
 

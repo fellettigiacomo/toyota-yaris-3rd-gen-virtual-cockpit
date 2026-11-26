@@ -52,6 +52,7 @@ add_executable(sim
     ${PROJECT_ROOT}/src/demo_log_data.cpp
     ${PROJECT_ROOT}/src/g_meter.cpp
     ${PROJECT_ROOT}/src/screen_nav.cpp
+    ${PROJECT_ROOT}/src/steering_buttons.cpp
     ${PROJECT_ROOT}/src/touch_nav.cpp
     ${PROJECT_ROOT}/src/hybrid_stats.cpp
     ${PROJECT_ROOT}/src/pwr_history.cpp

@@ -8,6 +8,7 @@
 #include "glow.h"
 #include "colors.h"
 #include "screen_nav.h"
+#include "steering_buttons.h"
 #include "touch_nav.h"
 #include "hybrid_stats.h"
 #include "pwr_history.h"
@@ -17,8 +18,8 @@
 #include <Arduino.h>
 #include <lvgl.h>
 
-// The BOOT button and a tap anywhere on the panel (TouchNav -- presence-only,
-// no coordinates/gestures) both cycle the screens: cockpit -> efficiency
+// The BOOT button, the steering-wheel MODE button and a tap anywhere on the
+// panel (TouchNav -- presence-only, no coordinates/gestures) all cycle the screens: cockpit -> efficiency
 // (PWR graph) -> energy flow -> G-meter -> cockpit.
 //
 // The cockpit cluster is never hidden: it sits above the other screens'
@@ -124,12 +125,14 @@ void build() {
 }
 
 void update(const VehicleState &state) {
-    // Both must run unconditionally (not short-circuited) -- each is its own
-    // debouncer sampling live hardware state, and skipping a poll on one
-    // input just because the other already fired would let its raw-state
+    // All three must run unconditionally (not short-circuited) -- each is its
+    // own debouncer sampling live hardware state, and skipping a poll on one
+    // input just because another already fired would let its raw-state
     // timing drift.
     bool bootPressed = ScreenNav::pressed();
     bool tapped = TouchNav::pressed();
+    bool modePressed = SteeringButtons::pressed() == SteeringButtons::Button::Mode;
+    bool advance = bootPressed || tapped || modePressed;
     // The splash just went (played out or skipped): run the gauge sweep now,
     // so it is seen rather than played behind the logos.
     if (g_bootShown && !BootUi::active()) {
@@ -137,14 +140,14 @@ void update(const VehicleState &state) {
         CockpitUi::startSweep();
     }
 
-    if ((bootPressed || tapped) && BootUi::active()) {
+    if (advance && BootUi::active()) {
         // A press during the splash just skips it -- it shouldn't also
         // land the driver one screen past the cockpit.
         BootUi::skip();
-    } else if ((bootPressed || tapped) && g_summaryShown) {
+    } else if (advance && g_summaryShown) {
         // A press on the summary puts it away instead of changing screen.
         g_summaryDismissed = true;
-    } else if (bootPressed || tapped) {
+    } else if (advance) {
         int previous = g_active;
         g_active = (g_active + 1) % ScreenCount;
         showScreen(g_active, previous);

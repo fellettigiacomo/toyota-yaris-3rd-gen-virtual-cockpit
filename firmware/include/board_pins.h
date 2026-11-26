@@ -68,3 +68,8 @@ constexpr int PIN_TWAI_RX = 2; // ESP32 GPIO2 <- SN65HVD230 "RX" (R output)
 
 // --- Physical BOOT button, used here to cycle screens (see screen_nav.h) ---
 constexpr int PIN_BOOT_BUTTON = 0; // active LOW
+
+// --- 22-pin expansion header: steering-wheel switch line SW2 ---
+// MODE / On Hook / Off Hook, taken over from the radio (see steering_buttons.h
+// for the wiring). Read by voltage, so it needs an ADC pin: GPIO4 is ADC1_CH3.
+constexpr int PIN_STEERING_SW2 = 4;
