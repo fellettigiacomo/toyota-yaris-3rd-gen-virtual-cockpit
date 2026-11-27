@@ -24,7 +24,7 @@ CAPS=ABCDEFGHIJKLMNOPQRSTUVWXYZ
 # the two speed sizes are capped by width instead, Space Grotesk's digits
 # being wide.
 gen "$BOLD"     spacegrotesk_106_speed       106 "0123456789"            # speed number (cockpit)
-gen "$BOLD"     spacegrotesk_64_speed         64 "0123456789"            # speed in the compact centre column (every other screen)
+gen "$BOLD"     spacegrotesk_96_speed         96 "0123456789"            # speed in the compact centre column (every other screen)
 gen "$SEMIBOLD" spacegrotesk_39_gear          39 "PRNDB"                 # gear letter (P/R/N/D/B)
 gen "$SEMIBOLD" spacegrotesk_29_units         29 "KM/H"                  # "KM/H" unit label
 gen "$BOLD"     spacegrotesk_25_battery       25 "0123456789"            # HV battery SOC numeric
@@ -36,13 +36,12 @@ gen "$BOLD"     spacegrotesk_23_label         23 "${CAPS}0123456789./% "  # trip
 gen "$BOLD"     spacegrotesk_27_stat          27 "${CAPS}0123456789./%- " # efficiency and trip-summary values
 gen "$BOLD"     spacegrotesk_39_accel_time    39 "0123456789."           # 0-50/0-100 timer: elapsed seconds (replaces the gear letter while shown)
 gen "$SEMIBOLD" spacegrotesk_39_accel_label   39 "0123456789-"           # 0-50/0-100 timer: "0-50"/"0-100" threshold caption, below the seconds
-gen "$SEMIBOLD" spacegrotesk_20_small         20 "PRNDBKM/H"             # gear letter + "KM/H" in the compact centre column
-gen "$SEMIBOLD" spacegrotesk_16_rpm           16 "RPM0123456789 EV"      # RPM/EV row in the compact centre column
-gen "$SEMIBOLD" spacegrotesk_13_tag           13 "$CAPS"                 # energy-flow source names (ENGINE / MOTOR / CHARGE)
-gen "$BOLD"     spacegrotesk_25_value         25 "0123456789.-"          # energy-flow readouts (L/100, amps)
-gen "$BOLD"     spacegrotesk_35_value         35 "0123456789."           # G-meter headline value
+gen "$SEMIBOLD" spacegrotesk_20_rpm           20 "RPM0123456789 EV"      # RPM/EV row in the compact centre column
+gen "$SEMIBOLD" spacegrotesk_18_tag           18 "$CAPS"                 # energy-flow source names (ENGINE / MOTOR / CHARGE)
+gen "$BOLD"     spacegrotesk_35_value         35 "0123456789.-"          # G-meter headline value, energy-flow readouts (L/100, amps)
 gen "$BOLD"     spacegrotesk_19_value         19 "0123456789. G"         # G-meter peaks and the "G" unit
 gen "$MEDIUM"   spacegrotesk_12_label         12 "${CAPS}0123456789/.%- " # muted captions and units on the secondary screens
+gen "$MEDIUM"   spacegrotesk_18_unit          18 "L/100A"                # energy-flow units
 gen "$MEDIUM"   spacegrotesk_14_caption       14 "${CAPS}0123456789/.%- " # trip-summary captions
 
 echo "done -- regenerated src/ui/fonts/*.c"

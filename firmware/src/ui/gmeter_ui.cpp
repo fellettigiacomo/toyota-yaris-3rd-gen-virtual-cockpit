@@ -21,11 +21,6 @@ constexpr int16_t kDotR = 7;
 constexpr lv_opa_t kOuterRingOpa = 82;
 constexpr lv_opa_t kInnerLineOpa = 41;
 
-constexpr int16_t kDividerX[2] = {232, 408};
-constexpr int16_t kDividerY = 22;
-constexpr int16_t kDividerH = 128;
-constexpr lv_opa_t kDividerOpa = 26;
-
 // --- current reading and session peaks (right) ------------------------------
 constexpr int16_t kRightX = 424;
 constexpr int16_t kCaptionBaseline = 28;
@@ -144,8 +139,6 @@ void build(lv_obj_t *parent) {
     lv_obj_set_pos(root, 0, 0);
     lv_obj_clear_flag(root, LV_OBJ_FLAG_SCROLLABLE);
 
-    for (int16_t x : kDividerX) makeLine(root, x, kDividerY, 1, kDividerH, kDividerOpa);
-
     // Crosshair first, so the rings and the dot draw over it.
     makeLine(root, static_cast<int16_t>(kBallCx - kBallR), kBallCy, static_cast<int16_t>(2 * kBallR + 1), 1,
              kInnerLineOpa);
@@ -231,7 +224,7 @@ void update(const VehicleState &) {
 
     // Dot position: +long is up the screen, +lat is to the right. Clamped to
     // the outer ring so an off-scale hit parks on the rim instead of
-    // wandering across the dividers.
+    // wandering into the speed.
     float sx = r.latG / kFullScaleG;
     float sy = r.longG / kFullScaleG;
     float mag = sx * sx + sy * sy;

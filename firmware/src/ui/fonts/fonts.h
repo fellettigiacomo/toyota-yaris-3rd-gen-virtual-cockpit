@@ -12,7 +12,7 @@ extern "C" {
 // flash usage down.
 
 extern const lv_font_t spacegrotesk_106_speed;      // speed number (cockpit)
-extern const lv_font_t spacegrotesk_64_speed;       // speed in the compact centre column
+extern const lv_font_t spacegrotesk_96_speed;       // speed in the compact centre column
 extern const lv_font_t spacegrotesk_39_gear;        // gear letter (P/R/N/D/B)
 extern const lv_font_t spacegrotesk_29_units;       // "KM/H" unit label
 extern const lv_font_t spacegrotesk_25_battery;     // HV battery SOC numeric
@@ -24,13 +24,12 @@ extern const lv_font_t spacegrotesk_23_label;       // trip distance, G-meter st
 extern const lv_font_t spacegrotesk_27_stat;        // efficiency and trip-summary values
 extern const lv_font_t spacegrotesk_39_accel_time;  // 0-50/0-100 timer: elapsed seconds, replaces the gear letter while shown
 extern const lv_font_t spacegrotesk_39_accel_label; // 0-50/0-100 timer: "0-50"/"0-100" threshold caption, below the seconds
-extern const lv_font_t spacegrotesk_20_small;       // gear letter + "KM/H" in the compact centre column
-extern const lv_font_t spacegrotesk_16_rpm;         // RPM/EV row in the compact centre column
-extern const lv_font_t spacegrotesk_13_tag;         // energy-flow source names
-extern const lv_font_t spacegrotesk_25_value;       // energy-flow readouts
-extern const lv_font_t spacegrotesk_35_value;       // G-meter headline value
+extern const lv_font_t spacegrotesk_20_rpm;         // RPM/EV row in the compact centre column
+extern const lv_font_t spacegrotesk_18_tag;         // energy-flow source names
+extern const lv_font_t spacegrotesk_35_value;       // G-meter headline value, energy-flow readouts
 extern const lv_font_t spacegrotesk_19_value;       // G-meter peaks and unit
 extern const lv_font_t spacegrotesk_12_label;       // muted captions and units on the secondary screens
+extern const lv_font_t spacegrotesk_18_unit;        // energy-flow units (L/100, A)
 extern const lv_font_t spacegrotesk_14_caption;     // trip-summary captions
 
 #ifdef __cplusplus

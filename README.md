@@ -18,10 +18,10 @@ car's own CAN bus, reverse-engineered from scratch.
 ## Screens
 
 Press MODE on the steering wheel, the board's BOOT button, or tap the panel
-to switch screen. Speed, gear
-and RPM or EV stay on every screen: leaving the cockpit, they slide into a
-narrow column in the middle and the side gauges shrink to thin rails on the
-screen edges.
+to switch screen. Speed and RPM or EV stay on every screen: leaving the
+cockpit, they slide into a narrow column in the middle (gear and KM/H fade
+out, to leave the speed as large as the column allows) and the side gauges
+shrink to thin rails on the screen edges.
 
 **Cockpit** — speed, gear (or 0–50 / 0–100 timer), RPM or EV, HV battery
 charge on the left, CHG/PWR on the right. With the engine off the PWR readout
@@ -29,18 +29,18 @@ shows battery amps.
 
 ![Cockpit](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/01_cockpit.png?raw=true)
 
-**Efficiency** — trip distance and the whole drive's power demand as one
-curve, green on electric and white on the engine, left of the speed; average
-and instantaneous consumption, range and fuel level right of it.
-
-![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
-
 **Energy flow** — engine consumption on the left, HV battery current on the
 right, and particles funnelling from each source into the speed, or out of it
 in green while the battery charges. The directions come from the car's own
 energy-monitor flags.
 
 ![Energy Flow](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/02_energy_flow.png?raw=true)
+
+**Efficiency** — trip distance and the whole drive's power demand as one
+curve, green on electric and white on the engine, left of the speed; average
+and instantaneous consumption, range and fuel level right of it.
+
+![Efficiency](https://github.com/fellettigiacomo/toyota-yaris-3rd-gen-virtual-cockpit/blob/main/firmware/sim/screenshot/screenshots/03_efficiency.png?raw=true)
 
 **G-meter** — longitudinal and lateral acceleration from the board's IMU,
 with the session's peaks.

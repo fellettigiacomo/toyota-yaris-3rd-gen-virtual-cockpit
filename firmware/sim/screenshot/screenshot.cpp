@@ -128,7 +128,7 @@ Sample read() {
 
 namespace {
 
-int g_screen = 0; // 0 cockpit, 1 efficiency, 2 energy, 3 G-meter
+int g_screen = 0; // 0 cockpit, 1 energy, 2 efficiency, 3 G-meter
 VehicleState g_state;
 
 bool g_carOn = true; // scenes drive with the car on; the summary scene switches it off
@@ -237,7 +237,7 @@ void sceneEnergyFlow() {
     g_state.fuel_flow_mm3s = 1100.0f;
     g_state.inst_consumption_l100 = 5.8f;
     g_state.battery_current_a = 12.0f;
-    gotoScreen(2);
+    gotoScreen(1);
     // Long enough for the travelling segments to be caught mid-run rather
     // than parked at a link's start.
     runFor(500);
@@ -251,7 +251,7 @@ void sceneEnergyFlow() {
 // come from the same drive, so they read as a plausible short trip.
 void sceneEfficiency() {
     std::printf("03_efficiency (the slow one -- ~2 minutes of simulated driving)\n");
-    gotoScreen(1);
+    gotoScreen(2);
     g_state.ice_running = false;
     g_state.ev_drive = true;
     g_state.speed_kph = 70.0f;

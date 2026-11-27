@@ -131,15 +131,16 @@ FlowState deriveFlow(const VehicleState &state) {
 
 // Readouts and funnels share the screen's vertical centre.
 constexpr int16_t kCenterY = 86;
+constexpr float kScreenCenterX = 320.0f;
 
 // --- readouts ---------------------------------------------------------------
-// Each readout is the 10px-tall tag, a 10px gap, then the 18px-tall value:
-// 38px of ink, centred on kCenterY.
+// Each readout is the 12px-tall tag, a 10px gap, then the 25px-tall value:
+// 47px of ink, centred on kCenterY.
 constexpr int16_t kLeftX = 24;
 constexpr int16_t kRightX = 616;
-constexpr int16_t kTagBaseline = kCenterY - 9;
-constexpr int16_t kValueBaseline = kCenterY + 19;
-constexpr int16_t kUnitGap = 4;
+constexpr int16_t kTagBaseline = kCenterY - 11;
+constexpr int16_t kValueBaseline = kCenterY + 24;
+constexpr int16_t kUnitGap = 5;
 constexpr lv_opa_t kDimmedOpa = 102;
 constexpr float kIdleAmps = 1.0f;
 
@@ -153,11 +154,18 @@ lv_obj_t *g_ampsUnit = nullptr;
 // --- funnels ----------------------------------------------------------------
 enum class Flow : uint8_t { Off, In, Out };
 
-constexpr float kRunPx = 124.0f;   // mouth to speed
-constexpr float kSpreadPx = 24.0f; // outer lanes' offset at the mouth
+// Each funnel's mouth follows its readout, kMouthGap clear of the text, so
+// the particles start right at the source however wide its number is. The
+// lanes end just short of where a three-digit speed begins.
+constexpr float kEngineEndX = 232.0f;
+constexpr float kElectricEndX = 408.0f;
+constexpr float kMouthGap = 12.0f;
+constexpr float kMouthEase = 0.2f; // share of the way to a new mouth covered per tick
+constexpr float kSpreadPx = 30.0f; // outer lanes' offset at the mouth
 constexpr float kFunnelY = kCenterY; // where the lanes meet
-constexpr int16_t kFunnelW = 150;
-constexpr int16_t kFunnelH = 64;
+constexpr lv_coord_t kHaloPx = 5;  // extra radius of the centre lane's halo
+constexpr int16_t kFunnelPad = 12; // largest dot radius, halo included, plus slack
+constexpr int16_t kFunnelH = static_cast<int16_t>(2 * kSpreadPx) + 2 * kFunnelPad;
 constexpr int16_t kFunnelTop = kCenterY - kFunnelH / 2;
 
 struct Lane {
@@ -168,24 +176,25 @@ struct Lane {
 };
 
 const Lane kLanes[] = {
-    {0.0f, 3, 1.0f, {0.0f, 1.0f / 3.0f, 2.0f / 3.0f}},
-    {-kSpreadPx, 2, 0.75f, {1.0f / 6.0f, 0.5f, 5.0f / 6.0f}},
-    {kSpreadPx, 2, 0.75f, {1.0f / 15.0f, 0.4f, 11.0f / 15.0f}},
+    {0.0f, 5, 1.0f, {0.0f, 1.0f / 3.0f, 2.0f / 3.0f}},
+    {-kSpreadPx, 3, 0.75f, {1.0f / 6.0f, 0.5f, 5.0f / 6.0f}},
+    {kSpreadPx, 3, 0.75f, {1.0f / 15.0f, 0.4f, 11.0f / 15.0f}},
 };
 
 struct Funnel {
     lv_obj_t *obj;
     int16_t objX;
-    float mouthX;  // particle centre at the mouth, screen x
-    float towards; // +1 if the speed is to the right of the mouth, -1 if to the left
+    float endX;    // particle centre where the lanes meet, at the speed
+    float mouthX;  // particle centre at the mouth; follows the readout (see placeMouth)
+    bool placed;   // mouthX has been set from a laid-out readout
     Flow flow;
     lv_color_t color;
     float periodS;
     float phase;   // 0..1
 };
 
-Funnel g_engineFunnel = {nullptr, 100, 111.0f, 1.0f, Flow::Off, Colors::kEngineText, 1.5f, 0.0f};
-Funnel g_electricFunnel = {nullptr, 390, 533.0f, -1.0f, Flow::Off, Colors::kAccentCyan, 1.3f, 0.0f};
+Funnel g_engineFunnel = {nullptr, 0, kEngineEndX, 0.0f, false, Flow::Off, Colors::kEngineText, 1.5f, 0.0f};
+Funnel g_electricFunnel = {nullptr, 0, kElectricEndX, 0.0f, false, Flow::Off, Colors::kAccentCyan, 1.3f, 0.0f};
 
 uint32_t g_lastUpdateMs = 0;
 
@@ -231,11 +240,11 @@ void drawFunnel(lv_event_t *e) {
             float k = f->flow == Flow::In ? t : 1.0f - t;
             float p = ease(k);
             float envelope = k < 0.15f ? k / 0.15f : k > 0.85f ? (1.0f - k) / 0.15f : 1.0f;
-            float cx = f->mouthX + f->towards * kRunPx * p + dx;
+            float cx = f->mouthX + (f->endX - f->mouthX) * p + dx;
             float cy = kFunnelY + lane.spread * (1.0f - p) + dy;
             float a = opa * lane.opa * envelope;
             if (lane.spread == 0.0f) {
-                drawDot(ctx, dsc, cx, cy, lane.radius + 3, static_cast<lv_opa_t>(a * 0.25f));
+                drawDot(ctx, dsc, cx, cy, lane.radius + kHaloPx, static_cast<lv_opa_t>(a * 0.25f));
             }
             drawDot(ctx, dsc, cx, cy, lane.radius, static_cast<lv_opa_t>(a));
         }
@@ -243,9 +252,14 @@ void drawFunnel(lv_event_t *e) {
 }
 
 void buildFunnel(lv_obj_t *parent, Funnel &f) {
+    // Wide enough for any mouth: from the screen-edge readout to the speed.
+    bool left = f.endX < kScreenCenterX;
+    float x1 = left ? kLeftX : f.endX;
+    float x2 = left ? f.endX : kRightX;
+    f.objX = static_cast<int16_t>(lroundf(x1)) - kFunnelPad;
     f.obj = lv_obj_create(parent);
     lv_obj_remove_style_all(f.obj);
-    lv_obj_set_size(f.obj, kFunnelW, kFunnelH);
+    lv_obj_set_size(f.obj, static_cast<int16_t>(lroundf(x2 - x1)) + 2 * kFunnelPad, kFunnelH);
     lv_obj_set_pos(f.obj, f.objX, kFunnelTop);
     lv_obj_clear_flag(f.obj, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(f.obj, LV_OBJ_FLAG_CLICKABLE);
@@ -292,6 +306,20 @@ void setText(lv_obj_t *label, const char *txt) {
     if (strcmp(lv_label_get_text(label), txt) != 0) lv_label_set_text(label, txt);
 }
 
+// Moves the mouth towards `textEdgeX` (the readout's edge facing the speed),
+// eased so a number gaining a digit slides the particles over instead of
+// making them jump.
+void placeMouth(Funnel &f, float textEdgeX) {
+    float target = textEdgeX + (f.endX < kScreenCenterX ? kMouthGap : -kMouthGap);
+    if (!f.placed) {
+        f.mouthX = target;
+        f.placed = true;
+    } else {
+        f.mouthX += (target - f.mouthX) * kMouthEase;
+        if (fabsf(target - f.mouthX) < 0.5f) f.mouthX = target;
+    }
+}
+
 void setDimmed(std::initializer_list<lv_obj_t *> labels, bool dimmed) {
     for (lv_obj_t *l : labels) lv_obj_set_style_opa(l, dimmed ? kDimmedOpa : LV_OPA_COVER, 0);
 }
@@ -308,16 +336,16 @@ void build(lv_obj_t *parent) {
     buildFunnel(root, g_engineFunnel);
     buildFunnel(root, g_electricFunnel);
 
-    g_engineTag = makeLabel(root, &spacegrotesk_13_tag, Colors::kEngineText, 1, "ENGINE");
+    g_engineTag = makeLabel(root, &spacegrotesk_18_tag, Colors::kEngineText, 1, "ENGINE");
     placeOnBaseline(g_engineTag, kLeftX, kTagBaseline);
-    g_engineValue = makeLabel(root, &spacegrotesk_25_value, Colors::kText, 0, "0.0");
+    g_engineValue = makeLabel(root, &spacegrotesk_35_value, Colors::kText, 0, "0.0");
     placeOnBaseline(g_engineValue, kLeftX, kValueBaseline);
-    g_engineUnit = makeLabel(root, &spacegrotesk_12_label, Colors::kMutedText, 1, "L/100");
+    g_engineUnit = makeLabel(root, &spacegrotesk_18_unit, Colors::kMutedText, 1, "L/100");
 
-    g_electricTag = makeLabel(root, &spacegrotesk_13_tag, Colors::kAccentCyan, 1, "MOTOR");
-    g_ampsUnit = makeLabel(root, &spacegrotesk_12_label, Colors::kMutedText, 1, "A");
+    g_electricTag = makeLabel(root, &spacegrotesk_18_tag, Colors::kAccentCyan, 1, "MOTOR");
+    g_ampsUnit = makeLabel(root, &spacegrotesk_18_unit, Colors::kMutedText, 1, "A");
     placeOnBaseline(g_ampsUnit, static_cast<int16_t>(kRightX - textW(g_ampsUnit)), kValueBaseline);
-    g_ampsValue = makeLabel(root, &spacegrotesk_25_value, Colors::kText, 0, "0");
+    g_ampsValue = makeLabel(root, &spacegrotesk_35_value, Colors::kText, 0, "0");
 }
 
 void update(const VehicleState &state) {
@@ -367,6 +395,9 @@ void update(const VehicleState &state) {
     placeOnBaseline(g_engineUnit, static_cast<int16_t>(kLeftX + textW(g_engineValue) + kUnitGap),
                     kValueBaseline);
     setDimmed({g_engineTag, g_engineValue, g_engineUnit}, engine == Flow::Off && !burning);
+    int16_t engineRight = kLeftX + textW(g_engineValue) + kUnitGap + textW(g_engineUnit);
+    int16_t tagRight = kLeftX + textW(g_engineTag);
+    placeMouth(g_engineFunnel, static_cast<float>(engineRight > tagRight ? engineRight : tagRight));
 
     setText(g_electricTag, charging ? "CHARGE" : "MOTOR");
     lv_obj_set_style_text_color(g_electricTag, charging ? Colors::kChgGreen : Colors::kAccentCyan, 0);
@@ -379,6 +410,9 @@ void update(const VehicleState &state) {
                     static_cast<int16_t>(kRightX - textW(g_ampsUnit) - kUnitGap - textW(g_ampsValue)),
                     kValueBaseline);
     setDimmed({g_electricTag, g_ampsValue, g_ampsUnit}, electric == Flow::Off && amps < kIdleAmps);
+    int16_t ampsLeft = kRightX - textW(g_ampsUnit) - kUnitGap - textW(g_ampsValue);
+    int16_t tagLeft = kRightX - textW(g_electricTag);
+    placeMouth(g_electricFunnel, static_cast<float>(ampsLeft < tagLeft ? ampsLeft : tagLeft));
 }
 
 } // namespace EnergyFlowUi

@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 35 px
  * Bpp: 4
- * Opts: --font fonts_src/SpaceGrotesk-Bold.ttf --size 35 --bpp 4 --format lvgl --symbols 0123456789. -o src/ui/fonts/spacegrotesk_35_value.c --lv-font-name spacegrotesk_35_value --no-kerning
+ * Opts: --font fonts_src/SpaceGrotesk-Bold.ttf --size 35 --bpp 4 --format lvgl --symbols 0123456789.- -o src/ui/fonts/spacegrotesk_35_value.c --lv-font-name spacegrotesk_35_value --no-kerning
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -22,6 +22,10 @@
 
 /*Store the image of the glyphs*/
 static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
+    /* U+002D "-" */
+    0x0, 0xff, 0xab, 0xff, 0xfa, 0xc0, 0x3f, 0xfa,
+    0xa0,
+
     /* U+002E "." */
     0x0, 0x84, 0x80, 0x30, 0xdf, 0x6f, 0x20, 0x2,
     0xd0, 0x0, 0x36, 0x40, 0xa0, 0x1c, 0x80, 0x1f,
@@ -250,17 +254,18 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
 
 static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 0, .adv_w = 0, .box_w = 0, .box_h = 0, .ofs_x = 0, .ofs_y = 0} /* id = 0 reserved */,
-    {.bitmap_index = 0, .adv_w = 167, .box_w = 8, .box_h = 8, .ofs_x = 1, .ofs_y = -1},
-    {.bitmap_index = 28, .adv_w = 363, .box_w = 20, .box_h = 27, .ofs_x = 1, .ofs_y = -1},
-    {.bitmap_index = 195, .adv_w = 253, .box_w = 14, .box_h = 25, .ofs_x = 0, .ofs_y = 0},
-    {.bitmap_index = 261, .adv_w = 333, .box_w = 19, .box_h = 26, .ofs_x = 1, .ofs_y = 0},
-    {.bitmap_index = 417, .adv_w = 340, .box_w = 19, .box_h = 26, .ofs_x = 1, .ofs_y = -1},
-    {.bitmap_index = 566, .adv_w = 356, .box_w = 22, .box_h = 25, .ofs_x = 0, .ofs_y = 0},
-    {.bitmap_index = 685, .adv_w = 336, .box_w = 19, .box_h = 26, .ofs_x = 1, .ofs_y = -1},
-    {.bitmap_index = 825, .adv_w = 346, .box_w = 20, .box_h = 27, .ofs_x = 1, .ofs_y = -1},
-    {.bitmap_index = 1021, .adv_w = 310, .box_w = 19, .box_h = 25, .ofs_x = 0, .ofs_y = 0},
-    {.bitmap_index = 1146, .adv_w = 336, .box_w = 21, .box_h = 27, .ofs_x = 0, .ofs_y = -1},
-    {.bitmap_index = 1360, .adv_w = 346, .box_w = 19, .box_h = 27, .ofs_x = 1, .ofs_y = -1}
+    {.bitmap_index = 0, .adv_w = 242, .box_w = 11, .box_h = 5, .ofs_x = 2, .ofs_y = 7},
+    {.bitmap_index = 9, .adv_w = 167, .box_w = 8, .box_h = 8, .ofs_x = 1, .ofs_y = -1},
+    {.bitmap_index = 37, .adv_w = 363, .box_w = 20, .box_h = 27, .ofs_x = 1, .ofs_y = -1},
+    {.bitmap_index = 204, .adv_w = 253, .box_w = 14, .box_h = 25, .ofs_x = 0, .ofs_y = 0},
+    {.bitmap_index = 270, .adv_w = 333, .box_w = 19, .box_h = 26, .ofs_x = 1, .ofs_y = 0},
+    {.bitmap_index = 426, .adv_w = 340, .box_w = 19, .box_h = 26, .ofs_x = 1, .ofs_y = -1},
+    {.bitmap_index = 575, .adv_w = 356, .box_w = 22, .box_h = 25, .ofs_x = 0, .ofs_y = 0},
+    {.bitmap_index = 694, .adv_w = 336, .box_w = 19, .box_h = 26, .ofs_x = 1, .ofs_y = -1},
+    {.bitmap_index = 834, .adv_w = 346, .box_w = 20, .box_h = 27, .ofs_x = 1, .ofs_y = -1},
+    {.bitmap_index = 1030, .adv_w = 310, .box_w = 19, .box_h = 25, .ofs_x = 0, .ofs_y = 0},
+    {.bitmap_index = 1155, .adv_w = 336, .box_w = 21, .box_h = 27, .ofs_x = 0, .ofs_y = -1},
+    {.bitmap_index = 1369, .adv_w = 346, .box_w = 19, .box_h = 27, .ofs_x = 1, .ofs_y = -1}
 };
 
 /*---------------------
@@ -268,16 +273,16 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
  *--------------------*/
 
 static const uint8_t glyph_id_ofs_list_0[] = {
-    0, 0, 1, 2, 3, 4, 5, 6,
-    7, 8, 9, 10
+    0, 1, 0, 2, 3, 4, 5, 6,
+    7, 8, 9, 10, 11
 };
 
 /*Collect the unicode lists and glyph_id offsets*/
 static const lv_font_fmt_txt_cmap_t cmaps[] =
 {
     {
-        .range_start = 46, .range_length = 12, .glyph_id_start = 1,
-        .unicode_list = NULL, .glyph_id_ofs_list = glyph_id_ofs_list_0, .list_length = 12, .type = LV_FONT_FMT_TXT_CMAP_FORMAT0_FULL
+        .range_start = 45, .range_length = 13, .glyph_id_start = 1,
+        .unicode_list = NULL, .glyph_id_ofs_list = glyph_id_ofs_list_0, .list_length = 13, .type = LV_FONT_FMT_TXT_CMAP_FORMAT0_FULL
     }
 };
 

@@ -19,8 +19,8 @@
 #include <lvgl.h>
 
 // The BOOT button, the steering-wheel MODE button and a tap anywhere on the
-// panel (TouchNav -- presence-only, no coordinates/gestures) all cycle the screens: cockpit -> efficiency
-// (PWR graph) -> energy flow -> G-meter -> cockpit.
+// panel (TouchNav -- presence-only, no coordinates/gestures) all cycle the screens: cockpit -> energy
+// flow -> efficiency (PWR graph) -> G-meter -> cockpit.
 //
 // The cockpit cluster is never hidden: it sits above the other screens'
 // content and CockpitUi::setCompact() animates it between its full layout and
@@ -38,7 +38,7 @@ constexpr uint32_t kFadeDelayFromCockpitMs = 250; // let the full-size cluster c
 constexpr uint32_t kFadeDelayMs = 60;
 constexpr lv_coord_t kFadeRisePx = 6;
 
-enum Screen { ScreenCockpit = 0, ScreenEfficiency, ScreenEnergy, ScreenGMeter, ScreenCount };
+enum Screen { ScreenCockpit = 0, ScreenEnergy, ScreenEfficiency, ScreenGMeter, ScreenCount };
 lv_obj_t *g_content[ScreenCount] = {}; // ScreenCockpit has none: it is the cluster alone
 int g_active = ScreenCockpit;
 bool g_bootShown = true; // the splash was still up at the previous update()

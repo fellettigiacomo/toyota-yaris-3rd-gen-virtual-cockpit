@@ -355,15 +355,16 @@ void createCenterGroup(lv_obj_t *parent) {
 // --- Compact layout ---------------------------------------------------------
 // Every screen but the cockpit shows the centre group as a narrow column in
 // the middle and the side gauges as thin rails on the screen edges. The
-// compact glyphs are separate labels in smaller fonts; each pair travels the
-// same path and cross-fades, which reads as the number shrinking without the
-// transform layer (a full object-sized buffer) LVGL would need to scale it.
+// column keeps only the speed and the RPM/EV row: on the 640x172 panel the
+// speed is the one number that has to read at a glance, so the gear letter
+// and "KM/H" give their room up to it and just fade out. The compact glyphs
+// are separate labels in smaller fonts; each pair travels the same path and
+// cross-fades, which reads as the number shrinking without the transform
+// layer (a full object-sized buffer) LVGL would need to scale it.
 constexpr int16_t kRailW = 8;
 constexpr uint32_t kMorphMs = 450;
 
 lv_obj_t *g_speedSmall = nullptr;
-lv_obj_t *g_gearSmall = nullptr;
-lv_obj_t *g_unitsSmall = nullptr;
 lv_obj_t *g_rpmSmall = nullptr;
 
 float g_layoutK = 0.0f; // 0 = cockpit layout, 1 = compact
@@ -377,14 +378,14 @@ struct Morph {
 };
 
 const Morph kMorphs[] = {
-    {&g_speedLabel, &g_speedSmall, {0, -19}, {320, 72}, '0'},
-    {&g_gearLabel, &g_gearSmall, {-158, -4}, {320, 22}, 'D'},
+    {&g_speedLabel, &g_speedSmall, {0, -19}, {320, 74}, '0'},
+    {&g_gearLabel, nullptr, {-158, -4}, {320, 22}, 'D'},
     {&g_accelTimeLabel, nullptr, {-158, -22}, {320, 22}, '0'},
     {&g_accelThresholdLabel, nullptr, {-158, 14}, {320, 22}, '0'},
-    {&g_unitsLabel, &g_unitsSmall, {168, -4}, {320, 113}, 'K'},
-    {&g_rpmLabel, &g_rpmSmall, {0, 50}, {320, 145}, 'R'},
-    {&g_evLabel, nullptr, {0, 50}, {320, 145}, 'E'},
-    {&g_dumpLabel, nullptr, {0, 50}, {320, 145}, 'C'},
+    {&g_unitsLabel, nullptr, {168, -4}, {320, 113}, 'K'},
+    {&g_rpmLabel, &g_rpmSmall, {0, 50}, {320, 136}, 'R'},
+    {&g_evLabel, nullptr, {0, 50}, {320, 136}, 'E'},
+    {&g_dumpLabel, nullptr, {0, 50}, {320, 136}, 'C'},
 };
 
 lv_obj_t *makeCompactLabel(lv_obj_t *parent, const lv_font_t *font, lv_color_t color,
@@ -398,10 +399,8 @@ lv_obj_t *makeCompactLabel(lv_obj_t *parent, const lv_font_t *font, lv_color_t c
 }
 
 void createCompactGroup(lv_obj_t *parent) {
-    g_speedSmall = makeCompactLabel(parent, &spacegrotesk_64_speed, Colors::kText, -2, "0");
-    g_gearSmall = makeCompactLabel(parent, &spacegrotesk_20_small, Colors::kAccentCyan, 0, "P");
-    g_unitsSmall = makeCompactLabel(parent, &spacegrotesk_20_small, Colors::kAccentCyan, 1, "KM/H");
-    g_rpmSmall = makeCompactLabel(parent, &spacegrotesk_16_rpm, Colors::kEvGreen, 1, "EV");
+    g_speedSmall = makeCompactLabel(parent, &spacegrotesk_96_speed, Colors::kText, -3, "0");
+    g_rpmSmall = makeCompactLabel(parent, &spacegrotesk_20_rpm, Colors::kEvGreen, 1, "EV");
 }
 
 // Vertical distance from a label's box centre to the centre of `glyph`'s ink.
@@ -584,10 +583,7 @@ void update(const VehicleState &state) {
     lv_label_set_text(g_speedLabel, speedBuf);
     lv_label_set_text(g_speedSmall, speedBuf);
 
-    // The compact column always shows the gear: the 0-50/0-100 readout is a
-    // cockpit-only feature, and it fades out with the rest of the full layout.
     char gearBuf[2] = {gearChar(state.gear), '\0'};
-    lv_label_set_text(g_gearSmall, gearBuf);
 
     AccelTimer::Display accel = AccelTimer::getDisplay();
     if (accel.active) {

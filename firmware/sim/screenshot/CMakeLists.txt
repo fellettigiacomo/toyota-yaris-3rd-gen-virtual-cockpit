@@ -63,11 +63,10 @@ add_executable(screenshot
     ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_27_stat.c
     ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_39_accel_time.c
     ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_39_accel_label.c
-    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_64_speed.c
-    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_20_small.c
-    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_16_rpm.c
-    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_13_tag.c
-    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_25_value.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_96_speed.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_20_rpm.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_18_tag.c
+    ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_18_unit.c
     ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_35_value.c
     ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_19_value.c
     ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_12_label.c
