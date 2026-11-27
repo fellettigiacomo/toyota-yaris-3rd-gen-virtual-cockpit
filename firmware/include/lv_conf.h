@@ -46,7 +46,10 @@
 /*====================
    HAL SETTINGS
  *====================*/
-#define LV_DISP_DEF_REFR_PERIOD 33 /* ms, matches UI_SYNC_INTERVAL_MS */
+/* ms. Also the period of LVGL's animations and of the per-frame UI timers
+ * (energy-flow particles, efficiency graph scale), so they step every frame
+ * rather than at UI_SYNC_INTERVAL_MS. */
+#define LV_DISP_DEF_REFR_PERIOD 16
 #define LV_INDEV_DEF_READ_PERIOD 33
 #define LV_TICK_CUSTOM 0
 #define LV_DPI_DEF 130
@@ -55,7 +58,9 @@
  * FEATURE CONFIGURATION
  *=======================*/
 #define LV_DRAW_COMPLEX 1
-#define LV_SHADOW_CACHE_SIZE 8 /* used by the battery gauge's glow shadow */
+/* Caches the side gauges' glow shadow corner, shadow_width + radius = 10 px
+ * square: it has to be larger than that, or it is recomputed every frame. */
+#define LV_SHADOW_CACHE_SIZE 16
 #define LV_CIRCLE_CACHE_SIZE 4
 
 #define LV_LAYER_SIMPLE_BUF_SIZE (24 * 1024)
@@ -126,13 +131,11 @@
 
 #define LV_FONT_DEFAULT &lv_font_montserrat_14
 #define LV_FONT_FMT_TXT_LARGE 1
-/* Must be 1: lv_font_conv's default output is RLE-compressed
- * (`.bitmap_format = 1` in every generated src/ui/fonts/*.c) since
- * gen_fonts.sh doesn't pass --no-compress. With this at 0, LVGL's
- * decompressor isn't compiled in, every glyph silently fails to
- * decode, and (combined with LV_USE_FONT_PLACEHOLDER=1 below drawing
- * nothing for undecodable glyphs instead of a fallback box) *all* text
- * renders as blank -- this was the missing-text bug on real hardware. */
+/* gen_fonts.sh passes --no-compress, so no font here needs this; it stays on
+ * because a font generated without it (lv_font_conv's default, RLE,
+ * `.bitmap_format = 1`) would otherwise fail to decode and, with
+ * LV_USE_FONT_PLACEHOLDER=1 below drawing nothing for undecodable glyphs,
+ * render blank -- this was the missing-text bug on real hardware. */
 #define LV_USE_FONT_COMPRESSED 1
 #define LV_USE_FONT_PLACEHOLDER 1
 

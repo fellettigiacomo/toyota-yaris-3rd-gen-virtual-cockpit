@@ -196,7 +196,7 @@ struct Funnel {
 Funnel g_engineFunnel = {nullptr, 0, kEngineEndX, 0.0f, false, Flow::Off, Colors::kEngineText, 1.5f, 0.0f};
 Funnel g_electricFunnel = {nullptr, 0, kElectricEndX, 0.0f, false, Flow::Off, Colors::kAccentCyan, 1.3f, 0.0f};
 
-uint32_t g_lastUpdateMs = 0;
+uint32_t g_particleTickMs = 0;
 
 // Slow out of the mouth, fast into the speed: a stand-in for the design's
 // cubic-bezier(.4, 0, .9, 1).
@@ -266,17 +266,27 @@ void buildFunnel(lv_obj_t *parent, Funnel &f) {
     lv_obj_add_event_cb(f.obj, drawFunnel, LV_EVENT_DRAW_MAIN, &f);
 }
 
-void setFlow(Funnel &f, Flow flow, lv_color_t color, float periodS, float dtS) {
+void setFlow(Funnel &f, Flow flow, lv_color_t color, float periodS) {
     if (flow != f.flow || color.full != f.color.full) {
         f.flow = flow;
         f.color = color;
         lv_obj_invalidate(f.obj);
     }
     f.periodS = periodS;
-    if (flow == Flow::Off) return;
-    f.phase += dtS / f.periodS;
-    f.phase -= floorf(f.phase);
-    lv_obj_invalidate(f.obj);
+}
+
+// Every display refresh rather than every UI sync, so the particles move on
+// each frame the panel shows.
+void advanceParticles(lv_timer_t *) {
+    float dtS = static_cast<float>(lv_tick_elaps(g_particleTickMs)) / 1000.0f;
+    g_particleTickMs = lv_tick_get();
+    if (dtS > 0.25f) dtS = 0.25f; // a pause must not make the particles jump
+    for (Funnel *f : {&g_engineFunnel, &g_electricFunnel}) {
+        if (f->flow == Flow::Off) continue;
+        f->phase += dtS / f->periodS;
+        f->phase -= floorf(f->phase);
+        lv_obj_invalidate(f->obj);
+    }
 }
 
 lv_obj_t *makeLabel(lv_obj_t *parent, const lv_font_t *font, lv_color_t color, int16_t letterSpace,
@@ -335,6 +345,8 @@ void build(lv_obj_t *parent) {
 
     buildFunnel(root, g_engineFunnel);
     buildFunnel(root, g_electricFunnel);
+    g_particleTickMs = lv_tick_get();
+    lv_timer_create(advanceParticles, LV_DISP_DEF_REFR_PERIOD, nullptr);
 
     g_engineTag = makeLabel(root, &spacegrotesk_18_tag, Colors::kEngineText, 1, "ENGINE");
     placeOnBaseline(g_engineTag, kLeftX, kTagBaseline);
@@ -349,11 +361,6 @@ void build(lv_obj_t *parent) {
 }
 
 void update(const VehicleState &state) {
-    uint32_t nowMs = millis();
-    float dtS = (g_lastUpdateMs == 0) ? 0.0f : (nowMs - g_lastUpdateMs) / 1000.0f;
-    g_lastUpdateMs = nowMs;
-    if (dtS > 0.25f) dtS = 0.25f; // a pause must not make the particles jump
-
     FlowState f = deriveFlow(state);
 
     // Left: the engine pushes into the wheels (or into the generator, which
@@ -377,9 +384,9 @@ void update(const VehicleState &state) {
     }
     bool charging = electric == Flow::Out;
 
-    setFlow(g_engineFunnel, engine, Colors::kEngineText, 1.5f, dtS);
+    setFlow(g_engineFunnel, engine, Colors::kEngineText, 1.5f);
     setFlow(g_electricFunnel, electric, charging ? Colors::kChgGreen : Colors::kAccentCyan,
-            charging ? 1.4f : 1.3f, dtS);
+            charging ? 1.4f : 1.3f);
 
     char buf[16];
     bool burning = state.fuel_flow_mm3s > 0.0f;

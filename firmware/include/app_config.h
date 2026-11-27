@@ -35,7 +35,7 @@ constexpr int TWAI_DRIVER_TX_QUEUE_LEN = 0; // never transmit (listen-only)
 
 // --- LVGL timing ---
 constexpr uint32_t LVGL_TICK_PERIOD_MS = 5;   // lv_tick_inc() cadence (esp_timer periodic cb)
-constexpr uint32_t LVGL_TASK_DELAY_MS  = 16;  // ~60fps lv_timer_handler() loop
+constexpr uint32_t LVGL_TASK_DELAY_MS  = 16;  // longest sleep between lv_timer_handler() calls
 constexpr uint32_t UI_SYNC_INTERVAL_MS = 33;  // VehicleState -> widget push rate (~30Hz)
 
 // --- Serial control commands ---

@@ -4,9 +4,12 @@
 #include "hybrid_stats.h"
 #include "pwr_history.h"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+
+#include "src/draw/sw/lv_draw_sw.h"
 
 namespace EfficiencyUi {
 
@@ -37,13 +40,12 @@ constexpr int16_t kValueBaseline[2] = {66, 140};
 // session's peak (after smoothing) is scaled up to kGraphTop, and the scale
 // eases towards a new peak over a few tenths of a second instead of jumping.
 // kMinScalePct keeps an almost-idle drive from blowing noise up to full height.
-constexpr int16_t kGraphTop = 4;    // inside the graph object, which leaves room for the caps
+constexpr int16_t kGraphTop = 4;    // inside the graph object, which leaves room for the line's width
 constexpr int16_t kGraphBase = 104; // y of a zero reading, inside the graph object
-constexpr int16_t kLineW = 2;
+constexpr float kLineHalfW = 1.0f;
 constexpr float kMinScalePct = 10.0f;
-constexpr float kScaleEase = 0.25f;      // share of the gap to the target closed per UI tick
+constexpr float kScaleEaseTauMs = 115.0f;
 constexpr float kScaleSettlePct = 0.2f;  // close enough: stop animating
-constexpr uint32_t kAnimRedrawMs = 100;  // redraw cap while the scale is moving
 
 // The area under the line fades from kFillOpa at the plot's top to nothing at
 // the zero line, tied to the plot's height rather than each column's, so the
@@ -92,10 +94,15 @@ bool g_ev[kMaxPoints];
 int g_count = 0;          // points prepared by update(), read by drawGraph()
 float g_peakPct = 0.0f;   // max of g_smooth
 float g_yScale = kMinScalePct; // pct that maps to kGraphTop, eased towards the peak
-float g_drawnScale = 0.0f;
-uint32_t g_lastAnimRedrawMs = 0;
-lv_coord_t g_colY[kGraphW]; // curve y per pixel column, for the two drawing passes
+float g_scaleTarget = kMinScalePct;
+bool g_scaleEasing = false;
+uint32_t g_scaleTickMs = 0;
+lv_timer_t *g_scaleTimer = nullptr;
+
+float g_colY[kGraphW]; // curve y per pixel column, in sub-pixels from the graph's top
 bool g_colEv[kGraphW];
+lv_opa_t g_fillOpa[kGraphH]; // fill alpha per row, see kFillOpa
+lv_opa_t g_colMask[kGraphH];
 
 bool electric(const PwrHistory::Bucket &b) {
     return b.evPct >= 50;
@@ -141,11 +148,61 @@ float curveAt(float u, int count) {
     return v;
 }
 
-lv_coord_t yOf(const lv_area_t &origin, float pct) {
+float yOf(float pct) {
     float h = pct / g_yScale;
     if (h > 1.0f) h = 1.0f; // the scale is still easing up to a new peak
-    return static_cast<lv_coord_t>(origin.y1 + kGraphBase -
-                                   h * static_cast<float>(kGraphBase - kGraphTop) + 0.5f);
+    return static_cast<float>(kGraphBase) - h * static_cast<float>(kGraphBase - kGraphTop);
+}
+
+float clamp01(float v) {
+    return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v);
+}
+
+// Distance from (px, py) to the segment from (ax, ay) to (ax + 1, by).
+float distToStep(float px, float py, float ax, float ay, float by) {
+    float dy = by - ay;
+    float t = clamp01(((px - ax) + (py - ay) * dy) / (1.0f + dy * dy));
+    float ex = ax + t - px;
+    float ey = ay + t * dy - py;
+    return sqrtf(ex * ex + ey * ey);
+}
+
+// Same fade lv_draw_mask_fade would apply, from kFillOpa at kGraphTop down to
+// nothing at kGraphBase.
+void buildFillOpa() {
+    for (int r = 0; r < kGraphH; r++) {
+        int fade;
+        if (r <= kGraphTop) {
+            fade = LV_OPA_COVER;
+        } else if (r >= kGraphBase) {
+            fade = LV_OPA_TRANSP;
+        } else {
+            fade = LV_OPA_COVER - (r - kGraphTop) * LV_OPA_COVER / (kGraphBase - kGraphTop + 1);
+        }
+        g_fillOpa[r] = static_cast<lv_opa_t>(kFillOpa * fade / LV_OPA_COVER);
+    }
+}
+
+void easeScale(lv_timer_t *) {
+    float elapsedMs = static_cast<float>(lv_tick_elaps(g_scaleTickMs));
+    g_scaleTickMs = lv_tick_get();
+    float gap = g_scaleTarget - g_yScale;
+    if (fabsf(gap) <= kScaleSettlePct) {
+        g_yScale = g_scaleTarget;
+        g_scaleEasing = false;
+        lv_timer_pause(g_scaleTimer);
+    } else {
+        g_yScale += gap * (1.0f - expf(-elapsedMs / kScaleEaseTauMs));
+    }
+    lv_obj_invalidate(g_graph);
+}
+
+void setScaleTarget(float target) {
+    g_scaleTarget = target;
+    if (g_scaleEasing || target == g_yScale) return;
+    g_scaleEasing = true;
+    g_scaleTickMs = lv_tick_get();
+    lv_timer_resume(g_scaleTimer);
 }
 
 // Snapshot the history into g_smooth/g_ev and find the peak the vertical
@@ -168,12 +225,14 @@ void prepare() {
 }
 
 // The points are spread over the full width, first point on the left edge and
-// newest on the right. Every pixel column gets its curve value; the fill
-// columns go down first, under a fade mask spanning the plot, then the line
-// over them as 1px segments between neighbouring columns (a second pass, so
-// no fill column covers stroke that spills past its own column). Each segment
-// takes the nearest point's drive mode, so green/white still switch sharply
-// where the mode did. Round caps close the joints between segments.
+// newest on the right. Every pixel column gets its curve value and the nearest
+// point's drive mode, so green/white still switch sharply where the mode did.
+//
+// Each column is then one alpha mask -- the line's anti-aliased coverage (its
+// distance to the polyline through the neighbouring columns) over the faded
+// fill -- blended in a single call. Drawn with LVGL's line and rect
+// primitives instead, it took a masked call per pixel row and two round caps
+// per segment, which on the ESP32 cost more than the rest of the frame.
 void drawGraph(lv_event_t *e) {
     lv_obj_t *obj = lv_event_get_target(e);
     lv_draw_ctx_t *ctx = lv_event_get_draw_ctx(e);
@@ -190,41 +249,47 @@ void drawGraph(lv_event_t *e) {
         int nearest = static_cast<int>(u + 0.5f);
         if (nearest > count - 1) nearest = count - 1;
         g_colEv[x] = g_ev[nearest];
-        g_colY[x] = yOf(origin, curveAt(u, count));
+        g_colY[x] = yOf(curveAt(u, count));
     }
 
-    lv_coord_t top = static_cast<lv_coord_t>(origin.y1 + kGraphTop);
-    lv_coord_t base = static_cast<lv_coord_t>(origin.y1 + kGraphBase);
-    lv_area_t plot = {origin.x1, top, origin.x2, base};
-    lv_draw_mask_fade_param_t fade;
-    lv_draw_mask_fade_init(&fade, &plot, LV_OPA_COVER, top, LV_OPA_TRANSP, base);
-    int16_t fadeId = lv_draw_mask_add(&fade, nullptr);
+    lv_draw_sw_blend_dsc_t blend;
+    lv_memset_00(&blend, sizeof(blend));
+    blend.mask_buf = g_colMask;
+    blend.mask_res = LV_DRAW_MASK_RES_CHANGED;
+    blend.opa = opa;
+    blend.blend_mode = LV_BLEND_MODE_NORMAL;
 
-    lv_draw_rect_dsc_t fill;
-    lv_draw_rect_dsc_init(&fill);
-    fill.bg_opa = static_cast<lv_opa_t>(kFillOpa * opa / LV_OPA_COVER);
     for (int x = 0; x < kGraphW; x++) {
-        if (g_colY[x] >= base) continue; // nothing under a zero reading
-        lv_area_t col = {static_cast<lv_coord_t>(origin.x1 + x), g_colY[x],
-                         static_cast<lv_coord_t>(origin.x1 + x), base};
-        fill.bg_color = colorFor(g_colEv[x]);
-        lv_draw_rect(ctx, &fill, &col);
-    }
+        float cx = static_cast<float>(x) + 0.5f;
+        float y = g_colY[x];
+        float yPrev = g_colY[x > 0 ? x - 1 : x];
+        float yNext = g_colY[x < kGraphW - 1 ? x + 1 : x];
+        float lineTop = fminf(y, fminf(yPrev, yNext)) - kLineHalfW - 1.0f;
+        float lineBottom = fmaxf(y, fmaxf(yPrev, yNext)) + kLineHalfW + 1.0f;
 
-    lv_draw_mask_free_param(&fade);
-    lv_draw_mask_remove_id(fadeId);
+        int r0 = static_cast<int>(floorf(lineTop));
+        if (r0 < 0) r0 = 0;
+        int r1 = static_cast<int>(ceilf(lineBottom));
+        if (r1 < kGraphBase - 1) r1 = kGraphBase - 1;
+        if (r1 > kGraphH - 1) r1 = kGraphH - 1;
 
-    lv_draw_line_dsc_t line;
-    lv_draw_line_dsc_init(&line);
-    line.width = kLineW;
-    line.round_start = 1;
-    line.round_end = 1;
-    line.opa = opa;
-    for (int x = 1; x < kGraphW; x++) {
-        lv_point_t a = {static_cast<lv_coord_t>(origin.x1 + x - 1), g_colY[x - 1]};
-        lv_point_t b = {static_cast<lv_coord_t>(origin.x1 + x), g_colY[x]};
-        line.color = colorFor(g_colEv[x]);
-        lv_draw_line(ctx, &line, &a, &b);
+        for (int r = r0; r <= r1; r++) {
+            float py = static_cast<float>(r) + 0.5f;
+            float line = 0.0f;
+            if (py >= lineTop && py <= lineBottom) {
+                float d = fminf(distToStep(cx, py, cx - 1.0f, yPrev, y), distToStep(cx, py, cx, y, yNext));
+                line = clamp01(kLineHalfW + 0.5f - d);
+            }
+            float fill = clamp01(static_cast<float>(r + 1) - y) * g_fillOpa[r];
+            g_colMask[r - r0] = static_cast<lv_opa_t>(line * 255.0f + fill * (1.0f - line) + 0.5f);
+        }
+
+        lv_coord_t ax = static_cast<lv_coord_t>(origin.x1 + x);
+        lv_area_t area = {ax, static_cast<lv_coord_t>(origin.y1 + r0), ax, static_cast<lv_coord_t>(origin.y1 + r1)};
+        blend.blend_area = &area;
+        blend.mask_area = &area;
+        blend.color = colorFor(g_colEv[x]);
+        lv_draw_sw_blend(ctx, &blend);
     }
 }
 
@@ -250,6 +315,9 @@ void build(lv_obj_t *parent) {
     lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_clear_flag(g_graph, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_event_cb(g_graph, drawGraph, LV_EVENT_DRAW_MAIN, nullptr);
+    buildFillOpa();
+    g_scaleTimer = lv_timer_create(easeScale, LV_DISP_DEF_REFR_PERIOD, nullptr);
+    lv_timer_pause(g_scaleTimer);
 
     for (int i = 0; i < StatCount; i++) {
         int16_t x = kStatX[i % 2];
@@ -287,23 +355,9 @@ void update(const VehicleState &state) {
         g_drawnRevision = PwrHistory::revision();
         g_drawnOpen = openBucket;
         prepare();
-    }
-
-    float target = g_peakPct > kMinScalePct ? g_peakPct : kMinScalePct;
-    float gap = target - g_yScale;
-    bool animating = gap > kScaleSettlePct || gap < -kScaleSettlePct;
-    g_yScale = animating ? g_yScale + gap * kScaleEase : target;
-
-    // While easing, redraws are capped at kAnimRedrawMs; the step that
-    // settles on the target always gets one, so the last frame is exact.
-    uint32_t nowMs = lv_tick_get();
-    bool scaleMoved = g_yScale != g_drawnScale;
-    if (dataChanged ||
-        (scaleMoved && (!animating || nowMs - g_lastAnimRedrawMs >= kAnimRedrawMs))) {
-        g_drawnScale = g_yScale;
-        g_lastAnimRedrawMs = nowMs;
         lv_obj_invalidate(g_graph);
     }
+    setScaleTarget(g_peakPct > kMinScalePct ? g_peakPct : kMinScalePct);
 
     HybridStats::Snapshot s = HybridStats::getSnapshot();
 

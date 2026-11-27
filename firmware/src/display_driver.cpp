@@ -42,11 +42,10 @@
 // The fix, matching Waveshare's own official example byte-for-byte:
 // `full_refresh=1` (LVGL always hands the flush callback the complete
 // frame) and drive the panel in its native 172(w)x640(h) portrait
-// orientation, rotating the full landscape frame into a native-orientation
-// scratch buffer in software before streaming it out in fixed-size DMA
-// chunks -- there is no working hardware-rotation path for this panel on
-// this board revision (Waveshare's own comment for this: "软件实现旋转",
-// "software-implemented rotation").
+// orientation, rotating the landscape frame in software while streaming it
+// out in fixed-size DMA chunks -- there is no working hardware-rotation path
+// for this panel on this board revision (Waveshare's own comment for this:
+// "软件实现旋转", "software-implemented rotation").
 namespace {
 
 // --- Native (physical) vs logical (LVGL/UI) orientation ---
@@ -64,8 +63,7 @@ constexpr size_t kFullFrameBytes = static_cast<size_t>(kLogicalW) * kLogicalH * 
 esp_lcd_panel_handle_t g_panel = nullptr;
 SemaphoreHandle_t g_flushSem = nullptr;
 
-uint16_t *g_dmaChunkBuf = nullptr;    // small, MALLOC_CAP_DMA, internal RAM
-uint16_t *g_nativeFrameBuf = nullptr; // full native-orientation frame, PSRAM scratch
+uint16_t *g_dmaChunkBuf = nullptr; // small, MALLOC_CAP_DMA, internal RAM
 
 lv_disp_draw_buf_t g_drawBuf;
 lv_disp_drv_t g_dispDrv;
@@ -80,14 +78,19 @@ bool IRAM_ATTR onColorTransDone(esp_lcd_panel_io_handle_t, esp_lcd_panel_io_even
     return taskWoken == pdTRUE;
 }
 
-// Rotates the full LVGL landscape frame (kLogicalW x kLogicalH) into the
-// panel's native portrait orientation (kNativeW x kNativeH), pixel-for-pixel
-// identical to Waveshare's own transpose (see the file header comment).
-void rotateToNative(const uint16_t *landscape, uint16_t *native) {
-    uint32_t index = 0;
-    for (int j = 0; j < kLogicalW; j++) {
-        for (int i = 0; i < kLogicalH; i++) {
-            native[index++] = landscape[kLogicalW * (kLogicalH - i - 1) + j];
+// Fills one DMA chunk (kChunkRows native rows, i.e. kChunkRows landscape
+// columns) of the panel's native portrait frame, pixel for pixel the transpose
+// Waveshare's example does over the whole frame. The reads run along landscape
+// rows on purpose: the frame is in PSRAM behind a 32 KB, 8-way, 32 B-line
+// cache, and walking it a column at a time (1280 B stride) lands every read
+// in the same 16 sets, so each one is a cache miss.
+void rotateChunk(const uint16_t *landscape, int chunk, uint16_t *native) {
+    const int col0 = chunk * kChunkRows;
+    for (int i = 0; i < kNativeW; i++) {
+        const uint16_t *src = landscape + kLogicalW * (kLogicalH - 1 - i) + col0;
+        uint16_t *dst = native + i;
+        for (int k = 0; k < kChunkRows; k++) {
+            dst[k * kNativeW] = src[k];
         }
     }
 }
@@ -96,20 +99,13 @@ void dispFlush(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p) 
     // full_refresh=1 guarantees area always covers the whole screen and
     // color_p always holds the complete current frame.
     (void)area;
-    rotateToNative(reinterpret_cast<const uint16_t *>(color_p), g_nativeFrameBuf);
-
-    int offsetY1 = 0;
-    int offsetY2 = kChunkRows;
-    const uint16_t *src = g_nativeFrameBuf;
+    const uint16_t *frame = reinterpret_cast<const uint16_t *>(color_p);
 
     xSemaphoreGive(g_flushSem); // prime the first iteration
     for (int i = 0; i < kChunkCount; i++) {
         xSemaphoreTake(g_flushSem, portMAX_DELAY);
-        memcpy(g_dmaChunkBuf, src, kDmaChunkBytes);
-        esp_lcd_panel_draw_bitmap(g_panel, 0, offsetY1, kNativeW, offsetY2, g_dmaChunkBuf);
-        offsetY1 += kChunkRows;
-        offsetY2 += kChunkRows;
-        src += kNativeW * kChunkRows;
+        rotateChunk(frame, i, g_dmaChunkBuf);
+        esp_lcd_panel_draw_bitmap(g_panel, 0, i * kChunkRows, kNativeW, (i + 1) * kChunkRows, g_dmaChunkBuf);
     }
     xSemaphoreTake(g_flushSem, portMAX_DELAY); // wait for the last chunk to finish
     lv_disp_flush_ready(disp);
@@ -213,10 +209,9 @@ void initPanel() {
 void initLvgl() {
 
     g_dmaChunkBuf = static_cast<uint16_t *>(heap_caps_malloc(kDmaChunkBytes, MALLOC_CAP_DMA));
-    g_nativeFrameBuf = static_cast<uint16_t *>(heap_caps_malloc(kFullFrameBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     g_buf1 = static_cast<lv_color_t *>(heap_caps_malloc(kFullFrameBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
     g_buf2 = static_cast<lv_color_t *>(heap_caps_malloc(kFullFrameBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
-    if (g_dmaChunkBuf == nullptr || g_nativeFrameBuf == nullptr || g_buf1 == nullptr || g_buf2 == nullptr) {
+    if (g_dmaChunkBuf == nullptr || g_buf1 == nullptr || g_buf2 == nullptr) {
         Serial.println("[display_driver] FATAL: display buffer allocation failed");
         while (true) {
             delay(1000);
@@ -256,7 +251,7 @@ void lvglTask(void *) {
 
     uint32_t lastSyncMs = 0;
     for (;;) {
-        lv_timer_handler();
+        uint32_t idleMs = lv_timer_handler();
 
         uint32_t nowMs = millis();
         if (nowMs - lastSyncMs >= UI_SYNC_INTERVAL_MS) {
@@ -265,7 +260,12 @@ void lvglTask(void *) {
             AppUi::update(state);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(LVGL_TASK_DELAY_MS));
+        // Sleep only until LVGL's next timer is due, so a long frame is not
+        // followed by a fixed pause; at least one tick, so the idle task (and
+        // the task watchdog it feeds) gets to run.
+        if (idleMs < 1) idleMs = 1;
+        if (idleMs > LVGL_TASK_DELAY_MS) idleMs = LVGL_TASK_DELAY_MS;
+        vTaskDelay(pdMS_TO_TICKS(idleMs));
     }
 }
 

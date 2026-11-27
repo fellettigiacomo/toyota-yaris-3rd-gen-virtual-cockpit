@@ -10,10 +10,12 @@ MEDIUM=fonts_src/SpaceGrotesk-Medium.ttf
 SEMIBOLD=fonts_src/SpaceGrotesk-SemiBold.ttf
 BOLD=fonts_src/SpaceGrotesk-Bold.ttf
 
+# --no-compress: with full_refresh every glyph on screen is drawn again each
+# frame, and decompressing RLE glyphs was about a third of a frame's CPU time.
 gen() {
   local font="$1" name="$2" size="$3" symbols="$4"
   npx --yes lv_font_conv --font "$font" --size "$size" --bpp 4 --format lvgl \
-    --symbols "$symbols" -o "src/ui/fonts/${name}.c" --lv-font-name "$name" --no-kerning
+    --symbols "$symbols" -o "src/ui/fonts/${name}.c" --lv-font-name "$name" --no-kerning --no-compress
 }
 
 CAPS=ABCDEFGHIJKLMNOPQRSTUVWXYZ
