@@ -125,10 +125,11 @@ void build() {
 }
 
 void update(const VehicleState &state) {
-    // All three must run unconditionally (not short-circuited) -- each is its
-    // own debouncer sampling live hardware state, and skipping a poll on one
-    // input just because another already fired would let its raw-state
-    // timing drift.
+    // Both pollers must run unconditionally (not short-circuited) -- each is
+    // its own debouncer sampling live hardware state, and skipping a poll on
+    // one input just because the other already fired would let its raw-state
+    // timing drift. Steering presses are debounced in their own task and only
+    // collected here.
     bool bootPressed = ScreenNav::pressed();
     bool tapped = TouchNav::pressed();
     bool modePressed = SteeringButtons::pressed() == SteeringButtons::Button::Mode;

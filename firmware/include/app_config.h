@@ -49,3 +49,12 @@ constexpr int CORE_USB_DUMP = 1;
 constexpr uint32_t STACK_SIZE_USB_DUMP = 4096;
 constexpr int USB_DUMP_QUEUE_LEN = 1024;               // x 32 B = 32 KB of RAM
 constexpr uint32_t USB_DUMP_STALL_TIMEOUT_MS = 2000;   // nobody reading for this long -> stop
+
+// Steering-wheel buttons (steering_buttons.cpp). Sampled from their own task
+// rather than the UI loop: an LVGL frame during a screen transition can run
+// long enough to swallow a whole short press. Above LVGL on its core, so a
+// slow frame can't delay a sample; each one is a few ADC reads, then sleep.
+constexpr int TASK_PRIO_STEERING = TASK_PRIO_LVGL + 1;
+constexpr int CORE_STEERING = CORE_LVGL;
+constexpr uint32_t STACK_SIZE_STEERING = 3072;
+constexpr uint32_t STEERING_SAMPLE_PERIOD_MS = 10;

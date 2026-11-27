@@ -13,14 +13,20 @@
 //
 // MODE shorts SW2 to SWG (~0 V). On Hook / Off Hook go through resistors
 // (both measured below ~1 V on this car), and a fixed resistor across the
-// pad keeps the idle level high. The pull-up must be external: analogRead
-// puts the pin in analog mode, which disconnects the internal pull-up.
+// pad keeps the idle level high. The 10k must be external: the internal
+// pull-up (~45k) alone would pull the phone buttons down near MODE's level.
+// begin() still enables it, so a board without this mod idles instead of
+// reading a floating pin as random presses.
 namespace SteeringButtons {
 
 enum class Button { None, Mode, Other };
 
-// Returns a button exactly once per debounced press, None otherwise --
-// call every loop tick.
+// Claims the pin for the ADC, re-enables its internal pull-up (ADC setup
+// turns it off) and starts the sampling task. Call once at startup.
+void begin();
+
+// Returns the oldest debounced press not yet taken, None if there is none.
+// Safe to call from any task, at any rate: presses queue up in between.
 Button pressed();
 
 } // namespace SteeringButtons

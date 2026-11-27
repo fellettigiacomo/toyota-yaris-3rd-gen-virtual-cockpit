@@ -4,6 +4,7 @@
 #include "can_decoder.h"
 #include "ui/app_ui.h"
 #include "screen_nav.h"
+#include "steering_buttons.h"
 #include "touch_nav.h"
 #include "g_meter.h"
 #include "axs15231b/esp_lcd_axs15231b.h"
@@ -248,6 +249,7 @@ void lvglTask(void *) {
     initPanel();
     initLvgl();
     ScreenNav::begin();
+    SteeringButtons::begin();
     TouchNav::begin(); // after initPanel(): touch die shares the panel's reset line
     GMeter::begin();   // brings up the IMU; from this task only, so the sensor bus has one owner
     AppUi::build();

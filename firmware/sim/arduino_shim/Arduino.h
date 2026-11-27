@@ -1,11 +1,11 @@
 #pragma once
 
 // Minimal stand-in for the handful of Arduino symbols can_decoder.cpp's
-// DEMO_FAKE_DATA branch, screen_nav.cpp and steering_buttons.cpp need
-// (millis(), Serial.println/printf, pinMode/digitalRead,
-// analogReadMilliVolts) -- just enough to compile those files unmodified
-// against a desktop toolchain. Put this directory ahead of the real project
-// headers on the include path so `#include <Arduino.h>` resolves here instead.
+// DEMO_FAKE_DATA branch and screen_nav.cpp need (millis(),
+// Serial.println/printf, pinMode/digitalRead) -- just enough to compile
+// those files unmodified against a desktop toolchain. Put this directory
+// ahead of the real project headers on the include path so
+// `#include <Arduino.h>` resolves here instead.
 
 #include <chrono>
 #include <cstdarg>
@@ -41,7 +41,3 @@ constexpr int HIGH = 1;
 
 inline void pinMode(int, int) {}
 inline int digitalRead(int) { return g_simButtonHeld ? LOW : HIGH; }
-
-// steering_buttons.cpp reads the SW2 line by voltage; on the desktop it
-// stays at the idle level, so no steering button is ever pressed.
-inline uint32_t analogReadMilliVolts(int) { return 3300; }

@@ -36,7 +36,6 @@ add_executable(screenshot
     screenshot.cpp
     ${PROJECT_ROOT}/src/g_meter.cpp
     ${PROJECT_ROOT}/src/screen_nav.cpp
-    ${PROJECT_ROOT}/src/steering_buttons.cpp
     ${PROJECT_ROOT}/src/touch_nav.cpp
     ${PROJECT_ROOT}/src/hybrid_stats.cpp
     ${PROJECT_ROOT}/src/pwr_history.cpp
@@ -50,6 +49,7 @@ add_executable(screenshot
     ${PROJECT_ROOT}/src/ui/summary_ui.cpp
     ${PROJECT_ROOT}/src/ui/boot_ui.cpp
     ${PROJECT_ROOT}/sim/usb_dump_sim.cpp
+    ${PROJECT_ROOT}/sim/steering_buttons_sim.cpp
     ${PROJECT_ROOT}/src/ui/boot_images.c
     ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_106_speed.c
     ${PROJECT_ROOT}/src/ui/fonts/spacegrotesk_13_pct.c

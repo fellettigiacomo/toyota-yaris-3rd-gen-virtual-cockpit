@@ -1,26 +1,30 @@
 #include "steering_buttons.h"
+#include "app_config.h"
 #include "board_pins.h"
 
 #include <Arduino.h>
+#include <driver/gpio.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+#include <freertos/task.h>
 
 namespace SteeringButtons {
 
 namespace {
 
-constexpr int kSamples = 8;
+constexpr int kAdcSamples = 8;
 constexpr uint32_t kModeMaxMv = 300;
 // TODO: split Other into On Hook / Off Hook once their levels are logged.
 constexpr uint32_t kReleasedMinMv = 1500;
-constexpr uint32_t kDebounceMs = 30;
+constexpr int kStableSamples = 3; // x STEERING_SAMPLE_PERIOD_MS of debounce
+constexpr int kPressQueueLen = 4;
 
-Button g_raw = Button::None;
-Button g_stable = Button::None;
-uint32_t g_lastChangeMs = 0;
+QueueHandle_t g_presses = nullptr;
 
 uint32_t readMv() {
     uint32_t sum = 0;
-    for (int i = 0; i < kSamples; i++) sum += analogReadMilliVolts(PIN_STEERING_SW2);
-    return sum / kSamples;
+    for (int i = 0; i < kAdcSamples; i++) sum += analogReadMilliVolts(PIN_STEERING_SW2);
+    return sum / kAdcSamples;
 }
 
 Button classify(uint32_t mv) {
@@ -33,24 +37,50 @@ const char *name(Button button) {
     return button == Button::Mode ? "MODE" : "other";
 }
 
+void samplingTask(void *) {
+    Button stable = Button::None;
+    Button candidate = Button::None;
+    int candidateCount = 0;
+    TickType_t lastWake = xTaskGetTickCount();
+
+    for (;;) {
+        uint32_t mv = readMv();
+        Button raw = classify(mv);
+
+        if (raw == candidate) {
+            if (candidateCount < kStableSamples) candidateCount++;
+        } else {
+            candidate = raw;
+            candidateCount = 1;
+        }
+
+        if (candidateCount >= kStableSamples && candidate != stable) {
+            stable = candidate;
+            if (stable != Button::None) {
+                Serial.printf("steering: %s (%u mV)\n", name(stable), static_cast<unsigned>(mv));
+                xQueueSend(g_presses, &stable, 0);
+            }
+        }
+
+        vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(STEERING_SAMPLE_PERIOD_MS));
+    }
+}
+
 } // namespace
 
+void begin() {
+    analogReadMilliVolts(PIN_STEERING_SW2);
+    gpio_pullup_en(static_cast<gpio_num_t>(PIN_STEERING_SW2));
+
+    g_presses = xQueueCreate(kPressQueueLen, sizeof(Button));
+    xTaskCreatePinnedToCore(samplingTask, "steering", STACK_SIZE_STEERING, nullptr,
+                            TASK_PRIO_STEERING, nullptr, CORE_STEERING);
+}
+
 Button pressed() {
-    uint32_t mv = readMv();
-    Button raw = classify(mv);
-    uint32_t nowMs = millis();
-
-    if (raw != g_raw) {
-        g_raw = raw;
-        g_lastChangeMs = nowMs;
-    }
-    if (g_raw == g_stable || (nowMs - g_lastChangeMs) < kDebounceMs) return Button::None;
-
-    g_stable = g_raw;
-    if (g_stable == Button::None) return Button::None;
-
-    Serial.printf("steering: %s (%u mV)\n", name(g_stable), static_cast<unsigned>(mv));
-    return g_stable;
+    Button button = Button::None;
+    if (g_presses) xQueueReceive(g_presses, &button, 0);
+    return button;
 }
 
 } // namespace SteeringButtons
